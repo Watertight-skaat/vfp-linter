@@ -15,11 +15,22 @@
 	],
 	"main": "./client/out/extension",
 	"contributes": {
-		"languages": [{
-			"id": "foxpro",
-			"aliases": ["Visual FoxPro", "vfp"],
-			"extensions": [".prg", ".mpr", ".spr", ".h", ".fxp"]
-		}],
+		"languages": [
+			{
+				"id": "foxpro",
+				"aliases": [
+					"Visual FoxPro",
+					"vfp"
+				],
+				"extensions": [
+					".prg",
+					".mpr",
+					".spr",
+					".h",
+					".fxp"
+				]
+			}
+		],
 		"configuration": {
 			"type": "object",
 			"title": "Example configuration",
@@ -45,10 +56,14 @@
 		}
 	},
 	"scripts": {
-		"build:parser": "npx peggy -o server/src/parser.js server/src/foxpro.pegjs --dts",
 		"vscode:prepublish": "npm run compile",
-		"compile": "npm run build:parser && tsc -b",
+		"compile": "npm run build:parser && tsc -b && npm run copy-js",
+		"dev": "concurrently \"npm run watch:parser\" \"npm run watch:copy\"",
+		"build:parser": "npx peggy -o server/src/parser.js server/src/foxpro.pegjs --format es --dts",
+		"watch:parser": "npx peggy -o server/src/parser.js server/src/foxpro.pegjs --format es --dts -w",
 		"watch": "tsc -b -w",
+		"watch:copy": "node ./scripts/copy-src-watch.js",
+		"copy-js": "node ./scripts/copy-src-js.js",
 		"lint": "eslint",
 		"postinstall": "cd client && npm install && cd ../server && npm install && cd ..",
 		"test": "sh ./scripts/e2e.sh"
@@ -58,6 +73,7 @@
 		"@stylistic/eslint-plugin": "^2.9.0",
 		"@types/mocha": "^10.0.6",
 		"@types/node": "^22",
+		"concurrently": "^9.2.1",
 		"eslint": "^9.13.0",
 		"mocha": "^10.3.0",
 		"typescript": "^5.9.2",

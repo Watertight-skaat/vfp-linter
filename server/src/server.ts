@@ -80,36 +80,6 @@ interface ExampleSettings {
 // Cache the settings of all open documents
 const documentSettings = new Map<string, Thenable<ExampleSettings>>();
 
-// connection.onDidChangeConfiguration(change => {
-// 	if (hasConfigurationCapability) {
-// 		// Reset all cached document settings
-// 		documentSettings.clear();
-// 	} else {
-// 		globalSettings = (
-// 			(change.settings.languageServerExample || defaultSettings)
-// 		);
-// 	}
-// 	// Refresh the diagnostics since the `maxNumberOfProblems` could have changed.
-// 	// We could optimize things here and re-fetch the setting first can compare it
-// 	// to the existing setting, but this is out of scope for this example.
-// 	connection.languages.diagnostics.refresh();
-// });
-
-// function getDocumentSettings(resource: string): Thenable<ExampleSettings> {
-// 	if (!hasConfigurationCapability) {
-// 		return Promise.resolve(globalSettings);
-// 	}
-// 	let result = documentSettings.get(resource);
-// 	if (!result) {
-// 		result = connection.workspace.getConfiguration({
-// 			scopeUri: resource,
-// 			section: 'languageServerExample'
-// 		});
-// 		documentSettings.set(resource, result);
-// 	}
-// 	return result;
-// }
-
 // Only keep settings for open documents
 documents.onDidClose(e => {
 	documentSettings.delete(e.document.uri);
@@ -136,26 +106,25 @@ connection.languages.diagnostics.on(async (params) => {
 // The content of a text document has changed. This event is emitted
 // when the text document first opened or when its content has changed.
 documents.onDidChangeContent(change => {
-	validateTextDocument(change.document);
+	const diagnostics = validateTextDocument(change.document);
+	// Send the computed diagnostics to VSCode.
+	connection.sendDiagnostics({ uri: change.document.uri, diagnostics });
 });
 
-async function validateTextDocument(textDocument: TextDocument): Promise<Diagnostic[]> {
+function validateTextDocument(textDocument: TextDocument): Diagnostic[] {
 	// const settings = await getDocumentSettings(textDocument.uri);
 	const diagnostics: Diagnostic[] = [];
 	const text = textDocument.getText();
-
+	console.log(`Validating document: ${textDocument.uri}`);
+	
 	try {
-		// Step 1: Try to parse the document text into an AST.
 		const ast = parse(text);
-
-		// Step 2: If parsing succeeds, run our custom linter rules on the AST.
 		const linterRules = runLinterRules(ast);
 		diagnostics.push(...linterRules);
-
 	} catch (error: any) {
 		// Step 3: If parsing fails, Peggy.js gives us a syntax error.
 		// This is our most basic linting diagnostic!
-		if (error.location) {
+		if (error?.location) {
 			const diagnostic: Diagnostic = {
 				severity: DiagnosticSeverity.Error,
 				range: {
@@ -166,24 +135,38 @@ async function validateTextDocument(textDocument: TextDocument): Promise<Diagnos
 				source: 'VFP Linter (Syntax)'
 			};
 			diagnostics.push(diagnostic);
+		} else {
+			console.log(error);
+			const diagnostic: Diagnostic = {
+				severity: DiagnosticSeverity.Error,
+				range: {
+					start: { line: 0, character: 0 },
+					end: { line: 0, character: 1 }
+				},
+				message: "Error while linting: " + error,
+				source: 'VFP Linter (Syntax)'
+			};
+			diagnostics.push(diagnostic);
 		}
+		console.log(diagnostics);
 	}
 	return diagnostics;
 }
 
 // This function walks the AST and checks for custom rules.
-function runLinterRules(ast: any): Diagnostic[] {
+interface AstNode { type: string; name?: string; location?: { start: { line: number; column: number }; end: { line: number; column: number } }; [k: string]: unknown; }
+interface ProgramAst { body?: AstNode[] }
+function runLinterRules(ast: ProgramAst): Diagnostic[] {
 	const problems: Diagnostic[] = [];
-
 	// Our custom rule: Variable names must be longer than 3 characters.
 	if (ast.body) {
 		for (const node of ast.body) {
-			if (node.type === 'LocalDeclaration' && node.name.length <= 3) {
+			if (node.type === 'LocalDeclaration' && typeof node.name === 'string' && node.name.length <= 3) {
 				const diagnostic: Diagnostic = {
 					severity: DiagnosticSeverity.Warning,
 					range: {
-						start: { line: node.location.start.line - 1, character: node.location.start.column - 1 },
-						end: { line: node.location.end.line - 1, character: node.location.end.column - 1 }
+						start: { line: (node.location?.start.line ?? 1) - 1, character: (node.location?.start.column ?? 1) - 1 },
+						end: { line: (node.location?.end.line ?? 1) - 1, character: (node.location?.end.column ?? 2) - 1 }
 					},
 					message: `Variable name '${node.name}' is too short. (Must be > 3 chars)`,
 					source: 'VFP Linter (Style)'
@@ -194,47 +177,6 @@ function runLinterRules(ast: any): Diagnostic[] {
 	}
 	return problems;
 }
-
-// connection.onDidChangeWatchedFiles(_change => {
-// 	// Monitored files have change in VSCode
-// 	connection.console.log('We received a file change event');
-// });
-
-// This handler provides the initial list of the completion items.
-// connection.onCompletion(
-// 	(_textDocumentPosition: TextDocumentPositionParams): CompletionItem[] => {
-// 		// The pass parameter contains the position of the text document in
-// 		// which code complete got requested. For the example we ignore this
-// 		// info and always provide the same completion items.
-// 		return [
-// 			{
-// 				label: 'TypeScript',
-// 				kind: CompletionItemKind.Text,
-// 				data: 1
-// 			},
-// 			{
-// 				label: 'JavaScript',
-// 				kind: CompletionItemKind.Text,
-// 				data: 2
-// 			}
-// 		];
-// 	}
-// );
-
-// This handler resolves additional information for the item selected in
-// the completion list.
-// connection.onCompletionResolve(
-// 	(item: CompletionItem): CompletionItem => {
-// 		if (item.data === 1) {
-// 			item.detail = 'TypeScript details';
-// 			item.documentation = 'TypeScript documentation';
-// 		} else if (item.data === 2) {
-// 			item.detail = 'JavaScript details';
-// 			item.documentation = 'JavaScript documentation';
-// 		}
-// 		return item;
-// 	}
-// );
 
 documents.listen(connection);
 connection.listen();
