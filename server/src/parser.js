@@ -416,7 +416,7 @@ function peg$parse(input, options) {
       return node("PrintStatement", { argument: expr });
   }
   function peg$f16(expr) {
-        return node("PrintStatement", { argument: expr });
+      return node("PrintStatement", { argument: expr });
   }
   function peg$f17(path, inSession) {
       return node("UseStatement", { path: path === undefined ? null : path, inSession: inSession});
@@ -1591,8 +1591,6 @@ function peg$parse(input, options) {
               s9 = peg$FAILED;
               if (peg$silentFails === 0) { peg$fail(peg$e19); }
             }
-          } else {
-            s9 = peg$FAILED;
           }
         } else {
           s8 = peg$FAILED;
@@ -1602,23 +1600,17 @@ function peg$parse(input, options) {
           if (s8 === peg$FAILED) {
             s8 = peg$parseStringLiteral();
           }
+        }
+        if (s8 !== peg$FAILED) {
+          s6 = [s6, s7, s8];
+          s5 = s6;
         } else {
           peg$currPos = s5;
           s5 = peg$FAILED;
         }
-        if (s5 === peg$FAILED) {
-          s5 = null;
-        }
-        s6 = peg$parse_();
-        s7 = peg$parseLineTerminator();
-        if (s7 === peg$FAILED) {
-          s7 = null;
-        }
-        peg$savedPos = s0;
-        s0 = peg$f18(s3, s5);
       } else {
-        peg$currPos = s0;
-        s0 = peg$FAILED;
+        peg$currPos = s5;
+        s5 = peg$FAILED;
       }
       if (s5 === peg$FAILED) {
         s5 = null;
@@ -2424,6 +2416,15 @@ function peg$parse(input, options) {
               s5 = peg$FAILED;
               if (peg$silentFails === 0) { peg$fail(peg$e42); }
             }
+            if (s5 === peg$FAILED) {
+              if (input.charCodeAt(peg$currPos) === 35) {
+                s5 = peg$c15;
+                peg$currPos++;
+              } else {
+                s5 = peg$FAILED;
+                if (peg$silentFails === 0) { peg$fail(peg$e20); }
+              }
+            }
           }
         }
       }
@@ -2475,6 +2476,15 @@ function peg$parse(input, options) {
               } else {
                 s5 = peg$FAILED;
                 if (peg$silentFails === 0) { peg$fail(peg$e42); }
+              }
+              if (s5 === peg$FAILED) {
+                if (input.charCodeAt(peg$currPos) === 35) {
+                  s5 = peg$c15;
+                  peg$currPos++;
+                } else {
+                  s5 = peg$FAILED;
+                  if (peg$silentFails === 0) { peg$fail(peg$e20); }
+                }
               }
             }
           }
@@ -3090,6 +3100,7 @@ function peg$parse(input, options) {
   function peg$parseExpressionStatement() {
     let s0, s1, s2, s3;
 
+    peg$silentFails++;
     s0 = peg$currPos;
     s1 = peg$parsePostfixExpression();
     if (s1 !== peg$FAILED) {
@@ -3154,8 +3165,9 @@ function peg$parse(input, options) {
   }
 
   function peg$parseIfStatement() {
-    let s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13;
+    let s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11;
 
+    peg$silentFails++;
     s0 = peg$currPos;
     s1 = input.substr(peg$currPos, 2);
     if (s1.toLowerCase() === peg$c45) {
@@ -3322,9 +3334,10 @@ function peg$parse(input, options) {
     return s0;
   }
 
-  function peg$parseBlock() {
-    let s0, s1, s2, s3, s4;
+  function peg$parseDoStatement() {
+    let s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12;
 
+    peg$silentFails++;
     s0 = peg$currPos;
     s1 = input.substr(peg$currPos, 2);
     if (s1.toLowerCase() === peg$c48) {
@@ -3459,7 +3472,6 @@ function peg$parse(input, options) {
       s1 = peg$FAILED;
       if (peg$silentFails === 0) { peg$fail(peg$e60); }
     }
-    s0 = s1;
 
     return s0;
   }
@@ -3623,7 +3635,7 @@ function peg$parse(input, options) {
   }
 
   function peg$parseProcedure() {
-    let s0;
+    let s0, s1;
 
     peg$silentFails++;
     s0 = input.substr(peg$currPos, 4);
@@ -6072,7 +6084,7 @@ function peg$parse(input, options) {
   function flatten(list) {
     const out = [];
     for (const item of list) {
-      if (Array.isArray(item)) {out.push(...item);} else if (item !== null) {out.push(item);}
+      if (Array.isArray(item)) out.push(...item); else if (item !== null) out.push(item);
     }
     return out;
   }

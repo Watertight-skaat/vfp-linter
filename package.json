@@ -3,12 +3,16 @@
 	"description": "A language server for VFP",
 	"author": "Sean Kaat",
 	"license": "MIT",
-	"version": "1.0.0",
+	"version": "0.1",
 	"publisher": "Watertight",
 	"categories": [],
 	"keywords": [],
 	"engines": {
 		"vscode": "^1.100.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/Watertight-skaat/vfp-linter"
 	},
 	"activationEvents": [
 		"onLanguage:foxpro"
