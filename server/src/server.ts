@@ -116,7 +116,7 @@ function validateTextDocument(textDocument: TextDocument): Diagnostic[] {
 	const diagnostics: Diagnostic[] = [];
 	const text = textDocument.getText();
 	console.log(`Validating document: ${textDocument.uri}`);
-	
+
 	try {
 		const ast = parse(text);
 		const linterRules = runLinterRules(ast);
@@ -154,25 +154,76 @@ function validateTextDocument(textDocument: TextDocument): Diagnostic[] {
 }
 
 // This function walks the AST and checks for custom rules.
-interface AstNode { type: string; name?: string; location?: { start: { line: number; column: number }; end: { line: number; column: number } }; [k: string]: unknown; }
+interface AstNode { type: string; name?: string; location?: { start: { line: number; column: number }; end: { line: number; column: number } };[k: string]: unknown; }
 interface ProgramAst { body?: AstNode[] }
 function runLinterRules(ast: ProgramAst): Diagnostic[] {
 	const problems: Diagnostic[] = [];
 	// Our custom rule: Variable names must be longer than 3 characters.
 	if (ast.body) {
+		// Helper: collect all Identifier node names in the AST
+		function collectIdentifiers(root: unknown): string[] {
+			const ids: string[] = [];
+			const seen = new Set<unknown>();
+			function walk(node: unknown) {
+				if (!node || typeof node !== 'object') {return;}
+				if (seen.has(node)) {return;} // guard against cycles
+				seen.add(node);
+				if (Array.isArray(node)) {
+					for (const el of node) {walk(el);}
+					return;
+				}
+				// If this is an Identifier node produced by the parser
+				if ((node as any).type === 'Identifier' && typeof (node as any).name === 'string') {
+					ids.push((node as any).name);
+					return;
+				}
+				for (const k of Object.keys(node as object)) {
+					// skip location objects to avoid large traversal
+					if (k === 'location') {continue;}
+					walk((node as any)[k]);
+				}
+			};
+			walk(root);
+			return ids;
+		}
+
+		// Precompute all identifier usages in the AST body
+		const allIdentifiers = collectIdentifiers(ast.body);
+		// Helper to check usage of a name
+		const isUsed = (name: string) => allIdentifiers.indexOf(name) !== -1;
 		for (const node of ast.body) {
-			if (node.type === 'LocalDeclaration' && typeof node.name === 'string' && node.name.length <= 3) {
+			if (node.type === 'UnknownStatement' && typeof node.raw === 'string') {
 				const diagnostic: Diagnostic = {
-					severity: DiagnosticSeverity.Warning,
+					severity: DiagnosticSeverity.Error,
 					range: {
 						start: { line: (node.location?.start.line ?? 1) - 1, character: (node.location?.start.column ?? 1) - 1 },
 						end: { line: (node.location?.end.line ?? 1) - 1, character: (node.location?.end.column ?? 2) - 1 }
 					},
-					message: `Variable name '${node.name}' is too short. (Must be > 3 chars)`,
-					source: 'VFP Linter (Style)'
+					message: `Unknown or unsupported statement: '${node.raw}'`,
+					source: 'VFP Linter (Syntax)'
 				};
 				problems.push(diagnostic);
 			}
+			// No unused local parameters: PARAMETERS / LPARAMETERS declarations
+			// if (node.type === 'ParametersDeclaration' && Array.isArray((node as any).names)) {
+			// 	const params: string[] = (node as any).names;
+			// 	const unused = params.filter(p => !isUsed(p));
+			// 	if (unused.length) {
+			// 		const msg = unused.length === 1
+			// 			? `Parameter '${unused[0]}' is declared but never used.`
+			// 			: `Parameters ${unused.map(p => `'${p}'`).join(', ')} are declared but never used.`;
+			// 		const diagnostic: Diagnostic = {
+			// 			severity: DiagnosticSeverity.Warning,
+			// 			range: {
+			// 				start: { line: (node.location?.start.line ?? 1) - 1, character: (node.location?.start.column ?? 1) - 1 },
+			// 				end: { line: (node.location?.end.line ?? 1) - 1, character: (node.location?.end.column ?? 1) - 1 }
+			// 			},
+			// 			message: msg,
+			// 			source: 'VFP Linter (Usage)'
+			// 		};
+			// 		problems.push(diagnostic);
+			// 	}
+			// }
 		}
 	}
 	return problems;

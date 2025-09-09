@@ -54,6 +54,7 @@ Statement "statement"
     / StoreStatement
     / ReplaceStatement
     / IfStatement
+    / UnknownStatement
     / EmptyLine ) { return s; }
 
 // -----------------------------
@@ -138,12 +139,87 @@ PrintStatement
 //  [ALIAS cTableAlias] [EXCLUSIVE] [SHARED] [NOUPDATE] 
 //  [CONNSTRING cConnectionString | nStatementHandle ]
 UseStatement
-  = "USE"i _ 
-    path:(StringLiteral / Identifier)? _ 
-    inSession:("IN"i _ n:( [0-9]+  / Identifier / StringLiteral / SelectCore) )? _
-    LineTerminator? {
-      return node("UseStatement", { path: path === undefined ? null : path, inSession: inSession});
+  = "USE"i _
+    tgt:UseTarget? _
+    parts:(UseOption _)*
+    __ {
+      const opts = { inTarget:null, online:false, admin:false, again:false, norequery:false, dataSession:null, nodata:false, index:null, alias:null, exclusive:false, shared:false, noUpdate:false, connection:null };
+      for (const p of parts) {
+        switch (p.kind) {
+          case 'IN': opts.inTarget = p.value; break;
+          case 'ONLINE': opts.online = true; break;
+          case 'ADMIN': opts.admin = true; break;
+          case 'AGAIN': opts.again = true; break;
+          case 'NOREQUERY': opts.norequery = true; opts.dataSession = (p.value === true) ? null : p.value; break;
+          case 'NODATA': opts.nodata = true; break;
+          case 'INDEX': opts.index = p.value; break;
+          case 'ALIAS': opts.alias = p.value; break;
+          case 'EXCLUSIVE': opts.exclusive = true; break;
+          case 'SHARED': opts.shared = true; break;
+          case 'NOUPDATE': opts.noUpdate = true; break;
+          case 'CONN': opts.connection = p.value; break;
+        }
+      }
+      return node("UseStatement", {
+        target: tgt || null,
+        inTarget: opts.inTarget,
+        online: opts.online,
+        admin: opts.admin,
+        again: opts.again,
+        norequery: opts.norequery,
+        dataSession: opts.dataSession,
+        nodata: opts.nodata,
+        index: opts.index,
+        alias: opts.alias,
+        exclusive: opts.exclusive,
+        shared: opts.shared,
+        noUpdate: opts.noUpdate,
+        connection: opts.connection
+      });
     }
+
+UseTarget
+  = "?" { return { kind: 'PROMPT' }; }
+  / name:QualifiedTable { return { kind: 'TABLE', name }; }
+
+UseOption
+  = inC:InClause { return { kind: 'IN', value: inC }; }
+  / "ONLINE"i { return { kind: 'ONLINE', value: true }; }
+  / "ADMIN"i { return { kind: 'ADMIN', value: true }; }
+  / "AGAIN"i { return { kind: 'AGAIN', value: true }; }
+  / "NOREQUERY"i _ ds:Expression? { return { kind: 'NOREQUERY', value: ds || true }; }
+  / "NODATA"i { return { kind: 'NODATA', value: true }; }
+  / idx:UseIndexPart { return { kind: 'INDEX', value: idx }; }
+  / "ALIAS"i __ a:IdentifierOrString { return { kind: 'ALIAS', value: a }; }
+  / "EXCLUSIVE"i { return { kind: 'EXCLUSIVE', value: true }; }
+  / "SHARED"i { return { kind: 'SHARED', value: true }; }
+  / "NOUPDATE"i { return { kind: 'NOUPDATE', value: true }; }
+  / conn:UseConnPart { return { kind: 'CONN', value: conn }; }
+
+UseIndexPart
+  = "INDEX"i __ files:IndexFileList { return { mode: 'INDEX', files }; }
+  / "?" _ ord:OrderSpec? { return { mode: 'PROMPT', order: ord || null }; }
+
+IndexFileList
+  = head:(IdentifierOrString / UnquotedPath) tail:(_ "," _ (IdentifierOrString / UnquotedPath))* {
+      return [head, ...tail.map(t => t[3])];
+    }
+
+OrderSpec
+  = "ORDER"i __ sel:(
+      n:Expression { return { kind: 'NUMBER', value: n }; }
+      / f:(IdentifierOrString / UnquotedPath) { return { kind: 'FILE', value: f }; }
+      / tag:TagSpec { return { kind: 'TAG', ...tag }; }
+    ) { return sel; }
+
+TagSpec
+  = ("TAG"i _)? t:Identifier _ ofPart:("OF"i __ cdx:(IdentifierOrString / UnquotedPath))? _ dir:("ASCENDING"i / "DESCENDING"i)? {
+      return { tag: t, of: ofPart ? ofPart[2] : null, direction: dir ? (typeof dir === 'string' ? dir.toUpperCase() : dir) : null };
+    }
+
+UseConnPart
+  = "CONNSTRING"i __ cs:(StringLiteral / Identifier) { return { kind: 'CONNSTRING', value: cs }; }
+  / h:(NumberLiteral / Identifier) { return { kind: 'HANDLE', value: h }; }
 
 // Preprocessor directives
 PreprocessorStatement
@@ -151,18 +227,18 @@ PreprocessorStatement
   / DefineStatement
 
 IncludeStatement
-  = "#" _ "include"i _ path:(StringLiteral / UnquotedPath) _ LineTerminator? {
+  = "#" _ "include"i _ path:(StringLiteral / UnquotedPath) __ {
       return node("IncludeStatement", { path });
     }
 
 DefineStatement
-  = "#" _ "define"i _ name:Identifier _ value:$((!LineTerminator .)*) LineTerminator? {
+  = "#" _ "define"i _ name:Identifier _ value:$((!LineTerminator .)*) __ {
       return node("DefineStatement", { name, value: value.trim() });
     }
 
 // Example: DEFINE CLASS myhandler AS Session
 DefineClass
-  = "DEFINE CLASS"i _ name:Identifier _ "AS"i _ base:Identifier _ LineTerminator
+  = "DEFINE CLASS"i _ name:Identifier _ "AS"i _ base:Identifier __
     statements:(Statement __)*
     "ENDDEFINE"i _ LineTerminator? {
       return node("DefineClass", { name, base: base || null, body: flatten(statements.map(s => s[0])) });
@@ -363,7 +439,7 @@ TableRef
 
 QualifiedTable
   = db:Identifier "!" tbl:Identifier { return { database: db, table: tbl }; }
-  / t:IdentifierOrString { return { database: null, table: t }; }
+  / t:(IdentifierOrString / UnquotedPath) { return { database: null, table: t }; }
 
 AliasPart
   = ("AS"i _ a:Identifier { return a; }) / a:Identifier { return a; }
@@ -427,7 +503,7 @@ NowaitFlag
 // COPY
 // -----------------------------
 
-CopyStatement
+CopyStatement "copy statement"
   = CopyFileStatement / CopyToStatement
 
 CopyFileStatement
@@ -508,7 +584,7 @@ GoToStatement "go/goto statement"
     }
 
 InClause
-  = "IN"i __ target:(Identifier / StringLiteral / NumberLiteral) { return target; }
+  = "IN"i _ target:(Identifier / StringLiteral / NumberLiteral / SelectCore) { return target; }
 
 // -----------------------------
 // INSERT INTO
@@ -685,6 +761,26 @@ TryStatement "try-catch statement"
         didExit: !!exitpart,
         finallyBlock: fpart ? node("BlockStatement", { body: fpart }) : null
       });
+    }
+
+// -----------------------------
+// Unknown/catch-all statement
+// -----------------------------
+// Captures a single logical line (respecting semicolon continuations) that didn't
+// match any known statement. Protects block delimiters so structured constructs
+// (IF/DO WHILE/FOR/TRY/DEFINE) can still recognize their endings.
+UnknownStatement
+  = !("ENDIF"i      ![A-Za-z0-9_]
+    / "ELSE"i       ![A-Za-z0-9_]
+    / "ENDDO"i      ![A-Za-z0-9_]
+    / "ENDFOR"i     ![A-Za-z0-9_]
+    / "NEXT"i       ![A-Za-z0-9_]
+    / "ENDTRY"i     ![A-Za-z0-9_]
+    / "ENDDEFINE"i  ![A-Za-z0-9_]
+    )
+    raw:$((!LineTerminator .)+ (LineContinuation (!LineTerminator .)*)*)
+    __ {
+      return node("UnknownStatement", { raw: raw.trim() });
     }
 
 // SET [cSetCommand] [ON | OFF | TO [eSetting]]

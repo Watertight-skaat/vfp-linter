@@ -62,10 +62,9 @@
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
 		"compile": "npm run build:parser && tsc -b && npm run copy-js",
-		"dev": "concurrently \"npm run watch:parser\" \"npm run watch:copy\"",
+		"dev": "concurrently \"npm run watch:parser\" \"npm run watch:copy\" \"tsc -b -w\"",
 		"build:parser": "npx peggy -o server/src/parser.js server/src/foxpro.pegjs --format es --dts",
 		"watch:parser": "npx peggy -o server/src/parser.js server/src/foxpro.pegjs --format es --dts -w",
-		"watch": "tsc -b -w",
 		"watch:copy": "node ./scripts/copy-src-watch.js",
 		"copy-js": "node ./scripts/copy-src-js.js",
 		"lint": "eslint",
