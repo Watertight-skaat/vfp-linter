@@ -27,6 +27,7 @@ Statement "statement"
       / PrivateStatement
       / PublicStatement
       / DeclareStatement
+  / CreateStatement
       / DefineClass
       / LParameters
       / PrintStatement
@@ -273,6 +274,87 @@ DoStatement "do statement"
       return node("DoStatement", { target, inSession, arguments: withPart ? withPart[2] : [] });
     }
 
+// -----------------------------
+// CREATE TABLE/DBF/CURSOR
+// -----------------------------
+CreateStatement
+  = "CREATE"i __ kind:("TABLE"i / "DBF"i / "CURSOR"i) __ name:IdentifierOrString _
+    nameClause:("NAME"i __ longName:IdentifierOrString _ { return longName; })? _
+    free:("FREE"i _)?
+    codepage:("CODEPAGE"i _ "=" _ cp:(NumberLiteral / Identifier))? _
+    def:(
+      _ "(" _ items:CreateDefItems _ ")" _ { return { type: 'columns', items: items }; }
+      / _ "FROM"i __ "ARRAY"i __ arr:Identifier { return { type: 'fromArray', array: arr }; }
+    ) _ LineTerminator? {
+      const payload = { 
+        kind: (typeof kind === 'string' ? kind.toUpperCase() : kind).toUpperCase(),
+        name,
+        longName: nameClause || null,
+        free: !!free,
+        codepage: codepage ? codepage[4] : null
+      };
+      if (def.type === 'fromArray') {
+        return node('CreateStatement', { ...payload, fromArray: def.array, columns: [], constraints: [] });
+      } else {
+        const cols = def.items.filter(i => i.kind === 'column').map(i => i.node);
+        const cons = def.items.filter(i => i.kind === 'constraint').map(i => i.node);
+        return node('CreateStatement', { ...payload, columns: cols, constraints: cons, fromArray: null });
+      }
+    }
+
+CreateDefItems
+  = head:CreateDefItem tail:(_ "," _ CreateDefItem)* {
+      const rest = tail.map(t => t[3]);
+      return [head, ...rest];
+    }
+
+CreateDefItem
+  = c:ColumnDefinition { return { kind: 'column', node: c }; }
+  / t:TableConstraint  { return { kind: 'constraint', node: t }; }
+
+IdentifierOrString
+  = StringLiteral / Identifier
+
+// Column definition and options
+ColumnDefinition
+  = name:Identifier __ ftype:FieldType _ fsize:FieldSize? _
+    nullability:("NULL"i / ("NOT"i __ "NULL"i))? _
+    check:("CHECK"i __ expr:Expression _ err:("ERROR"i __ msg:StringLiteral)? { return { expr, error: err ? err[2] : null }; })? _
+    autoinc:("AUTOINC"i _ nv:("NEXTVALUE"i __ nv:(NumberLiteral / Identifier) _ step:("STEP"i __ st:(NumberLiteral / Identifier))?)? { return { nextValue: nv ? nv[2] : null, step: (nv && nv[4]) ? nv[4][2] : null }; })? _
+    def:("DEFAULT"i __ d:Expression { return d; })? _
+    colkey:(
+      "PRIMARY"i __ "KEY"i { return { primaryKey: true, unique: false, collate: null }; }
+      / "UNIQUE"i _ coll:("COLLATE"i __ cs:IdentifierOrString { return cs; })? { return { primaryKey: false, unique: true, collate: coll ? coll[2] : null }; }
+    )? _
+    refs:("REFERENCES"i __ tbl:IdentifierOrString _ tag:("TAG"i __ tn:Identifier { return tn; })? { return { table: tbl, tag: tag ? tag[2] : null }; })? _
+    nocp:("NOCPTRANS"i)? {
+      return node('ColumnDefinition', {
+        name,
+        fieldType: ftype,
+        size: fsize || null,
+        nullability: nullability ? (Array.isArray(nullability) ? 'NOT NULL' : 'NULL') : null,
+        check: check || null,
+        autoinc: autoinc || null,
+        default: def || null,
+        key: colkey || null,
+        references: refs || null,
+        nocptrans: !!nocp
+      });
+    }
+
+FieldType
+  = t:$([A-Za-z]+) { return t.toUpperCase(); }
+
+FieldSize
+  = "(" _ w:(NumberLiteral / Identifier) _ "," _ p:(NumberLiteral / Identifier) _ ")" { return { width: w, precision: p }; }
+  / "(" _ w:(NumberLiteral / Identifier) _ ")" { return { width: w, precision: null }; }
+
+TableConstraint
+  = "PRIMARY"i __ "KEY"i __ expr:Expression __ "TAG"i __ tag:Identifier { return node('TableConstraint', { kind: 'PRIMARY KEY', expression: expr, tag }); }
+  / "UNIQUE"i __ expr:Expression __ "TAG"i __ tag:Identifier _ coll:("COLLATE"i __ cs:IdentifierOrString { return cs; })? { return node('TableConstraint', { kind: 'UNIQUE', expression: expr, tag, collate: coll ? coll[2] : null }); }
+  / "FOREIGN"i __ "KEY"i __ expr:Expression __ "TAG"i __ tag:Identifier _ nodup:("NODUP"i)? _ coll:("COLLATE"i __ cs:IdentifierOrString { return cs; })? __ "REFERENCES"i __ tbl:IdentifierOrString _ reftag:("TAG"i __ rt:Identifier { return rt; })? { return node('TableConstraint', { kind: 'FOREIGN KEY', expression: expr, tag, nodup: !!nodup, collate: coll ? coll[2] : null, references: { table: tbl, tag: reftag ? reftag[2] : null } }); }
+  / "CHECK"i __ expr:Expression _ err:("ERROR"i __ msg:StringLiteral)? { return node('TableConstraint', { kind: 'CHECK', expression: expr, error: err ? err[2] : null }); }
+
 // SET [cSetCommand] [ON | OFF | TO [eSetting]]
 SetStatement
   = "SET"i _ inner:(
@@ -395,7 +477,24 @@ Keyword "keyword"
   / ("WHILE"i       ![a-zA-Z0-9_])
   / ("try"i          ![a-zA-Z0-9_])
   / ("catch"i       ![a-zA-Z0-9_])
-
+  / ("CREATE"i      ![a-zA-Z0-9_])
+  / ("TABLE"i       ![a-zA-Z0-9_])
+  / ("CURSOR"i      ![a-zA-Z0-9_])
+  / ("NAME"i        ![a-zA-Z0-9_])
+  / ("FREE"i        ![a-zA-Z0-9_])
+  / ("CODEPAGE"i    ![a-zA-Z0-9_])
+  / ("UNIQUE"i      ![a-zA-Z0-9_])
+  / ("COLLATE"i     ![a-zA-Z0-9_])
+  / ("REFERENCES"i  ![a-zA-Z0-9_])
+  / ("TAG"i         ![a-zA-Z0-9_])
+  / ("CHECK"i       ![a-zA-Z0-9_])
+  / ("DEFAULT"i     ![a-zA-Z0-9_])
+  / ("AUTOINC"i     ![a-zA-Z0-9_])
+  / ("NEXTVALUE"i   ![a-zA-Z0-9_])
+  / ("STEP"i        ![a-zA-Z0-9_])
+  / ("NOCPTRANS"i   ![a-zA-Z0-9_])
+  / ("FOREIGN"i     ![a-zA-Z0-9_])
+  / ("FROM"i        ![a-zA-Z0-9_])
 
 NumberLiteral "number"
   = value:$("$"? [0-9]+ ("." [0-9]+)? ) {
