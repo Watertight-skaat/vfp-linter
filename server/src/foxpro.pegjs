@@ -613,18 +613,19 @@ InsertStatement
     }
 
 // -----------------------------
-// Loops: FOR ... ENDFOR|NEXT and DO WHILE ... ENDDO
+// Loops: FOR ... ENDFOR|NEXT, FOR EACH ... ENDFOR|NEXT and DO WHILE ... ENDDO
 // -----------------------------
 IterationStatement
-  = ForLoop / DoWhileLoop
+  = ForEachLoop / ForLoop / DoWhileLoop
 
 // FOR VarName = nInitialValue TO nFinalValue [STEP nIncrement] Commands [EXIT] [LOOP] ENDFOR | NEXT
-ForLoop
+ForLoop "for loop"
   = "FOR"i _ 
-    varName:Identifier _ "=" _ init:Expression __ "TO"i __ final:Expression _ 
-    step:("STEP"i __ inc:Expression)? __
+    varName:ParameterName _ "=" _ init:Expression _ "TO"i _ final:Expression _ 
+    step:("STEP"i _ inc:Expression)? __
     body:(Statement __)*
-    end:(("ENDFOR"i / "NEXT"i) _ LineTerminator?) {
+    ("ENDFOR"i / "NEXT"i) 
+    __ {
       return node("ForStatement", {
         variable: varName,
         init,
@@ -634,8 +635,36 @@ ForLoop
       });
     }
 
+// FOR EACH Var [AS Type [OF Class-Library]] IN Group [FOXOBJECT]
+//   Commands
+// [EXIT]
+// [LOOP]
+// ENDFOR | NEXT [Var]
+ForEachLoop "for-each loop"
+  = "FOR EACH"i _
+    varName:ParameterName _
+    typePart:("AS"i _ type:Identifier _ ofPart:("OF"i _ clslib:Identifier { return { library: clslib }; })? {
+      return { typing: type, of: ofPart || null };
+    })?  _
+    "IN"i _ group:Expression foxobj:(_ "FOXOBJECT"i)? __
+    body:(Statement __)*
+    ("ENDFOR"i / "NEXT"i) _ endVar:ParameterName?
+    __ {
+      const asType = typePart ? typePart.typing : null;
+      const ofClass = typePart ? typePart.of : null;
+      return node("ForEachStatement", {
+        variable: varName,
+        asType,
+        ofClass,
+        collection: group,
+        foxObject: !!foxobj,
+        endVariable: endVar || null,
+        body: node("BlockStatement", { body: flatten(body.map(s => s[0])) })
+      });
+    }
+
 // DO WHILE lExpression Commands [LOOP] [EXIT] ENDDO
-DoWhileLoop
+DoWhileLoop "do-while loop"
   = "DO WHILE"i _ test:Expression __
     body:(Statement __)*
     "ENDDO"i __ {
@@ -948,6 +977,10 @@ SingleStringChar
 
 LineTerminator
 	= [\n\r\u2028\u2029]
+
+// todo: date literal
+DateLiteral "date"
+  = "TODO"i
 
 // example: `s:\code\mosapi\3_3\aalib\mosapi.h`
 UnquotedPath
