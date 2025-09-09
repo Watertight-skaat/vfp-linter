@@ -162,7 +162,7 @@ interface AstNode {
 	[k: string]: unknown;
 }
 interface ProgramAst { body?: AstNode[] }
-function runLinterRules(ast: ProgramAst): Diagnostic[] {
+export function runLinterRules(ast: ProgramAst): Diagnostic[] {
 	const problems: Diagnostic[] = [];
 	if (!ast.body) {
 		console.log("No body in AST");

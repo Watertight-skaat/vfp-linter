@@ -49,6 +49,7 @@ Statement "statement"
     / AssignmentStatement
     / ExpressionStatement
     / DoFormStatement
+    / DoCaseStatement
     / DoStatement
     / ProcedureStatement
     / LocateStatement
@@ -56,7 +57,6 @@ Statement "statement"
     / StoreStatement
     / ReplaceStatement
     / IfStatement
-    / DoCaseStatement
     / EvalStatement
     / UnknownStatement
     / EmptyLine
@@ -65,35 +65,62 @@ Statement "statement"
 // -----------------------------
 // Declarations
 // -----------------------------
+// LOCAL Var1 [ AS type [ OF ClassLib ] ] | [ ArrayName1( nRows1 [, nColumns1 ] ) [ AS type [ OF ClassLib ] ] ]
+//   [, Var2 [ AS type [ OF ClassLib ] ] | [, ArrayName2( nRows2 [, nColumns2 ] ) [ AS type [ OF ClassLib ] ] ]
+// LOCAL [ ARRAY ] ArrayName1( nRows1 [, nColumns1 ] ) [ AS type [OF ClassLib ] ]
+//   [, ArrayName2( nRows2 [, nColumns2 ] ) [ AS type [ OF ClassLib ] ] ]
 LocalStatement
-  = "LOCAL"i _ vars:IdentifierList _ LineTerminator? {
-      return vars.map(v => node("LocalDeclaration", { name: v }));
+  = "LOCAL"i _ "ARRAY"i _ arrs:ArrayDeclList __ { return arrs; }
+  / "LOCAL"i _ entries:LocalEntryList __ {  return entries; }
+
+// A comma-separated list of local entries (variables or arrays)
+LocalEntryList
+  = head:LocalEntry tail:(_ "," _ LocalEntry)* { return [head, ...tail.map(t => t[3])]; }
+
+// An entry is either a variable declaration or an array declaration
+LocalEntry
+  = ArrayDecl
+  / VarDecl
+
+// Variable declaration: name [ AS type [ OF ClassLib ] ]
+VarDecl
+  = name:ParameterName _ asPart:(_ "AS"i __ t:Identifier _ ofPart:(_ "OF"i _ cl:Identifier { return cl; })? { return { type: t, of: ofPart ? ofPart[2] : null }; })? {
+      return node("LocalDeclaration", { name, type: asPart ? asPart.type : null, ofClass: asPart ? asPart.of : null });
     }
+
+// Array declaration: ArrayName( nRows [, nColumns ] ) [ AS type [ OF ClassLib ] ]
+ArrayDecl
+  = name:Identifier _ "(" _ rows:Expression _ cols:(_ "," _ Expression)? _ ")" _ asPart:(_ "AS"i __ t:Identifier _ ofPart:(_ "OF"i _ cl:Identifier { return cl; })? { return { type: t, of: ofPart ? ofPart[2] : null }; })? {
+      return node("LocalArrayDeclaration", { name, rows, columns: cols ? cols[2] : null, type: asPart ? asPart.type : null, ofClass: asPart ? asPart.of : null });
+    }
+
+ArrayDeclList
+  = head:ArrayDecl tail:(_ "," _ ArrayDecl)* { return [head, ...tail.map(t => t[3])]; }
 
 PrivateStatement
   = "PRIVATE"i _ (
-      "ALL"i _ "LIKE"i _ p:(StringLiteral / Pattern) _ LineTerminator? {
+      "ALL"i _ "LIKE"i _ p:(StringLiteral / Pattern) __ {
         const pat = (typeof p === 'string') ? p : (p && p.value ? p.value : p);
         return node("PrivateAllLike", { pattern: pat });
       }
-    / "ALL"i _ LineTerminator? { return node("PrivateAll", {}); }
-    / vars:IdentifierList _ LineTerminator? { return vars.map(v => node("PrivateDeclaration", { name: v })); }
-    / _ LineTerminator? { return node("PrivateDirective", {}); }
+    / "ALL"i __ { return node("PrivateAll", {}); }
+    / vars:IdentifierList __ { return vars.map(v => node("PrivateDeclaration", { name: v })); }
+    / __ { return node("PrivateDirective", {}); }
   )
 
 PublicStatement
-  = "PUBLIC"i _ vars:IdentifierList _ LineTerminator? {
+  = "PUBLIC"i _ vars:IdentifierList __ {
       return vars.map(v => node("PublicDeclaration", { name: v }));
     }
 
 LParameters
-  = ("LPARAMETERS"i / "PARAMETERS"i) _ vars:ParameterList _ LineTerminator? {
+  = ("LPARAMETERS"i / "PARAMETERS"i) _ vars:ParameterList __ {
       return node("ParametersDeclaration", { names: vars });
     }
 
 // DIMENSION ArrayName(nRows [, nColumns]) [AS cType] [, ArrayName2(...)] ...
 DimensionStatement
-  = "DIMENSION"i __ first:DimensionItem tail:(_ "," _ DimensionItem)* _ LineTerminator? {
+  = "DIMENSION"i __ first:DimensionItem tail:(_ "," _ DimensionItem)* __ {
       const items = [first, ...tail.map(t => t[3])];
       return node("DimensionStatement", { items });
     }
@@ -423,7 +450,7 @@ DoStatement "do statement"
   //  [INTO StorageDestination | TO DisplayDestination]
   //  [PREFERENCE PreferenceName] [NOCONSOLE] [PLAIN] [NOWAIT]
 SelectStatement
-  = sc:SelectCore unions:(_ "UNION"i _ all:("ALL"i)? _ rhs:SelectCore)* __ {
+  = sc:SelectCore unions:(_ "UNION"i _ all:("ALL"i _)? rhs:SelectCore)* __ {
       const unionParts = unions ? unions.map(u => ({ all: !!u[3], select: u[5] })) : [];
       return node('SelectStatement', { ...sc, unions: unionParts });
     }
@@ -431,9 +458,10 @@ SelectStatement
 SelectCore
   = "SELECT"i _
     quant:("ALL"i / "DISTINCT"i)? _
-    top:("TOP"i __ n:Expression _ percent:("PERCENT"i)? { return { count: n, percent: !!percent }; })? _
-    list:SelectList __
+    top:("TOP"i _ n:Expression _ percent:("PERCENT"i)? { return { count: n, percent: !!percent }; })? _
+    list:SelectList _
     from:FromClause? _
+    joins:(JoinClause _)* _
     withbuf:WithBufferingClause? _
     where:WhereClause? _
     group:GroupByClause? _
@@ -471,25 +499,28 @@ SelectItem
     }
 
 FromClause
-  = "FROM"i __ force:("FORCE"i _)? tables:TableList joins:JoinClause* {
-      return { force: !!force, tables, joins };
+  = "FROM"i _ force:("FORCE"i _)? tables:TableList {
+      return { force: !!force, tables };
     }
 
 TableList
   = head:TableRef tail:(_ "," _ TableRef)* { return [head, ...tail.map(t => t[3])]; }
 
 TableRef
-  = name:QualifiedTable _ alias:(AliasPart)? { return { name, alias: alias || null }; }
+  =sub: (
+    "(" __ sq:SelectStatement __ ")" _ alias:(("AS"i _ a:Identifier { return a; }) / a:Identifier { return a; })? ) {
+      const subquery = sub[2];
+      const alias = sub[5] ? sub[5] : null;
+      return { subquery, alias };
+    }
+    / name:QualifiedTable _ alias:( ("AS"i _ a:Identifier { return a; }) / a:Identifier { return a; })? { return { name, alias: alias || null }; }
 
 QualifiedTable
   = db:Identifier "!" tbl:Identifier { return { database: db, table: tbl }; }
   / t:(IdentifierOrString / UnquotedPath) { return { database: null, table: t }; }
 
-AliasPart
-  = ("AS"i _ a:Identifier { return a; }) / a:Identifier { return a; }
-
 JoinClause
-  = jt:JoinType? __ "JOIN"i __ tr:TableRef __ "ON"i __ cond:Expression {
+  = jt:JoinType? _ "JOIN"i _ tr:TableRef __ "ON"i __ cond:Expression __ {
       return { type: jt || null, target: tr, condition: cond };
     }
 
@@ -503,7 +534,7 @@ WithBufferingClause
   = "WITH"i _ "(" _ "BUFFERING"i _ "=" _ e:Expression _ ")" { return { buffering: e }; }
 
 WhereClause
-  = "WHERE"i __ e:Expression { return e; }
+  = "WHERE"i _ e:Expression { return e; }
 
 GroupByClause
   = "GROUP"i _ "BY"i __ items:ExpressionList { return items; }
@@ -551,7 +582,7 @@ CopyStatement "copy statement"
   = CopyFileStatement / CopyToStatement
 
 CopyFileStatement
-  = "COPY FILE"i _ src:(StringLiteral / UnquotedPath) _ "TO"i _ dst:(StringLiteral / UnquotedPath) __ {
+  = "COPY FILE"i _ src:(Expression / UnquotedPath) _ "TO"i _ dst:(Expression / UnquotedPath) __ {
       return node('CopyFileStatement', { source: src, destination: dst });
     }
 
@@ -724,24 +755,25 @@ DoCaseStatement "do case statement"
     cases:(CaseClause __)+
     otherwise:("OTHERWISE"i __ othBody:(Statement __)* { return node('BlockStatement', { body: flatten(othBody.map(s => s[0])) }); })?
     "ENDCASE"i __ {
-      return node('DoCaseStatement', { cases: cases.map(c => c[0]), otherwise: otherwise ? otherwise[1] : null });
+      return node('DoCaseStatement', { cases: cases.map(c => c[0]), otherwise: otherwise ? otherwise : null });
     }
 
 CaseClause
-  = "CASE"i __ test:Expression __ body:(Statement __)* {
+  = "CASE"i __ test:Expression __ 
+    body:(Statement __)* {
     return node('CaseClause', { test, body: node('BlockStatement', { body: flatten(body.map(s => s[0])) }) });
   }
 
-ExitStatement
+ExitStatement "exit"
   = "EXIT"i _ LineTerminator? { return node("ExitStatement", {}); }
 
-ContinueStatement
+ContinueStatement "continue (LOOP)"
   = "LOOP"i _ LineTerminator? { return node("ContinueStatement", {}); }
 
 // -----------------------------
 // CREATE TABLE/DBF/CURSOR
 // -----------------------------
-CreateStatement
+CreateStatement "create statement"
   = "CREATE"i _ 
     kind:("TABLE"i / "DBF"i / "CURSOR"i) _ 
     name:Identifier _
@@ -1110,14 +1142,14 @@ NullLiteral "null"
   = ".NULL."i / "NULL"i { return node("NullLiteral", { }); }
 
 __
-  = (Whitespace / Comment / LineTerminatorSequence)*
+  = (Whitespace / LineContinuation / Comment / LineTerminatorSequence)*
 
 _ 
   = (Whitespace / MultiLineCommentNoLineTerminator / LineContinuation)*
 
 // Semicolon at end of physical line continues the logical line onto the next physical line.
 LineContinuation "semicolon"
-  = ";" [ \t]* LineTerminatorSequence
+  = ";" [ \t]* LineTerminatorSequence 
 
 Whitespace "whitespace"
   = [ \t\f\v]+ 
@@ -1132,7 +1164,11 @@ Comment "comment"
 //  "&&" or "*"
 SingleLineComment "single-line comment"
   = "&&" (!LineTerminator .)*
-  / "*" (!LineTerminator .)*
+  / "*"  (!LineTerminator .)*
+
+// Note:. technically A '*' comment is only a comment when it appears as the first non-space char.
+// We don't want to caputre tokens like the '*' in a SELECT list (e.g. "SELECT * FROM ...").
+
 
 MultiLineComment "multi-line comment"
   = "/*" (!"*/" .)* "*/" 
