@@ -23,25 +23,25 @@ Program
 
 // A Statement returns either a single AST node or an Array of nodes (e.g. multiple LOCAL vars)
 Statement "statement"
-	= s:( LocalStatement
-        / PrivateStatement
-        / PublicStatement
-        / DeclareStatement
-        / DefineClass
-        / LParameters
-        / PrintStatement
-  		  / UseStatement
-        / SetStatement
-        / PreprocessorStatement
-        / Assignment
-        / ExpressionStatement
-        / DoStatement
-        / EvalStatement
-        / Procedure
-        / ReturnStatement
-        / IfStatement
-        / EmptyLine ) { return s; }
-
+  = s:( LocalStatement
+      / PrivateStatement
+      / PublicStatement
+      / DeclareStatement
+      / DefineClass
+      / LParameters
+      / PrintStatement
+      / UseStatement
+      / AppendStatement
+      / SetStatement
+      / PreprocessorStatement
+      / Assignment
+      / ExpressionStatement
+      / DoStatement
+      / EvalStatement
+      / Procedure
+      / ReturnStatement
+      / IfStatement
+      / EmptyLine ) { return s; }
 
 // -----------------------------
 // Declarations
@@ -280,6 +280,20 @@ SetStatement
       if (inner && inner.type === 'SetTo') return inner;
       // Otherwise inner is a cSetCommand node; return it as the captured command node.
       return inner;
+    }
+
+AppendStatement
+  = "APPEND"i _
+    blank:("BLANK"i _)?
+    inPart:("IN"i _ tableAlias:(Identifier / StringLiteral / NumberLiteral) _)?
+    nomenu:("NOMENU"i _)?
+    LineTerminator? 
+    {
+      return node("AppendStatement", {
+        blank: !!blank,
+        inTarget: inPart ? inPart[2] : null,
+        nomenu: !!nomenu
+      });
     }
 
 Procedure "procedure"
