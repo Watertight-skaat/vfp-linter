@@ -27,7 +27,8 @@ Statement "statement"
       / PrivateStatement
       / PublicStatement
       / DeclareStatement
-  / CreateStatement
+      / TryStatement
+      / CreateStatement
       / DefineClass
       / LParameters
       / PrintStatement
@@ -355,6 +356,33 @@ TableConstraint
   / "FOREIGN"i __ "KEY"i __ expr:Expression __ "TAG"i __ tag:Identifier _ nodup:("NODUP"i)? _ coll:("COLLATE"i __ cs:IdentifierOrString { return cs; })? __ "REFERENCES"i __ tbl:IdentifierOrString _ reftag:("TAG"i __ rt:Identifier { return rt; })? { return node('TableConstraint', { kind: 'FOREIGN KEY', expression: expr, tag, nodup: !!nodup, collate: coll ? coll[2] : null, references: { table: tbl, tag: reftag ? reftag[2] : null } }); }
   / "CHECK"i __ expr:Expression _ err:("ERROR"i __ msg:StringLiteral)? { return node('TableConstraint', { kind: 'CHECK', expression: expr, error: err ? err[2] : null }); }
 
+
+// TRY [ tryCommands ] [ CATCH [ TO VarName ] [ WHEN lExpression ] [ catchCommands ] ] [ THROW [ eUserExpression ] ] [ EXIT ] [ FINALLY [ finallyCommands ] ] ENDTRY
+TryStatement "try-catch statement"
+  = "TRY"i __
+    tstmts:(Statement __)*
+    cpart:(
+      "CATCH"i _ 
+      toVar:("TO"i _ v:Identifier { return v; })? _
+      whenPart:("WHEN"i __ wexpr:Expression { return wexpr; })? __
+      cstmts:(Statement __)* {
+        return { to: toVar ? toVar[2] : null, when: whenPart ? whenPart[2] : null, body: flatten(cstmts.map(s => s[0])) };
+      }
+    )?
+    tpart:("THROW"i _ texpr:Expression? _ LineTerminator { return texpr === undefined ? null : texpr; })?
+    exitpart:("EXIT"i _ LineTerminator { return true; })?
+    fpart:("FINALLY"i _ LineTerminator fstmts:(Statement __)* { return flatten(fstmts.map(s => s[0])); })?
+    "ENDTRY"i _ LineTerminator? 
+    {
+      return node("TryStatement", {
+        tryBlock: node("BlockStatement", { body: flatten(tstmts.map(s => s[0])) }),
+        catchClause: cpart ? { to: cpart.to, when: cpart.when, body: node("BlockStatement", { body: cpart.body }) } : null,
+        thrown: (tpart === undefined) ? null : tpart,
+        didExit: !!exitpart,
+        finallyBlock: fpart ? node("BlockStatement", { body: fpart }) : null
+      });
+    }
+
 // SET [cSetCommand] [ON | OFF | TO [eSetting]]
 SetStatement
   = "SET"i _ inner:(
@@ -475,24 +503,22 @@ Keyword "keyword"
   / ("EXIT"i        ![a-zA-Z0-9_])
   / ("DO"i          ![a-zA-Z0-9_])
   / ("WHILE"i       ![a-zA-Z0-9_])
-  / ("try"i          ![a-zA-Z0-9_])
-  / ("catch"i       ![a-zA-Z0-9_])
+  / ("TRY"i        ![a-zA-Z0-9_])
+  / ("CATCH"i      ![a-zA-Z0-9_])
+  / ("ENDTRY"i     ![a-zA-Z0-9_])
+  / ("THROW"i      ![a-zA-Z0-9_])
+  / ("FINALLY"i    ![a-zA-Z0-9_])
   / ("CREATE"i      ![a-zA-Z0-9_])
   / ("TABLE"i       ![a-zA-Z0-9_])
   / ("CURSOR"i      ![a-zA-Z0-9_])
   / ("NAME"i        ![a-zA-Z0-9_])
-  / ("FREE"i        ![a-zA-Z0-9_])
   / ("CODEPAGE"i    ![a-zA-Z0-9_])
   / ("UNIQUE"i      ![a-zA-Z0-9_])
   / ("COLLATE"i     ![a-zA-Z0-9_])
   / ("REFERENCES"i  ![a-zA-Z0-9_])
   / ("TAG"i         ![a-zA-Z0-9_])
-  / ("CHECK"i       ![a-zA-Z0-9_])
   / ("DEFAULT"i     ![a-zA-Z0-9_])
   / ("AUTOINC"i     ![a-zA-Z0-9_])
-  / ("NEXTVALUE"i   ![a-zA-Z0-9_])
-  / ("STEP"i        ![a-zA-Z0-9_])
-  / ("NOCPTRANS"i   ![a-zA-Z0-9_])
   / ("FOREIGN"i     ![a-zA-Z0-9_])
   / ("FROM"i        ![a-zA-Z0-9_])
 
