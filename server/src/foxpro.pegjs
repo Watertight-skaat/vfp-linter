@@ -37,6 +37,9 @@ Statement "statement"
       / ReplaceStatement
       / SetStatement
       / PreprocessorStatement
+      / IterationStatement
+      / ExitStatement
+      / ContinueStatement
       / Assignment
       / ExpressionStatement
       / DoStatement
@@ -276,6 +279,45 @@ DoStatement "do statement"
     }
 
 // -----------------------------
+// Loops: FOR ... ENDFOR|NEXT and DO WHILE ... ENDDO
+// -----------------------------
+IterationStatement
+  = ForLoop / DoWhileLoop
+
+// FOR VarName = nInitialValue TO nFinalValue [STEP nIncrement] Commands [EXIT] [LOOP] ENDFOR | NEXT
+ForLoop
+  = "FOR"i _ 
+    varName:Identifier _ "=" _ init:Expression __ "TO"i __ final:Expression _ 
+    step:("STEP"i __ inc:Expression)? __
+    body:(Statement __)*
+    end:(("ENDFOR"i / "NEXT"i) _ LineTerminator?) {
+      return node("ForStatement", {
+        variable: varName,
+        init,
+        final,
+        step: step ? step[2] : null,
+        body: node("BlockStatement", { body: flatten(body.map(s => s[0])) })
+      });
+    }
+
+// DO WHILE lExpression Commands [LOOP] [EXIT] ENDDO
+DoWhileLoop
+  = "DO WHILE"i _ test:Expression __
+    body:(Statement __)*
+    "ENDDO"i __ {
+      return node("DoWhileStatement", {
+        test,
+        body: node("BlockStatement", { body: flatten(body.map(s => s[0])) })
+      });
+    }
+
+ExitStatement
+  = "EXIT"i _ LineTerminator? { return node("ExitStatement", {}); }
+
+ContinueStatement
+  = "LOOP"i _ LineTerminator? { return node("ContinueStatement", {}); }
+
+// -----------------------------
 // CREATE TABLE/DBF/CURSOR
 // -----------------------------
 CreateStatement
@@ -503,6 +545,11 @@ Keyword "keyword"
   / ("EXIT"i        ![a-zA-Z0-9_])
   / ("DO"i          ![a-zA-Z0-9_])
   / ("WHILE"i       ![a-zA-Z0-9_])
+  / ("FOR"i         ![a-zA-Z0-9_])
+  / ("ENDFOR"i      ![a-zA-Z0-9_])
+  / ("NEXT"i        ![a-zA-Z0-9_])
+  / ("ENDDO"i       ![a-zA-Z0-9_])
+  / ("LOOP"i        ![a-zA-Z0-9_])
   / ("TRY"i        ![a-zA-Z0-9_])
   / ("CATCH"i      ![a-zA-Z0-9_])
   / ("ENDTRY"i     ![a-zA-Z0-9_])
@@ -510,15 +557,20 @@ Keyword "keyword"
   / ("FINALLY"i    ![a-zA-Z0-9_])
   / ("CREATE"i      ![a-zA-Z0-9_])
   / ("TABLE"i       ![a-zA-Z0-9_])
+  / ("DBF"i         ![a-zA-Z0-9_])
   / ("CURSOR"i      ![a-zA-Z0-9_])
   / ("NAME"i        ![a-zA-Z0-9_])
+  / ("FREE"i        ![a-zA-Z0-9_])
   / ("CODEPAGE"i    ![a-zA-Z0-9_])
   / ("UNIQUE"i      ![a-zA-Z0-9_])
   / ("COLLATE"i     ![a-zA-Z0-9_])
   / ("REFERENCES"i  ![a-zA-Z0-9_])
   / ("TAG"i         ![a-zA-Z0-9_])
+  / ("CHECK"i       ![a-zA-Z0-9_])
   / ("DEFAULT"i     ![a-zA-Z0-9_])
   / ("AUTOINC"i     ![a-zA-Z0-9_])
+  / ("NEXTVALUE"i   ![a-zA-Z0-9_])
+  / ("STEP"i        ![a-zA-Z0-9_])
   / ("FOREIGN"i     ![a-zA-Z0-9_])
   / ("FROM"i        ![a-zA-Z0-9_])
 
