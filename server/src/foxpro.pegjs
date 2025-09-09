@@ -49,14 +49,16 @@ Statement "statement"
     / ExpressionStatement
     / DoFormStatement
     / DoStatement
-    / EvalStatement
     / Procedure
     / ReturnStatement
     / StoreStatement
     / ReplaceStatement
     / IfStatement
+    / DoCaseStatement
+    / EvalStatement
     / UnknownStatement
-    / EmptyLine ) { return s; }
+    / EmptyLine
+    ) { return s; }
 
 // -----------------------------
 // Declarations
@@ -528,7 +530,7 @@ CopyStatement "copy statement"
   = CopyFileStatement / CopyToStatement
 
 CopyFileStatement
-  = "COPY FILE"i _ src:(IdentifierOrString / UnquotedPath) _ "TO"i _ dst:(IdentifierOrString / UnquotedPath) __ {
+  = "COPY FILE"i _ src:(StringLiteral / UnquotedPath) _ "TO"i _ dst:(StringLiteral / UnquotedPath) __ {
       return node('CopyFileStatement', { source: src, destination: dst });
     }
 
@@ -695,6 +697,20 @@ DoWhileLoop "do-while loop"
       });
     }
 
+// DO CASE CASE lExpression1 [Commands] ... [OTHERWISE Commands] ENDCASE
+DoCaseStatement "do case statement"
+  = "DO CASE"i __
+    cases:(CaseClause __)+
+    otherwise:("OTHERWISE"i __ othBody:(Statement __)* { return node('BlockStatement', { body: flatten(othBody.map(s => s[0])) }); })?
+    "ENDCASE"i __ {
+      return node('DoCaseStatement', { cases: cases.map(c => c[0]), otherwise: otherwise ? otherwise[1] : null });
+    }
+
+CaseClause
+  = "CASE"i __ test:Expression __ body:(Statement __)* {
+    return node('CaseClause', { test, body: node('BlockStatement', { body: flatten(body.map(s => s[0])) }) });
+  }
+
 ExitStatement
   = "EXIT"i _ LineTerminator? { return node("ExitStatement", {}); }
 
@@ -792,17 +808,18 @@ TryStatement "try-catch statement"
   = "TRY"i __
     tstmts:(Statement __)*
     cpart:(
-      "CATCH"i _ 
-      toVar:("TO"i _ v:Identifier { return v; })? _
-      whenPart:("WHEN"i __ wexpr:Expression { return wexpr; })? __
+      "CATCH"i 
+      toVar:(_ "TO"i _ v:Identifier { return v; })?
+      whenPart:(_ "WHEN"i __ wexpr:Expression { return wexpr; })? 
+      __
       cstmts:(Statement __)* {
         return { to: toVar ? toVar[2] : null, when: whenPart ? whenPart[2] : null, body: flatten(cstmts.map(s => s[0])) };
       }
     )?
-    tpart:("THROW"i _ texpr:Expression? _ LineTerminator { return texpr === undefined ? null : texpr; })?
-    exitpart:("EXIT"i _ LineTerminator { return true; })?
-    fpart:("FINALLY"i _ LineTerminator fstmts:(Statement __)* { return flatten(fstmts.map(s => s[0])); })?
-    "ENDTRY"i _ LineTerminator? 
+    tpart:("THROW"i _ texpr:Expression? __ { return texpr === undefined ? null : texpr; })?
+    exitpart:("EXIT"i __ { return true; })?
+    fpart:("FINALLY"i __ fstmts:(Statement __)* { return flatten(fstmts.map(s => s[0])); })?
+    "ENDTRY"i __? 
     {
       return node("TryStatement", {
         tryBlock: node("BlockStatement", { body: flatten(tstmts.map(s => s[0])) }),
@@ -827,6 +844,12 @@ UnknownStatement
     / "NEXT"i       ![A-Za-z0-9_]
     / "ENDTRY"i     ![A-Za-z0-9_]
     / "ENDDEFINE"i  ![A-Za-z0-9_]
+    / "ENDPROC"i    ![A-Za-z0-9_]
+    / "ENDFUNC"i    ![A-Za-z0-9_]
+    / "ENDCASE"i    ![A-Za-z0-9_]
+    / "OTHERWISE"i  ![A-Za-z0-9_]
+    / "CATCH"i      ![A-Za-z0-9_]
+    / "FINALLY"i    ![A-Za-z0-9_]
     )
     raw:$((!LineTerminator .)+ (LineContinuation (!LineTerminator .)*)*)
     __ {
@@ -867,7 +890,7 @@ ReplaceStatement
     whileClase:(_ "WHILE"i __ condition:Expression)?
     inClause:("IN"i __ target:(Identifier / StringLiteral / NumberLiteral) _)?
     noOptimize:("NOOPTIMIZE"i)?
-    _ LineTerminator? {
+    __ {
       return node("ReplaceStatement", { 
         fields, 
         forCondition: forClause ? forClause[2] : null,
@@ -883,7 +906,7 @@ ReplaceFieldList
     }
 
 ReplaceField
-  = field:Identifier _ "WITH"i _ value:Expression _ additive:("ADDITIVE"i)? {
+  = field:ParameterName _ "WITH"i _ value:Expression _ additive:("ADDITIVE"i)? {
       return { field, value, additive: !!additive };
     }
 
@@ -1003,9 +1026,9 @@ LineTerminator
 DateLiteral "date"
   = "TODO"i
 
-// example: `s:\code\mosapi\3_3\aalib\mosapi.h`
+// example: `s:\code\mosapi\3_3\aalib\mosapi.h` or `libs\system.app`
 UnquotedPath
-  = p:$((!LineTerminator .)+) { return p.trim(); }
+  = p:$([^ \t\f\v\r\n]+) { return p; }
 
 LineTerminatorSequence "end of line"
   = "\n"
