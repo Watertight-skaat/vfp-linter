@@ -27,6 +27,7 @@ Statement "statement"
     LocalStatement
     / PrivateStatement
     / PublicStatement
+    / DimensionStatement
     / DeclareStatement
     / TryStatement
     / CreateStatement
@@ -45,7 +46,7 @@ Statement "statement"
     / SelectStatement
     / GoToStatement
     / InsertStatement
-    / Assignment
+    / AssignmentStatement
     / ExpressionStatement
     / DoFormStatement
     / DoStatement
@@ -89,6 +90,21 @@ LParameters
       return node("ParametersDeclaration", { names: vars });
     }
 
+// DIMENSION ArrayName(nRows [, nColumns]) [AS cType] [, ArrayName2(...)] ...
+DimensionStatement
+  = "DIMENSION"i __ first:DimensionItem tail:(_ "," _ DimensionItem)* _ LineTerminator? {
+      const items = [first, ...tail.map(t => t[3])];
+      return node("DimensionStatement", { items });
+    }
+
+DimensionItem
+  = name:Identifier _ "(" _ rows:Expression _ cols:(_ "," _ Expression)? _ ")" _ asPart:("AS"i __ t:IdentifierOrString)? {
+      return { name, rows, columns: cols ? cols[2] : null, asType: asPart ? asPart[2] : null };
+    }
+  / name:Identifier _ "[" _ rows:Expression _ cols:(_ "," _ Expression)? _ "]" _ asPart:("AS"i __ t:IdentifierOrString)? {
+      return { name, rows, columns: cols ? cols[2] : null, asType: asPart ? asPart[2] : null };
+    }
+
 IdentifierList
   = head:ParameterName tail:(_ "," _ ParameterName)* {
       return [head, ...tail.map(t => t[3])];
@@ -120,17 +136,14 @@ LValue
       return expr;
     }
 
-Assignment
-  = id:LValue __ "=" __ expr:Expression LineTerminator? {
+AssignmentStatement
+  = id:LValue __ "=" __ expr:Expression __ {
       return node("Assignment", { target: id, expression: expr });
     }
 
 // Shorthand print statement: ? <expression> or PRINT <expression>
 PrintStatement
-  = "?" _ expr:Expression _ LineTerminator? {
-      return node("PrintStatement", { argument: expr });
-    }
-  / "PRINT"i _ expr:Expression _ LineTerminator? {
+  = ("?" / "PRINT"i) _ expr:Expression __ {
       return node("PrintStatement", { argument: expr });
     }
 
@@ -243,7 +256,7 @@ DefineStatement
 DefineClass
   = "DEFINE CLASS"i _ name:Identifier _ "AS"i _ base:Identifier __
     statements:(Statement __)*
-    "ENDDEFINE"i _ LineTerminator? {
+    "ENDDEFINE"i __ {
       return node("DefineClass", { name, base: base || null, body: flatten(statements.map(s => s[0])) });
     }
 
