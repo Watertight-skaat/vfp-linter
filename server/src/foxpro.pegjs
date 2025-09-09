@@ -949,11 +949,12 @@ ExpressionList
 // 1) PROCEDURE Name [ LPARAMETERS p1, p2, ... ]   Commands [ RETURN expr ] [ ENDPROC ]
 // 2) PROCEDURE Name( [ p1 [ AS type ] [, p2 [ AS type ] ... ] ) [ AS returntype ]  Commands [ RETURN expr ] [ ENDPROC ]
 ProcedureStatement "procedure"
-  = "PROCEDURE"i __ name:Identifier _ (
+  = cw:("PROCEDURE"i / "FUNCTION"i) __ name:Identifier _ (
       // function-style parameter list with optional typed params and optional return type
       "(" _ params:ProcedureParamList? _ ")" _ retPart:(_ "AS"i __ rt:IdentifierOrString)? __ statements:(Statement __)* ret:(_ "RETURN"i __ expr:Expression _)? end:(_ "ENDPROC"i __)? {
         return node("ProcedureStatement", {
           name,
+          isFunction: (typeof cw === 'string') ? (cw.toUpperCase() === 'FUNCTION') : false,
           parameters: params || [],
           returnType: retPart ? retPart[3] : null,
           body: node("BlockStatement", { body: flatten(statements.map(s => s[0])) }),
@@ -961,12 +962,12 @@ ProcedureStatement "procedure"
           lparameters: false
         });
       }
-    /
-      // alternate LPARAMETERS style (untyped, compatible with LPARAMETERS/PARAMETERS keyword)
-      lparams:LParameters? __ statements:(Statement __)* ret:(_ "RETURN"i __ expr:Expression _)? end:(_ "ENDPROC"i __)? {
+    / // alternate LPARAMETERS style (untyped, compatible with LPARAMETERS/PARAMETERS keyword)
+    lparams:LParameters? __ statements:(Statement __)* ret:(_ "RETURN"i __ expr:Expression _)? end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
         return node("ProcedureStatement", {
           name,
-          parameters: lparams ? (lparams.names || []) : [],
+      isFunction: false,
+      parameters: lparams ? (lparams.names || []) : [],
           returnType: null,
           body: node("BlockStatement", { body: flatten(statements.map(s => s[0])) }),
           returnExpression: ret ? ret[2] : null,
