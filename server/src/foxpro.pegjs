@@ -35,6 +35,7 @@ Statement "statement"
     / PrintStatement
     / UseStatement
     / AppendStatement
+    / CopyStatement
     / ReplaceStatement
     / SetStatement
     / PreprocessorStatement
@@ -260,11 +261,11 @@ PostfixExpression
 
 // Allow a bare expression (typically a call) as a top-level statement.
 ExpressionStatement "expression statement"
-  = expr:PostfixExpression _ LineTerminator? { return node("ExpressionStatement", { expression: expr }); }
+  = expr:PostfixExpression __ { return node("ExpressionStatement", { expression: expr }); }
 
 // Leading equals can be used to evaluate/call an expression as a statement, e.g. "=func()"
 EvalStatement "equals-expression statement"
-  = "=" _ expr:PostfixExpression _ LineTerminator? { return node("ExpressionStatement", { expression: expr }); }
+  = "=" _ expr:PostfixExpression __ { return node("ExpressionStatement", { expression: expr }); }
 
 IfStatement "if statement"
   = "IF"i __ test:Expression __ 
@@ -283,7 +284,9 @@ IfStatement "if statement"
     }
 
 DoStatement "do statement"
-  = "DO"i __ target:(StringLiteral / Identifier) _ inPart:(("IN"i _ n:( $([0-9]+) { return parseInt(n,10); } / Identifier / StringLiteral )) _)? withPart:("WITH"i _ params:ArgumentList)? _ LineTerminator? {
+  = "DO"i __ target:(StringLiteral / Identifier) _ 
+    inPart:(("IN"i _ n:( $([0-9]+) { return parseInt(n,10); } / Identifier / StringLiteral )) _)?
+    withPart:("WITH"i _ params:ArgumentList)? __ {
       const inSession = inPart ? inPart[2] : null;
       return node("DoStatement", { target, inSession, arguments: withPart ? withPart[2] : [] });
     }
@@ -421,15 +424,81 @@ NowaitFlag
   = "NOWAIT"i { return true; }
 
 // -----------------------------
+// COPY
+// -----------------------------
+
+CopyStatement
+  = CopyFileStatement / CopyToStatement
+
+CopyFileStatement
+  = "COPY FILE"i _ src:(IdentifierOrString / UnquotedPath) _ "TO"i _ dst:(IdentifierOrString / UnquotedPath) __ {
+      return node('CopyFileStatement', { source: src, destination: dst });
+    }
+
+CopyToStatement
+  = "COPY TO"i
+    target:(IdentifierOrString / UnquotedPath) _
+    db:DatabaseClause? _
+    fields:FieldsClause? _
+    forClause:("FOR"i __ fexp:Expression { return fexp; })? _
+    whileClause:("WHILE"i __ wexp:Expression { return wexp; })? _
+    idx:WithIndexClause? _
+    noopt:("NOOPTIMIZE"i)? _
+    t:TypeClause? _
+    ascp:("AS"i __ cp:Expression { return cp; })?
+    __ {
+      return node('CopyToStatement', {
+        target,
+        database: db || null,
+        fields: fields || null,
+        for: forClause || null,
+        while: whileClause || null,
+        index: idx || null,
+        noOptimize: !!noopt,
+        type: t || null,
+        codepage: ascp || null
+      });
+    }
+
+DatabaseClause
+  = "DATABASE"i __ db:IdentifierOrString _ name:("NAME"i __ ln:IdentifierOrString { return ln; })? { return { database: db, longName: name || null }; }
+
+FieldsClause
+  = "FIELDS"i __ (
+      list:IdentifierList { return { kind: 'list', fields: list }; }
+      / "LIKE"i __ sk:Pattern { return { kind: 'like', pattern: sk }; }
+      / "EXCEPT"i __ sk:Pattern { return { kind: 'except', pattern: sk }; }
+    )
+
+WithIndexClause
+  = ("WITH"i _)? kind:("CDX"i / "PRODUCTION"i) { return typeof kind === 'string' ? kind.toUpperCase() : kind; }
+
+TypeClause
+  = ("TYPE"i _)? et:ExportType { return et; }
+
+ExportType
+  = t:("FOXPLUS"i / "FOX2X"i / "DIF"i / "MOD"i / "SDF"i / "SYLK"i / "WK1"i / "WKS"i / "WR1"i / "WRK"i / "CSV"i / "XLS"i / "XL5"i) { return { format: (typeof t === 'string' ? t.toUpperCase() : t) }; }
+  / "DELIMITED"i _ d:DelimitedOptions? { return { format: 'DELIMITED', options: d || null }; }
+
+DelimitedOptions
+  = "WITH"i __ (
+      "BLANK"i { return { mode: 'BLANK' }; }
+      / "TAB"i { return { mode: 'TAB' }; }
+      / "CHARACTER"i __ ch:IdentifierOrString { return { mode: 'CHARACTER', delimiter: ch }; }
+      / del:IdentifierOrString { return { mode: 'DELIMITER', delimiter: del }; }
+    )
+
+// -----------------------------
 // GO / GOTO (record navigation)
 // -----------------------------
 
 GoToStatement "go/goto statement"
-  = cmd:("GO"i / "GOTO"i) __
+  = cmd:("GO"i / "GOTO"i) _
     part:(
       pos:("TOP"i / "BOTTOM"i) _ inC:InClause? { return { pos, rec: null, inTarget: inC || null }; }
-  / reckw:("RECORD"i)? _ rec:Expression _ inC:InClause? { return { pos: null, rec, inTarget: inC || null }; }
-    ) _ LineTerminator? {
+      / reckw:("RECORD"i)? _ rec:Expression _ inC:InClause? { return { pos: null, rec, inTarget: inC || null }; }
+    ) 
+    __ {
       return node("GoToStatement", {
         command: (typeof cmd === 'string' ? cmd.toUpperCase() : cmd),
         position: part.pos ? (typeof part.pos === 'string' ? part.pos.toUpperCase() : part.pos) : null,
@@ -459,7 +528,7 @@ InsertStatement
           const parts = unions ? unions.map(u => ({ all: !!u[3], select: u[5] })) : [];
           return { kind: 'select', select: { core: sel, unions: parts } };
         }
-    ) _ LineTerminator? {
+    ) __ {
       return node('InsertStatement', {
         target,
         columns: cols ? cols[2] : null,
@@ -551,7 +620,9 @@ IdentifierOrString
 
 // Column definition and options
 ColumnDefinition
-  = name:Identifier __ ftype:FieldType _ fsize:FieldSize? _
+  = name:Identifier __ 
+    ftype:FieldType _
+    fsize:FieldSize? _
     nullability:("NULL"i / "NOT NULL"i)? _
     check:("CHECK"i __ expr:Expression _ err:("ERROR"i __ msg:StringLiteral)? { return { expr, error: err ? err[2] : null }; })? _
     autoinc:("AUTOINC"i _ nv:("NEXTVALUE"i __ nv:(NumberLiteral / Identifier) _ step:("STEP"i __ st:(NumberLiteral / Identifier))?)? { return { nextValue: nv ? nv[2] : null, step: (nv && nv[4]) ? nv[4][2] : null }; })? _
@@ -580,8 +651,8 @@ FieldType
   = t:$([A-Za-z]+) { return t.toUpperCase(); }
 
 FieldSize
-  = "(" _ w:(NumberLiteral / Identifier) _ "," _ p:(NumberLiteral / Identifier) _ ")" { return { width: w, precision: p }; }
-  / "(" _ w:(NumberLiteral / Identifier) _ ")" { return { width: w, precision: null }; }
+  = "(" _ w:Expression _ "," _ p:Expression _ ")" { return { width: w, precision: p }; }
+  / "(" _ w:Expression _ ")" { return { width: w, precision: null }; }
 
 TableConstraint
   = "PRIMARY"i __ "KEY"i __ expr:Expression __ "TAG"i __ tag:Identifier { return node('TableConstraint', { kind: 'PRIMARY KEY', expression: expr, tag }); }
@@ -729,6 +800,7 @@ Keyword "keyword"
   / ("WITH"i        ![a-zA-Z0-9_])
   / ("ADDITIVE"i    ![a-zA-Z0-9_])
   / ("STORE"i       ![a-zA-Z0-9_])
+  / ("TO"i          ![a-zA-Z0-9_])
   / ("QUIT"i        ![a-zA-Z0-9_])
   / ("RETURN"i      ![a-zA-Z0-9_])
   / ("EXIT"i        ![a-zA-Z0-9_])
@@ -751,12 +823,12 @@ Keyword "keyword"
   / ("UNION"i      ![a-zA-Z0-9_])
   / ("INTO"i       ![a-zA-Z0-9_])
   / ("INSERT"i     ![a-zA-Z0-9_])
+  / ("COPY"i       ![a-zA-Z0-9_])
+  / ("FILE"i       ![a-zA-Z0-9_])
   / ("CREATE"i      ![a-zA-Z0-9_])
-    / ("GO"i         ![a-zA-Z0-9_])
-    / ("GOTO"i       ![a-zA-Z0-9_])
-    / ("RECORD"i     ![a-zA-Z0-9_])
-    / ("TOP"i        ![a-zA-Z0-9_])
-    / ("BOTTOM"i     ![a-zA-Z0-9_])
+  / ("GO"i         ![a-zA-Z0-9_])
+  / ("GOTO"i       ![a-zA-Z0-9_])
+  / ("RECORD"i     ![a-zA-Z0-9_])
   / ("CURSOR"i      ![a-zA-Z0-9_])
 
 NumberLiteral "number"
