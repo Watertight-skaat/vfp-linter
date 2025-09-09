@@ -920,7 +920,6 @@ Keyword "keyword"
   / ("INTO"i       ![a-zA-Z0-9_])
   / ("INSERT"i     ![a-zA-Z0-9_])
   / ("COPY"i       ![a-zA-Z0-9_])
-  / ("FILE"i       ![a-zA-Z0-9_])
   / ("CREATE"i      ![a-zA-Z0-9_])
   / ("GO"i         ![a-zA-Z0-9_])
   / ("GOTO"i       ![a-zA-Z0-9_])

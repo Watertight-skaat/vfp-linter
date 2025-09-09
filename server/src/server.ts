@@ -122,8 +122,8 @@ function validateTextDocument(textDocument: TextDocument): Diagnostic[] {
 		const linterRules = runLinterRules(ast);
 		diagnostics.push(...linterRules);
 	} catch (error: any) {
-		// Step 3: If parsing fails, Peggy.js gives us a syntax error.
-		// This is our most basic linting diagnostic!
+		console.log(error);
+
 		if (error?.location) {
 			const diagnostic: Diagnostic = {
 				severity: DiagnosticSeverity.Error,
@@ -136,7 +136,6 @@ function validateTextDocument(textDocument: TextDocument): Diagnostic[] {
 			};
 			diagnostics.push(diagnostic);
 		} else {
-			console.log(error);
 			const diagnostic: Diagnostic = {
 				severity: DiagnosticSeverity.Error,
 				range: {
@@ -148,83 +147,71 @@ function validateTextDocument(textDocument: TextDocument): Diagnostic[] {
 			};
 			diagnostics.push(diagnostic);
 		}
-		console.log(diagnostics);
 	}
 	return diagnostics;
 }
 
 // This function walks the AST and checks for custom rules.
-interface AstNode { type: string; name?: string; location?: { start: { line: number; column: number }; end: { line: number; column: number } };[k: string]: unknown; }
+interface AstNode {
+	type: string;
+	name?: string;
+	location?: {
+		start: { line: number; column: number };
+		end: { line: number; column: number }
+	};
+	[k: string]: unknown;
+}
 interface ProgramAst { body?: AstNode[] }
 function runLinterRules(ast: ProgramAst): Diagnostic[] {
 	const problems: Diagnostic[] = [];
-	// Our custom rule: Variable names must be longer than 3 characters.
-	if (ast.body) {
-		// Helper: collect all Identifier node names in the AST
-		function collectIdentifiers(root: unknown): string[] {
-			const ids: string[] = [];
-			const seen = new Set<unknown>();
-			function walk(node: unknown) {
-				if (!node || typeof node !== 'object') {return;}
-				if (seen.has(node)) {return;} // guard against cycles
-				seen.add(node);
-				if (Array.isArray(node)) {
-					for (const el of node) {walk(el);}
-					return;
-				}
-				// If this is an Identifier node produced by the parser
-				if ((node as any).type === 'Identifier' && typeof (node as any).name === 'string') {
-					ids.push((node as any).name);
-					return;
-				}
-				for (const k of Object.keys(node as object)) {
-					// skip location objects to avoid large traversal
-					if (k === 'location') {continue;}
-					walk((node as any)[k]);
-				}
-			};
-			walk(root);
-			return ids;
+	if (!ast.body) {
+		console.log("No body in AST");
+		return problems;
+	}
+	// Recursively traverse the AST and collect problems from every node.
+	function traverse(node: AstNode | AstNode[]) {
+		if (!node)
+			return;
+		if (Array.isArray(node)) {
+			for (const item of node)
+				traverse(item);
+			return;
 		}
+		if (typeof node !== 'object' || node === null)
+			return;
+		const maybeNode = node as AstNode;
+		if (maybeNode.type) // If this object looks like an AST node, check it for problems.
+			problems.push(...getProblemsFromNode(maybeNode));
 
-		// Precompute all identifier usages in the AST body
-		const allIdentifiers = collectIdentifiers(ast.body);
-		// Helper to check usage of a name
-		const isUsed = (name: string) => allIdentifiers.indexOf(name) !== -1;
-		for (const node of ast.body) {
-			if (node.type === 'UnknownStatement' && typeof node.raw === 'string') {
-				const diagnostic: Diagnostic = {
-					severity: DiagnosticSeverity.Error,
-					range: {
-						start: { line: (node.location?.start.line ?? 1) - 1, character: (node.location?.start.column ?? 1) - 1 },
-						end: { line: (node.location?.end.line ?? 1) - 1, character: (node.location?.end.column ?? 2) - 1 }
-					},
-					message: `Unknown or unsupported statement: '${node.raw}'`,
-					source: 'VFP Linter (Syntax)'
-				};
-				problems.push(diagnostic);
+		// Recurse into all object properties to find nested nodes or arrays of nodes.
+		for (const key in maybeNode) {
+			const prop: any = maybeNode[key];
+			if (!prop) continue;
+			if (Array.isArray(prop)) {
+				for (const p of prop)
+					traverse(p);
+			} else if (typeof prop === 'object' && prop?.['type']) {
+				traverse(prop as AstNode);
 			}
-			// No unused local parameters: PARAMETERS / LPARAMETERS declarations
-			// if (node.type === 'ParametersDeclaration' && Array.isArray((node as any).names)) {
-			// 	const params: string[] = (node as any).names;
-			// 	const unused = params.filter(p => !isUsed(p));
-			// 	if (unused.length) {
-			// 		const msg = unused.length === 1
-			// 			? `Parameter '${unused[0]}' is declared but never used.`
-			// 			: `Parameters ${unused.map(p => `'${p}'`).join(', ')} are declared but never used.`;
-			// 		const diagnostic: Diagnostic = {
-			// 			severity: DiagnosticSeverity.Warning,
-			// 			range: {
-			// 				start: { line: (node.location?.start.line ?? 1) - 1, character: (node.location?.start.column ?? 1) - 1 },
-			// 				end: { line: (node.location?.end.line ?? 1) - 1, character: (node.location?.end.column ?? 1) - 1 }
-			// 			},
-			// 			message: msg,
-			// 			source: 'VFP Linter (Usage)'
-			// 		};
-			// 		problems.push(diagnostic);
-			// 	}
-			// }
 		}
+	}
+
+	traverse(ast.body);
+	return problems;
+}
+function getProblemsFromNode(node: AstNode) {
+	const problems: Diagnostic[] = [];
+	if (node.type === 'UnknownStatement') {
+		const diagnostic: Diagnostic = {
+			severity: DiagnosticSeverity.Error,
+			range: {
+				start: { line: (node.location?.start.line ?? 1) - 1, character: (node.location?.start.column ?? 1) - 1 },
+				end: { line: (node.location?.end.line ?? 1) - 1, character: (node.location?.end.column ?? 2) - 1 }
+			},
+			message: `Unknown or unsupported statement: '${node.raw}'`,
+			source: 'VFP Linter (Syntax)'
+		};
+		problems.push(diagnostic);
 	}
 	return problems;
 }

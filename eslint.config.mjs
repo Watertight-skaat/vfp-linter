@@ -23,7 +23,7 @@ export default tseslint.config(
 			'@stylistic': stylistic
 		},
 		rules: {
-			'curly': 'warn',
+			'curly': 'off',
 			'@stylistic/semi': ['warn', 'always'],
 			'no-control-regex': 'warn',
 			'no-empty': 'warn',
