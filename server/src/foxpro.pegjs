@@ -51,6 +51,7 @@ Statement "statement"
     / DoFormStatement
     / DoStatement
     / ProcedureStatement
+    / LocateStatement
     / ReturnStatement
     / StoreStatement
     / ReplaceStatement
@@ -920,6 +921,22 @@ ReplaceStatement
       });
     }
 
+// LOCATE [FOR lExpression1] [IN nWorkArea | cTableAlias] [WHILE lExpression2] [NOOPTIMIZE]
+LocateStatement
+  = "LOCATE"i
+    forClause:(_ "FOR"i __ condition:Expression)?
+    inClause:(_ "IN"i __ target:(Identifier / StringLiteral / NumberLiteral / SelectCore) _)?
+    whileClause:(_ "WHILE"i __ condition:Expression)?
+    noopt:(_ "NOOPTIMIZE"i)?
+    __ {
+      return node("LocateStatement", {
+        forCondition: forClause ? forClause[2] : null,
+        inTarget: inClause ? inClause[2] : null,
+        whileCondition: whileClause ? whileClause[2] : null,
+        noOptimize: !!(noopt && noopt[1])
+      });
+    }
+
 ReplaceFieldList
   = head:ReplaceField tail:(_ "," _ ReplaceField)* {
       return [head, ...tail.map(t => t[3])];
@@ -996,6 +1013,7 @@ Keyword "keyword"
   / ("PARAMETERS"i  ![a-zA-Z0-9_])
   / ("LPARAMETERS"i ![a-zA-Z0-9_])
   / ("PROCEDURE"i   ![a-zA-Z0-9_])
+  / ("LOCATE"i      ![a-zA-Z0-9_])
   / ("FUNCTION"i    ![a-zA-Z0-9_])
   / ("ENDPROC"i     ![a-zA-Z0-9_])
   / ("ENDFUNC"i     ![a-zA-Z0-9_])
@@ -1025,7 +1043,6 @@ Keyword "keyword"
   / ("WHILE"i       ![a-zA-Z0-9_])
   / ("FOR"i         ![a-zA-Z0-9_])
   / ("ENDFOR"i      ![a-zA-Z0-9_])
-  / ("NEXT"i        ![a-zA-Z0-9_])
   / ("ENDDO"i       ![a-zA-Z0-9_])
   / ("LOOP"i        ![a-zA-Z0-9_])
   / ("TRY"i        ![a-zA-Z0-9_])
