@@ -40,6 +40,7 @@ Statement "statement"
       / IterationStatement
       / ExitStatement
       / ContinueStatement
+      / SelectStatement
       / Assignment
       / ExpressionStatement
       / DoStatement
@@ -125,11 +126,17 @@ PrintStatement
       return node("PrintStatement", { argument: expr });
     }
 
-// SQL-like USE statement (e.g. USE mytable, USE "path\file.dbf", USE IN app, or USE <path> IN <datasession>)
+// USE [[DatabaseName!] TableName | SQLViewName | ?]
+//  [IN nWorkArea | cTableAlias] [ONLINE] [ADMIN] [AGAIN]
+//  [NOREQUERY [nDataSessionNumber]] [NODATA] 
+//  [INDEX IndexFileList | ? [ORDER [nIndexNumber | IDXFileName 
+//  | [TAG] TagName [OF CDXFileName] [ASCENDING | DESCENDING]]]]
+//  [ALIAS cTableAlias] [EXCLUSIVE] [SHARED] [NOUPDATE] 
+//  [CONNSTRING cConnectionString | nStatementHandle ]
 UseStatement
   = "USE"i _ 
     path:(StringLiteral / Identifier)? _ 
-    inSession:("IN"i _ n:( [0-9]+  / Identifier / StringLiteral ) )? _
+    inSession:("IN"i _ n:( [0-9]+  / Identifier / StringLiteral / SelectCore) )? _
     LineTerminator? {
       return node("UseStatement", { path: path === undefined ? null : path, inSession: inSession});
     }
@@ -278,6 +285,138 @@ DoStatement "do statement"
       return node("DoStatement", { target, inSession, arguments: withPart ? withPart[2] : [] });
     }
 
+// `SELECT [ALL | DISTINCT] [TOP nExpr [PERCENT]] Select_List_Item [, ...]
+  //  FROM [FORCE] Table_List_Item [, ...]
+  //     [[JoinType] JOIN DatabaseName!]Table [[AS] Local_Alias]
+  //     [ON JoinCondition [AND | OR [JoinCondition | FilterCondition] ...] 
+  //  [WITH (BUFFERING = lExpr)]
+  //  [WHERE JoinCondition | FilterCondition [AND | OR JoinCondition | FilterCondition] ...]
+  //  [GROUP BY Column_List_Item [, ...]] [HAVING FilterCondition [AND | OR ...]]
+  //  [UNION [ALL] SELECTCommand]
+  //  [ORDER BY Order_Item [ASC | DESC] [, ...]]
+  //  [INTO StorageDestination | TO DisplayDestination]
+  //  [PREFERENCE PreferenceName] [NOCONSOLE] [PLAIN] [NOWAIT]
+SelectStatement
+  = sc:SelectCore unions:(_ "UNION"i _ all:("ALL"i)? _ rhs:SelectCore)* __ {
+      const unionParts = unions ? unions.map(u => ({ all: !!u[3], select: u[5] })) : [];
+      return node('SelectStatement', { ...sc, unions: unionParts });
+    }
+
+SelectCore
+  = "SELECT"i _
+    quant:("ALL"i / "DISTINCT"i)? _
+    top:("TOP"i __ n:Expression _ percent:("PERCENT"i)? { return { count: n, percent: !!percent }; })? _
+    list:SelectList __
+    from:FromClause? _
+    withbuf:WithBufferingClause? _
+    where:WhereClause? _
+    group:GroupByClause? _
+    having:HavingClause? _
+    order:OrderByClause? _
+    dest:(IntoClause / ToClause)? _
+    pref:PreferenceClause? _
+    flags:(NoConsoleFlag? _ PlainFlag? _ NowaitFlag?) {
+      return {
+        quantifier: quant ? (typeof quant === 'string' ? quant.toUpperCase() : quant) : null,
+        top: top || null,
+        list,
+        from: from || null,
+        withBuffering: withbuf || null,
+        where: where || null,
+        groupBy: group || null,
+        having: having || null,
+        orderBy: order || null,
+        destination: dest || null,
+        preference: pref || null,
+        noconsol: flags && flags[0] ? true : false,
+        plain: flags && flags[2] ? true : false,
+        nowait: flags && flags[4] ? true : false
+      };
+    }
+
+SelectList
+  = head:SelectItem tail:(_ "," _ SelectItem)* { return [head, ...tail.map(t => t[3])]; }
+
+SelectItem
+  = "*" { return node('SelectStar', {}); }
+  / tbl:Identifier "." "*" { return node('SelectStar', { table: tbl }); }
+  / expr:Expression alias:(__ "AS"i __ a:Identifier { return a; })? {
+      return node('SelectItem', { expression: expr, alias: alias ? alias[3] : null });
+    }
+
+FromClause
+  = "FROM"i __ force:("FORCE"i _)? tables:TableList joins:JoinClause* {
+      return { force: !!force, tables, joins };
+    }
+
+TableList
+  = head:TableRef tail:(_ "," _ TableRef)* { return [head, ...tail.map(t => t[3])]; }
+
+TableRef
+  = name:QualifiedTable _ alias:(AliasPart)? { return { name, alias: alias || null }; }
+
+QualifiedTable
+  = db:Identifier "!" tbl:Identifier { return { database: db, table: tbl }; }
+  / t:IdentifierOrString { return { database: null, table: t }; }
+
+AliasPart
+  = ("AS"i _ a:Identifier { return a; }) / a:Identifier { return a; }
+
+JoinClause
+  = jt:JoinType? __ "JOIN"i __ tr:TableRef __ "ON"i __ cond:Expression {
+      return { type: jt || null, target: tr, condition: cond };
+    }
+
+JoinType
+  = "LEFT"i _ ("OUTER"i _)? { return "LEFT"; }
+  / "RIGHT"i _ ("OUTER"i _)? { return "RIGHT"; }
+  / "FULL"i _ ("OUTER"i _)? { return "FULL"; }
+  / "INNER"i _ { return "INNER"; }
+
+WithBufferingClause
+  = "WITH"i _ "(" _ "BUFFERING"i _ "=" _ e:Expression _ ")" { return { buffering: e }; }
+
+WhereClause
+  = "WHERE"i __ e:Expression { return e; }
+
+GroupByClause
+  = "GROUP"i _ "BY"i __ items:ExpressionList { return items; }
+
+HavingClause
+  = "HAVING"i __ e:Expression { return e; }
+
+OrderByClause
+  = "ORDER"i _ "BY"i __ items:OrderItemList { return items; }
+
+OrderItemList
+  = head:OrderItem tail:(_ "," _ OrderItem)* { return [head, ...tail.map(t => t[3])]; }
+
+OrderItem
+  = expr:Expression dir:(__ ("ASC"i / "DESC"i))? { return { expression: expr, direction: dir ? dir[1].toUpperCase() : null }; }
+
+IntoClause
+  = "INTO"i __ dest:(
+      ("CURSOR"i _ a:Identifier { return { kind: 'CURSOR', name: a }; })
+      / ("ARRAY"i _ a:Identifier { return { kind: 'ARRAY', name: a }; })
+      / ("DBF"i _ n:IdentifierOrString { return { kind: 'DBF', name: n }; })
+      / n:IdentifierOrString { return { kind: 'DEFAULT', name: n }; }
+    ) { return dest; }
+
+ToClause
+  = "TO"i __ d:IdentifierOrString { return { kind: 'TO', name: d }; }
+
+PreferenceClause
+  = "PREFERENCE"i __ p:IdentifierOrString { return p; }
+
+NoConsoleFlag
+  = "NOCONSOLE"i { return true; }
+
+PlainFlag
+  = "PLAIN"i { return true; }
+
+NowaitFlag
+  = "NOWAIT"i { return true; }
+
 // -----------------------------
 // Loops: FOR ... ENDFOR|NEXT and DO WHILE ... ENDDO
 // -----------------------------
@@ -321,14 +460,16 @@ ContinueStatement
 // CREATE TABLE/DBF/CURSOR
 // -----------------------------
 CreateStatement
-  = "CREATE"i __ kind:("TABLE"i / "DBF"i / "CURSOR"i) __ name:IdentifierOrString _
-    nameClause:("NAME"i __ longName:IdentifierOrString _ { return longName; })? _
+  = "CREATE"i _ 
+    kind:("TABLE"i / "DBF"i / "CURSOR"i) _ 
+    name:Identifier _
+    nameClause:("NAME"i __ longName:Identifier _ { return longName; })? _
     free:("FREE"i _)?
     codepage:("CODEPAGE"i _ "=" _ cp:(NumberLiteral / Identifier))? _
     def:(
       _ "(" _ items:CreateDefItems _ ")" _ { return { type: 'columns', items: items }; }
       / _ "FROM"i __ "ARRAY"i __ arr:Identifier { return { type: 'fromArray', array: arr }; }
-    ) _ LineTerminator? {
+    ) __ {
       const payload = { 
         kind: (typeof kind === 'string' ? kind.toUpperCase() : kind).toUpperCase(),
         name,
@@ -526,7 +667,6 @@ Keyword "keyword"
   / ("AND"i         ![a-zA-Z0-9_])
   / ("OR"i          ![a-zA-Z0-9_])
   / ("NOT"i         ![a-zA-Z0-9_])
-  / ("PRINT"i       ![a-zA-Z0-9_])
   / ("USE"i         ![a-zA-Z0-9_])
   / ("IN"i          ![a-zA-Z0-9_])
   / ("DEFINE"i      ![a-zA-Z0-9_])
@@ -539,7 +679,6 @@ Keyword "keyword"
   / ("WITH"i        ![a-zA-Z0-9_])
   / ("ADDITIVE"i    ![a-zA-Z0-9_])
   / ("STORE"i       ![a-zA-Z0-9_])
-  / ("TO"i          ![a-zA-Z0-9_])
   / ("QUIT"i        ![a-zA-Z0-9_])
   / ("RETURN"i      ![a-zA-Z0-9_])
   / ("EXIT"i        ![a-zA-Z0-9_])
@@ -555,24 +694,14 @@ Keyword "keyword"
   / ("ENDTRY"i     ![a-zA-Z0-9_])
   / ("THROW"i      ![a-zA-Z0-9_])
   / ("FINALLY"i    ![a-zA-Z0-9_])
+  / ("SELECT"i     ![a-zA-Z0-9_])
+  / ("WITH"i       ![a-zA-Z0-9_])
+  / ("WHERE"i      ![a-zA-Z0-9_])
+  / ("HAVING"i     ![a-zA-Z0-9_])
+  / ("UNION"i      ![a-zA-Z0-9_])
+  / ("INTO"i       ![a-zA-Z0-9_])
   / ("CREATE"i      ![a-zA-Z0-9_])
-  / ("TABLE"i       ![a-zA-Z0-9_])
-  / ("DBF"i         ![a-zA-Z0-9_])
   / ("CURSOR"i      ![a-zA-Z0-9_])
-  / ("NAME"i        ![a-zA-Z0-9_])
-  / ("FREE"i        ![a-zA-Z0-9_])
-  / ("CODEPAGE"i    ![a-zA-Z0-9_])
-  / ("UNIQUE"i      ![a-zA-Z0-9_])
-  / ("COLLATE"i     ![a-zA-Z0-9_])
-  / ("REFERENCES"i  ![a-zA-Z0-9_])
-  / ("TAG"i         ![a-zA-Z0-9_])
-  / ("CHECK"i       ![a-zA-Z0-9_])
-  / ("DEFAULT"i     ![a-zA-Z0-9_])
-  / ("AUTOINC"i     ![a-zA-Z0-9_])
-  / ("NEXTVALUE"i   ![a-zA-Z0-9_])
-  / ("STEP"i        ![a-zA-Z0-9_])
-  / ("FOREIGN"i     ![a-zA-Z0-9_])
-  / ("FROM"i        ![a-zA-Z0-9_])
 
 NumberLiteral "number"
   = value:$("$"? [0-9]+ ("." [0-9]+)? ) {
