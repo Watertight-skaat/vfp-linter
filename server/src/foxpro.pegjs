@@ -301,7 +301,7 @@ LogicalAnd
     }
 
 Equality
-  = head:Relational tail:(_ op:("==" / "=" / "<>" / "!=" / "#") _ Relational)* {
+  = head:Relational tail:(_ op:("==" / "=" / "<>" / "!=" / "#" / "$") _ Relational)* {
       return tail.reduce((acc, t) => node("BinaryExpression", { operator: t[1], left: acc, right: t[3] }), head);
     }
 
