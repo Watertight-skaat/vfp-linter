@@ -47,6 +47,7 @@ Statement "statement"
     / InsertStatement
     / Assignment
     / ExpressionStatement
+    / DoFormStatement
     / DoStatement
     / EvalStatement
     / Procedure
@@ -357,6 +358,26 @@ IfStatement "if statement"
       "ENDIF"i 
     {
       return node("IfStatement", { test, consequent: node("BlockStatement", { body: flatten(consequent.map(s => s[0])) }), alternate: null });
+    }
+
+// DO FORM FormName | ? [NAME VarName [LINKED]] [WITH cParameterList]
+//  [TO VarName] [NOREAD] [NOSHOW]
+DoFormStatement "do form statement"
+  = "DO FORM"i __ target:(StringLiteral / Identifier / "?") _
+    namePart:("NAME"i __ nameIdent:Identifier _ link:("LINKED"i)? )?
+    withPart:("WITH"i _ params:ArgumentList)?
+    toPart:("TO"i __ v:IdentifierOrString)?
+    flags:(_ ("NOREAD"i / "NOSHOW"i))*
+    __ {
+      return node("DoFormStatement", {
+        target,
+        name: namePart ? nameIdent : null,
+        linked: namePart ? !!(namePart[3]) : false,
+        arguments: withPart ? withPart[2] : [],
+        to: toPart ? toPart[2] : null,
+        noread: flags ? flags.some(f => f[1].toUpperCase() === 'NOREAD') : false,
+        noshow: flags ? flags.some(f => f[1].toUpperCase() === 'NOSHOW') : false
+      });
     }
 
 DoStatement "do statement"
