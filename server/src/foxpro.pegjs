@@ -41,6 +41,7 @@ Statement "statement"
       / EvalStatement
       / Procedure
       / ReturnStatement
+      / StoreStatement
       / ReplaceStatement
       / IfStatement
       / EmptyLine ) { return s; }
@@ -298,6 +299,7 @@ AppendStatement
       });
     }
 
+// REPLACE FieldName1 WITH eExpression1 [ADDITIVE] [, FieldName2 WITH eExpression2 [ADDITIVE]] ... [Scope] [FOR lExpression1] [WHILE lExpression2] [IN nWorkArea | cTableAlias] [NOOPTIMIZE]
 ReplaceStatement
   = "REPLACE"i __
     fields:ReplaceFieldList
@@ -324,6 +326,21 @@ ReplaceField
   = field:Identifier _ "WITH"i _ value:Expression _ additive:("ADDITIVE"i)? {
       return { field, value, additive: !!additive };
     }
+
+// STORE eExpression TO VarNameList | ArrayNameList-or-VarName | ArrayName = eExpression
+StoreStatement
+  = "STORE"i __ expr:Expression __ "TO"i __
+    toPart:(
+      vars:IdentifierList { return { type: 'VarList', vars }; }
+      / arr:Identifier "[" _ indexList:ExpressionList _ "]" { return { type: 'ArrayIndexed', array: arr, indexes: indexList }; }
+      / arrAssign:Identifier _ "=" _ rhs:Expression { return { type: 'ArrayAssign', target: arrAssign, expression: rhs }; }
+    ) 
+    _ LineTerminator? {
+    return node('StoreStatement', { expression: expr, target: toPart });
+  }
+
+ExpressionList
+  = head:Expression tail:(_ "," _ Expression)* { return [head, ...tail.map(t => t[3])]; }
 
 Procedure "procedure"
   = "TODO"i
@@ -369,15 +386,24 @@ Keyword "keyword"
   / ("REPLACE"i     ![a-zA-Z0-9_])
   / ("WITH"i        ![a-zA-Z0-9_])
   / ("ADDITIVE"i    ![a-zA-Z0-9_])
+  / ("STORE"i       ![a-zA-Z0-9_])
+  / ("TO"i          ![a-zA-Z0-9_])
   / ("QUIT"i        ![a-zA-Z0-9_])
   / ("RETURN"i      ![a-zA-Z0-9_])
   / ("EXIT"i        ![a-zA-Z0-9_])
   / ("DO"i          ![a-zA-Z0-9_])
   / ("WHILE"i       ![a-zA-Z0-9_])
+  / ("try"i          ![a-zA-Z0-9_])
+  / ("catch"i       ![a-zA-Z0-9_])
 
 
 NumberLiteral "number"
-  = value:$([0-9]+ ("." [0-9]+)? ) { return node("NumberLiteral", { value: parseFloat(value) }); }
+  = value:$("$"? [0-9]+ ("." [0-9]+)? ) {
+      const raw = value;
+      const isCurrency = raw.charAt(0) === '$';
+      const num = parseFloat(isCurrency ? raw.slice(1) : raw);
+      return node("NumberLiteral", { value: num, raw, currency: !!isCurrency });
+    }
 
 StringLiteral "string"
   = '"' chars:DoubleStringChar* '"' { return node("StringLiteral", { value: chars.join("") }); }
