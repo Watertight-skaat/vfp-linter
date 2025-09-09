@@ -42,6 +42,7 @@ Statement "statement"
     / ExitStatement
     / ContinueStatement
     / SelectStatement
+    / GoToStatement
     / InsertStatement
     / Assignment
     / ExpressionStatement
@@ -420,6 +421,27 @@ NowaitFlag
   = "NOWAIT"i { return true; }
 
 // -----------------------------
+// GO / GOTO (record navigation)
+// -----------------------------
+
+GoToStatement "go/goto statement"
+  = cmd:("GO"i / "GOTO"i) __
+    part:(
+      pos:("TOP"i / "BOTTOM"i) _ inC:InClause? { return { pos, rec: null, inTarget: inC || null }; }
+  / reckw:("RECORD"i)? _ rec:Expression _ inC:InClause? { return { pos: null, rec, inTarget: inC || null }; }
+    ) _ LineTerminator? {
+      return node("GoToStatement", {
+        command: (typeof cmd === 'string' ? cmd.toUpperCase() : cmd),
+        position: part.pos ? (typeof part.pos === 'string' ? part.pos.toUpperCase() : part.pos) : null,
+        record: part.rec || null,
+        inTarget: part.inTarget
+      });
+    }
+
+InClause
+  = "IN"i __ target:(Identifier / StringLiteral / NumberLiteral) { return target; }
+
+// -----------------------------
 // INSERT INTO
 // -----------------------------
 
@@ -530,7 +552,7 @@ IdentifierOrString
 // Column definition and options
 ColumnDefinition
   = name:Identifier __ ftype:FieldType _ fsize:FieldSize? _
-    nullability:("NULL"i / ("NOT"i __ "NULL"i))? _
+    nullability:("NULL"i / "NOT NULL"i)? _
     check:("CHECK"i __ expr:Expression _ err:("ERROR"i __ msg:StringLiteral)? { return { expr, error: err ? err[2] : null }; })? _
     autoinc:("AUTOINC"i _ nv:("NEXTVALUE"i __ nv:(NumberLiteral / Identifier) _ step:("STEP"i __ st:(NumberLiteral / Identifier))?)? { return { nextValue: nv ? nv[2] : null, step: (nv && nv[4]) ? nv[4][2] : null }; })? _
     def:("DEFAULT"i __ d:Expression { return d; })? _
@@ -730,6 +752,11 @@ Keyword "keyword"
   / ("INTO"i       ![a-zA-Z0-9_])
   / ("INSERT"i     ![a-zA-Z0-9_])
   / ("CREATE"i      ![a-zA-Z0-9_])
+    / ("GO"i         ![a-zA-Z0-9_])
+    / ("GOTO"i       ![a-zA-Z0-9_])
+    / ("RECORD"i     ![a-zA-Z0-9_])
+    / ("TOP"i        ![a-zA-Z0-9_])
+    / ("BOTTOM"i     ![a-zA-Z0-9_])
   / ("CURSOR"i      ![a-zA-Z0-9_])
 
 NumberLiteral "number"
