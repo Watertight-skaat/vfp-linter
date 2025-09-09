@@ -23,34 +23,36 @@ Program
 
 // A Statement returns either a single AST node or an Array of nodes (e.g. multiple LOCAL vars)
 Statement "statement"
-  = s:( LocalStatement
-      / PrivateStatement
-      / PublicStatement
-      / DeclareStatement
-      / TryStatement
-      / CreateStatement
-      / DefineClass
-      / LParameters
-      / PrintStatement
-      / UseStatement
-      / AppendStatement
-      / ReplaceStatement
-      / SetStatement
-      / PreprocessorStatement
-      / IterationStatement
-      / ExitStatement
-      / ContinueStatement
-      / SelectStatement
-      / Assignment
-      / ExpressionStatement
-      / DoStatement
-      / EvalStatement
-      / Procedure
-      / ReturnStatement
-      / StoreStatement
-      / ReplaceStatement
-      / IfStatement
-      / EmptyLine ) { return s; }
+  = s:( 
+    LocalStatement
+    / PrivateStatement
+    / PublicStatement
+    / DeclareStatement
+    / TryStatement
+    / CreateStatement
+    / DefineClass
+    / LParameters
+    / PrintStatement
+    / UseStatement
+    / AppendStatement
+    / ReplaceStatement
+    / SetStatement
+    / PreprocessorStatement
+    / IterationStatement
+    / ExitStatement
+    / ContinueStatement
+    / SelectStatement
+    / InsertStatement
+    / Assignment
+    / ExpressionStatement
+    / DoStatement
+    / EvalStatement
+    / Procedure
+    / ReturnStatement
+    / StoreStatement
+    / ReplaceStatement
+    / IfStatement
+    / EmptyLine ) { return s; }
 
 // -----------------------------
 // Declarations
@@ -418,6 +420,32 @@ NowaitFlag
   = "NOWAIT"i { return true; }
 
 // -----------------------------
+// INSERT INTO
+// -----------------------------
+
+InsertStatement
+  = "INSERT"i __ "INTO"i __ target:IdentifierOrString _
+    cols:("(" _ cl:IdentifierList _ ")")? __
+    src:(
+      "VALUES"i _ "(" _ vals:ExpressionList _ ")" { return { kind: 'values', values: vals }; }
+      / "FROM"i __ (
+          "ARRAY"i __ arr:Identifier { return { kind: 'from', source: 'ARRAY', name: arr }; }
+          / "MEMVAR"i { return { kind: 'from', source: 'MEMVAR', name: null }; }
+          / "NAME"i __ obj:Identifier { return { kind: 'from', source: 'NAME', name: obj }; }
+        )
+      / sel:SelectCore unions:(_ "UNION"i _ all:("ALL"i)? _ rhs:SelectCore)* {
+          const parts = unions ? unions.map(u => ({ all: !!u[3], select: u[5] })) : [];
+          return { kind: 'select', select: { core: sel, unions: parts } };
+        }
+    ) _ LineTerminator? {
+      return node('InsertStatement', {
+        target,
+        columns: cols ? cols[2] : null,
+        source: src
+      });
+    }
+
+// -----------------------------
 // Loops: FOR ... ENDFOR|NEXT and DO WHILE ... ENDDO
 // -----------------------------
 IterationStatement
@@ -700,6 +728,7 @@ Keyword "keyword"
   / ("HAVING"i     ![a-zA-Z0-9_])
   / ("UNION"i      ![a-zA-Z0-9_])
   / ("INTO"i       ![a-zA-Z0-9_])
+  / ("INSERT"i     ![a-zA-Z0-9_])
   / ("CREATE"i      ![a-zA-Z0-9_])
   / ("CURSOR"i      ![a-zA-Z0-9_])
 
