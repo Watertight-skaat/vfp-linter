@@ -50,7 +50,7 @@ Statement "statement"
     / ExpressionStatement
     / DoFormStatement
     / DoStatement
-    / Procedure
+    / ProcedureStatement
     / ReturnStatement
     / StoreStatement
     / ReplaceStatement
@@ -116,6 +116,13 @@ ParameterName
 
 ParameterList
   = head:ParameterName tail:(_ "," _ ParameterName)* { return [head, ...tail.map(t => t[3])]; }
+
+// Procedure-style parameters with optional type:  name [ AS Type ]
+ProcedureParam
+  = name:ParameterName _ asPart:(_ "AS"i __ t:IdentifierOrString)? { return { name, type: asPart ? asPart[3] : null }; }
+
+ProcedureParamList
+  = head:ProcedureParam tail:(_ "," _ ProcedureParam)* { return [head, ...tail.map(t => t[3])]; }
 
 // Unquoted pattern token (e.g. TestRelease*)
 Pattern
@@ -938,8 +945,35 @@ StoreStatement
 ExpressionList
   = head:Expression tail:(_ "," _ Expression)* { return [head, ...tail.map(t => t[3])]; }
 
-Procedure "procedure"
-  = "TODO"i
+// Procedure declarations - two styles are supported:
+// 1) PROCEDURE Name [ LPARAMETERS p1, p2, ... ]   Commands [ RETURN expr ] [ ENDPROC ]
+// 2) PROCEDURE Name( [ p1 [ AS type ] [, p2 [ AS type ] ... ] ) [ AS returntype ]  Commands [ RETURN expr ] [ ENDPROC ]
+ProcedureStatement "procedure"
+  = "PROCEDURE"i __ name:Identifier _ (
+      // function-style parameter list with optional typed params and optional return type
+      "(" _ params:ProcedureParamList? _ ")" _ retPart:(_ "AS"i __ rt:IdentifierOrString)? __ statements:(Statement __)* ret:(_ "RETURN"i __ expr:Expression _)? end:(_ "ENDPROC"i __)? {
+        return node("ProcedureStatement", {
+          name,
+          parameters: params || [],
+          returnType: retPart ? retPart[3] : null,
+          body: node("BlockStatement", { body: flatten(statements.map(s => s[0])) }),
+          returnExpression: ret ? ret[2] : null,
+          lparameters: false
+        });
+      }
+    /
+      // alternate LPARAMETERS style (untyped, compatible with LPARAMETERS/PARAMETERS keyword)
+      lparams:LParameters? __ statements:(Statement __)* ret:(_ "RETURN"i __ expr:Expression _)? end:(_ "ENDPROC"i __)? {
+        return node("ProcedureStatement", {
+          name,
+          parameters: lparams ? (lparams.names || []) : [],
+          returnType: null,
+          body: node("BlockStatement", { body: flatten(statements.map(s => s[0])) }),
+          returnExpression: ret ? ret[2] : null,
+          lparameters: !!lparams
+        });
+      }
+    )
 
 ReturnStatement
   = "RETURN"i _ expr:Expression? _ LineTerminator? { return node("ReturnStatement", { argument: expr === undefined ? null : expr }); }
