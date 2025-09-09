@@ -32,6 +32,7 @@ Statement "statement"
       / PrintStatement
       / UseStatement
       / AppendStatement
+      / ReplaceStatement
       / SetStatement
       / PreprocessorStatement
       / Assignment
@@ -40,6 +41,7 @@ Statement "statement"
       / EvalStatement
       / Procedure
       / ReturnStatement
+      / ReplaceStatement
       / IfStatement
       / EmptyLine ) { return s; }
 
@@ -296,6 +298,33 @@ AppendStatement
       });
     }
 
+ReplaceStatement
+  = "REPLACE"i __
+    fields:ReplaceFieldList
+    forClause:(_ "FOR"i __ condition:Expression)?
+    whileClase:(_ "WHILE"i __ condition:Expression)?
+    inClause:("IN"i __ target:(Identifier / StringLiteral / NumberLiteral) _)?
+    noOptimize:("NOOPTIMIZE"i)?
+    _ LineTerminator? {
+      return node("ReplaceStatement", { 
+        fields, 
+        forCondition: forClause ? forClause[2] : null,
+        whileCondition: whileClase ? whileClase[2] : null,
+        inTarget: inClause ? inClause[2] : null,
+        noOptimize: !!noOptimize
+      });
+    }
+
+ReplaceFieldList
+  = head:ReplaceField tail:(_ "," _ ReplaceField)* {
+      return [head, ...tail.map(t => t[3])];
+    }
+
+ReplaceField
+  = field:Identifier _ "WITH"i _ value:Expression _ additive:("ADDITIVE"i)? {
+      return { field, value, additive: !!additive };
+    }
+
 Procedure "procedure"
   = "TODO"i
 
@@ -337,6 +366,8 @@ Keyword "keyword"
   / ("CLASS"i       ![a-zA-Z0-9_])
   / ("AS"i          ![a-zA-Z0-9_])
   / ("ENDDEFINE"i   ![a-zA-Z0-9_])
+  / ("REPLACE"i     ![a-zA-Z0-9_])
+  / ("WITH"i        ![a-zA-Z0-9_])
   / ("ADDITIVE"i    ![a-zA-Z0-9_])
   / ("QUIT"i        ![a-zA-Z0-9_])
   / ("RETURN"i      ![a-zA-Z0-9_])
