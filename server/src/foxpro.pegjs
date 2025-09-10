@@ -741,8 +741,10 @@ UpdateAssignmentList
 UpdateAssignment
   = field:ParameterName _ "=" _ expr:Expression { return { field, expression: expr }; }
 
-// DELETE [Target] FROM [FORCE] Table_List [[, Table_List ...] | [JOIN [ Table_List]]]
+// OPT 1: DELETE [Target] FROM [FORCE] Table_List [[, Table_List ...] | [JOIN [ Table_List]]]
 //   [WHERE FilterCondition1 [AND | OR FilterCondition2 ...]]
+// OPT 2: DELETE [Scope] [FOR lExpression1] [WHILE lExpression2]
+//    [IN nWorkArea | cTableAlias] [NOOPTIMIZE]
 DeleteStatement
   = "DELETE"i _ target:IdentifierOrString? _
     "FROM"i _ tables:TableList _
@@ -755,6 +757,25 @@ DeleteStatement
         where: where || null
       });
     }
+  / "DELETE"i _ 
+    scope:IdentifierOrString? _
+    forp:("FOR"i __ fexp:Expression { return fexp; })? _
+    whilep:("WHILE"i __ wexp:Expression { return wexp; })? _
+    inPart:("IN"i _ inTarget:(NumberLiteral / Identifier))? _
+    noopt:("NOOPTIMIZE"i)? __ {
+      return node('DeleteStatement', {
+        target: null,
+        tables: null,
+        joins: null,
+        where: null,
+        scope: scope || null,
+        for: forp || null,
+        while: whilep || null,
+        inTarget: inPart ? inPart[2] : null,
+        noOptimize: !!noopt
+      });
+    }
+
 
 // -----------------------------
 // Loops: FOR ... ENDFOR|NEXT, FOR EACH ... ENDFOR|NEXT and DO WHILE ... ENDDO
