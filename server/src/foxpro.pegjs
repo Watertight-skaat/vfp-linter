@@ -16,15 +16,19 @@
 // -----------------------------
 // Top Level
 // -----------------------------
-Program
-  = __ statements:(Statement __)* EOF {
-      return node("Program", { body: flatten(statements.map(s => s[0])) });
+Start "start of program"
+  = __ statements:SourceElements __ 
+  { return node("Program", { body: statements.body }); }
+
+SourceElements "statement list"
+  = head:Statement tail:(__ Statement)* {
+      const statements = [head, ...tail.map(t => t[1])].filter(s => s !== null);
+      return node("BlockStatement", { body: statements });
     }
 
 // A Statement returns either a single AST node or an Array of nodes (e.g. multiple LOCAL vars)
 Statement "statement"
-  = s:( 
-    LocalStatement
+  = s:(LocalStatement
     / PrivateStatement
     / PublicStatement
     / DimensionStatement
@@ -64,7 +68,6 @@ Statement "statement"
     / IfStatement
     / EvalStatement
     / UnknownStatement
-    / EmptyLine
     ) { return s; }
 
 // -----------------------------
@@ -75,8 +78,8 @@ Statement "statement"
 // LOCAL [ ARRAY ] ArrayName1( nRows1 [, nColumns1 ] ) [ AS type [OF ClassLib ] ]
 //   [, ArrayName2( nRows2 [, nColumns2 ] ) [ AS type [ OF ClassLib ] ] ]
 LocalStatement
-  = "LOCAL"i _ "ARRAY"i _ arrs:ArrayDeclList __ { return arrs; }
-  / "LOCAL"i _ entries:LocalEntryList __ {  return entries; }
+  = "LOCAL"i _ "ARRAY"i _ arrs:ArrayDeclList { return arrs; }
+  / "LOCAL"i _ entries:LocalEntryList {  return entries; }
 
 // A comma-separated list of local entries (variables or arrays)
 LocalEntryList
@@ -104,28 +107,28 @@ ArrayDeclList
 
 PrivateStatement
   = "PRIVATE"i _ (
-      "ALL"i _ "LIKE"i _ p:(StringLiteral / Pattern) __ {
+      "ALL"i _ "LIKE"i _ p:(StringLiteral / Pattern) {
         const pat = (typeof p === 'string') ? p : (p && p.value ? p.value : p);
         return node("PrivateAllLike", { pattern: pat });
       }
-    / "ALL"i __ { return node("PrivateAll", {}); }
-    / vars:IdentifierList __ { return vars.map(v => node("PrivateDeclaration", { name: v })); }
-    / __ { return node("PrivateDirective", {}); }
+      / "ALL"i { return node("PrivateAll", {}); }
+      / vars:IdentifierList{ return vars.map(v => node("PrivateDeclaration", { name: v })); }
+      / _ { return node("PrivateDirective", {}); }
   )
 
 PublicStatement
-  = "PUBLIC"i _ vars:IdentifierList __ {
+  = "PUBLIC"i _ vars:IdentifierList {
       return vars.map(v => node("PublicDeclaration", { name: v }));
     }
 
 LParameters
-  = ("LPARAMETERS"i / "PARAMETERS"i) _ vars:ParameterList __ {
+  = ("LPARAMETERS"i / "PARAMETERS"i) _ vars:ParameterList {
       return node("ParametersDeclaration", { names: vars });
     }
 
 // DIMENSION ArrayName(nRows [, nColumns]) [AS cType] [, ArrayName2(...)] ...
 DimensionStatement
-  = "DIMENSION"i __ first:DimensionItem tail:(_ "," _ DimensionItem)* __ {
+  = "DIMENSION"i __ first:DimensionItem tail:(_ "," _ DimensionItem)* {
       const items = [first, ...tail.map(t => t[3])];
       return node("DimensionStatement", { items });
     }
@@ -177,13 +180,13 @@ LValue
     }
 
 AssignmentStatement
-  = id:LValue __ "=" __ expr:Expression __ {
+  = id:LValue __ "=" __ expr:Expression {
       return node("Assignment", { target: id, expression: expr });
     }
 
 // Shorthand print statement: ? <expression> or PRINT <expression>
 PrintStatement // todo: Wait window probably should be separate
-  = ("?" / "PRINT"i / "WAIT WINDOW"i) _ args:ExpressionList __ {
+  = ("?" / "PRINT"i / "WAIT WINDOW"i) _ args:ExpressionList {
       return node("PrintStatement", { arguments: args, argument: (args && args.length) ? args[0] : null });
     }
 
@@ -198,7 +201,7 @@ UseStatement
   = "USE"i _
     tgt:UseTarget? _
     parts:(UseOption _)*
-    __ {
+    {
       const opts = { inTarget:null, online:false, admin:false, again:false, norequery:false, dataSession:null, nodata:false, index:null, alias:null, exclusive:false, shared:false, noUpdate:false, connection:null };
       for (const p of parts) {
         switch (p.kind) {
@@ -284,18 +287,18 @@ PreprocessorStatement
   / PreprocessorIfStatement
 
 IncludeStatement
-  = "#include"i _ path:(StringLiteral / UnquotedPath) __ {
+  = "#include"i _ path:(StringLiteral / UnquotedPath) {
       return node("IncludeStatement", { path });
     }
 
 DefineStatement
-  = "#define"i _ name:Identifier _ value:$((!LineTerminator .)*) __ {
+  = "#define"i _ name:Identifier _ value:$((!LineTerminator .)*) {
       return node("DefineStatement", { name, value: value.trim() });
     }
 
 // Preprocessor if/else/endif
 PreprocessorIfStatement
-  = start:"#if"i rest:$((!"#endif"i .)*) end:"#endif"i __ {
+  = start:"#if"i rest:$((!"#endif"i .)*) end:"#endif"i {
       // capture raw preprocessor block (including any #elif/#else lines)
       return node("PreprocessorIfStatement", { raw: (start + rest + end).trim() });
     }
@@ -304,7 +307,7 @@ PreprocessorIfStatement
 DefineClass
   = "DEFINE CLASS"i _ name:Identifier _ "AS"i _ base:Identifier __
     statements:(Statement __)*
-    "ENDDEFINE"i __ {
+    "ENDDEFINE"i {
       return node("DefineClass", { name, base: base || null, body: flatten(statements.map(s => s[0])) });
     }
 
@@ -412,11 +415,11 @@ PostfixExpression
 
 // Allow a bare expression (typically a call) as a top-level statement.
 ExpressionStatement "expression statement"
-  = expr:PostfixExpression __ { return node("ExpressionStatement", { expression: expr }); }
+  = expr:PostfixExpression { return node("ExpressionStatement", { expression: expr }); }
 
 // Leading equals can be used to evaluate/call an expression as a statement, e.g. "=func()"
 EvalStatement "equals-expression statement"
-  = "=" _ expr:PostfixExpression __ { return node("ExpressionStatement", { expression: expr }); }
+  = "=" _ expr:PostfixExpression { return node("ExpressionStatement", { expression: expr }); }
 
 IfStatement "if statement"
   = "IF"i __ test:Expression __ 
@@ -446,7 +449,7 @@ IfStatement "if statement"
   //  [INTO StorageDestination | TO DisplayDestination]
   //  [PREFERENCE PreferenceName] [NOCONSOLE] [PLAIN] [NOWAIT]
 SelectStatement
-  = sc:SelectCore unions:(_ "UNION"i _ all:("ALL"i _)? rhs:SelectCore)* __ {
+  = sc:SelectCore unions:(_ "UNION"i _ all:("ALL"i _)? rhs:SelectCore)* {
       const unionParts = unions ? unions.map(u => ({ all: !!u[3], select: u[5] })) : [];
       return node('SelectStatement', { ...sc, unions: unionParts });
     }
@@ -457,7 +460,7 @@ SelectCore
     top:("TOP"i _ n:Expression _ percent:("PERCENT"i)? { return { count: n, percent: !!percent }; })? _
     list:SelectList _
     from:FromClause? _
-    joins:(JoinClause _)* _
+    joins:(JoinClause __)* _
     withbuf:WithBufferingClause? _
     where:WhereClause? _
     group:GroupByClause? _
@@ -516,8 +519,7 @@ QualifiedTable
   / t:(UnquotedPath / IdentifierOrString) { return { database: null, table: t }; }
 
 JoinClause
-  = jt:JoinType? _ "JOIN"i _ tr:TableRef __ "ON"i __ cond:Expression 
-    __ {
+  = jt:JoinType? _ "JOIN"i _ tr:TableRef __ "ON"i __ cond:Expression {
       return { type: jt || null, target: tr, condition: cond };
     }
 
@@ -578,7 +580,7 @@ CopyStatement "copy/rename statement"
   = CopyFileStatement / CopyToStatement
 
 CopyFileStatement
-  = action:("COPY FILE"i / "RENAME"i) _ src:(Expression / UnquotedPath) _ "TO"i _ dst:(Expression / UnquotedPath) __ {
+  = action:("COPY FILE"i / "RENAME"i) _ src:(Expression / UnquotedPath) _ "TO"i _ dst:(Expression / UnquotedPath) {
       return node(action === 'COPY FILE' ? 'CopyFileStatement' : 'RenameStatement', { source: src, destination: dst });
     }
 
@@ -594,7 +596,7 @@ CopyToStatement
     noopt:("NOOPTIMIZE"i)? _
     t:TypeClause? _
     ascp:("AS"i __ cp:Expression { return cp; })?
-    __ {
+    {
       return node('CopyToStatement', {
         target,
         database: db || null,
@@ -635,8 +637,7 @@ IndexOnStatement "index on statement"
     compact:("COMPACT"i _)?
     dir:("ASCENDING"i / "DESCENDING"i)? _
     uniq:("UNIQUE"i / "CANDIDATE"i)? _
-    additive:("ADDITIVE"i)? 
-    __ {
+    additive:("ADDITIVE"i)? {
       return node('IndexOnStatement', {
         expression: expr,
         to: totag.kind === 'TO' ? totag.value : null,
@@ -676,8 +677,7 @@ GoToStatement "go/goto statement"
     part:(
       pos:("TOP"i / "BOTTOM"i) _ inC:InClause? { return { pos, rec: null, inTarget: inC || null }; }
       / reckw:("RECORD"i)? _ rec:Expression _ inC:InClause? { return { pos: null, rec, inTarget: inC || null }; }
-    ) 
-    __ {
+    ) {
       return node("GoToStatement", {
         command: (typeof cmd === 'string' ? cmd.toUpperCase() : cmd),
         position: part.pos ? (typeof part.pos === 'string' ? part.pos.toUpperCase() : part.pos) : null,
@@ -691,8 +691,9 @@ InClause
 
 // SKIP [nRecords] [IN nWorkArea | cTableAlias]
 SkipStatement
-  = "SKIP"i _ n:NumberLiteral? _ inPart:(_ "IN"i __ target:(NumberLiteral / Identifier / StringLiteral) { return target; })? 
-  __ {
+  = "SKIP"i _ n:NumberLiteral? _ 
+  inPart:(_ "IN"i __ target:(NumberLiteral / Identifier / StringLiteral) { return target; })? 
+  {
     return node('SkipStatement', { count: n || null, inTarget: inPart ? inPart[2] : null });
   }
 
@@ -712,7 +713,7 @@ InsertStatement
           / "NAME"i __ obj:Identifier { return { kind: 'from', source: 'NAME', name: obj }; }
         )
       / select:SelectStatement { return { kind: 'select', select }; }
-    ) __ {
+    ) {
       return node('InsertStatement', {
         target,
         columns: cols ? cols[2] : null,
@@ -735,7 +736,7 @@ UpdateStatement
       / where:WhereClause _ "SET"i __ assigns:UpdateAssignmentList _ from:FromClause? { return { from: from || null, where, assigns }; }
       // SET ... [FROM ...] [WHERE ...]
       / "SET"i __ assigns:UpdateAssignmentList _ from:FromClause? _ where:WhereClause? { return { from: from || null, where: where || null, assigns }; }
-    ) __ {
+    ) {
       return node('UpdateStatement', {
         target,
         assignments: core.assigns,
@@ -758,7 +759,7 @@ DeleteStatement
   = "DELETE"i _ target:IdentifierOrString? _
     "FROM"i _ tables:TableList _
     joins:(JoinClause _)? _
-    where:WhereClause? __ {
+    where:WhereClause? {
       return node('DeleteStatement', {
         target: target || null,
         tables,
@@ -771,7 +772,7 @@ DeleteStatement
     forp:("FOR"i __ fexp:Expression { return fexp; })? _
     whilep:("WHILE"i __ wexp:Expression { return wexp; })? _
     inPart:("IN"i _ inTarget:(NumberLiteral / Identifier))? _
-    noopt:("NOOPTIMIZE"i)? __ {
+    noopt:("NOOPTIMIZE"i)? {
       return node('DeleteStatement', {
         target: null,
         tables: null,
@@ -799,7 +800,7 @@ ForLoop "for loop"
     step:("STEP"i _ inc:Expression)? __
     body:(Statement __)*
     ("ENDFOR"i / "NEXT"i) 
-    __ {
+    {
       return node("ForStatement", {
         variable: varName,
         init,
@@ -815,15 +816,14 @@ ForLoop "for loop"
 // [LOOP]
 // ENDFOR | NEXT [Var]
 ForEachLoop "for-each loop"
-  = "FOR EACH"i _
-    varName:ParameterName _
-    typePart:("AS"i _ type:Identifier _ ofPart:("OF"i _ clslib:Identifier { return { library: clslib }; })? {
+  = "FOR EACH"i _ varName:ParameterName _
+    typePart:("AS"i _ type:Identifier _ ofPart:("OF"i _ clslib:Identifier _ { return { library: clslib }; })? {
       return { typing: type, of: ofPart || null };
-    })?  _
+    })?
     "IN"i _ group:Expression foxobj:(_ "FOXOBJECT"i)? __
     body:(Statement __)*
-    ("ENDFOR"i / "NEXT"i) _ endVar:ParameterName?
-    __ {
+    ("ENDFOR"i / "NEXT"i) _ endVar:ParameterName? 
+    {
       const asType = typePart ? typePart.typing : null;
       const ofClass = typePart ? typePart.of : null;
       return node("ForEachStatement", {
@@ -841,7 +841,7 @@ ForEachLoop "for-each loop"
 DoWhileLoop "do-while loop"
   = "DO WHILE"i _ test:Expression __
     body:(Statement __)*
-    "ENDDO"i __ {
+    "ENDDO"i {
       return node("DoWhileStatement", {
         test,
         body: node("BlockStatement", { body: flatten(body.map(s => s[0])) })
@@ -853,8 +853,7 @@ DoCaseStatement "do case statement"
   = "DO CASE"i __
   cases:(CaseClause)*
   otherwise:("OTHERWISE"i __ othBody:(Statement __)* { return node('BlockStatement', { body: flatten(othBody.map(s => s[0])) }); })?
-  "ENDCASE"i
-  __ {
+  "ENDCASE"i {
       return node('DoCaseStatement', { 
         cases: cases.map(c => c[0]), 
         otherwise: otherwise ? otherwise : null 
@@ -875,10 +874,9 @@ CaseClause
 DoFormStatement "do form statement"
   = "DO FORM"i _ target:(StringLiteral / Identifier / "?") _
     namePart:("NAME"i _ nameIdent:Identifier _ link:("LINKED"i)? )?
-  withPart:("WITH"i _ params:ArgumentList maybeTo:(_ "TO"i _ v:ParameterName)? )?
-  toPart:("TO"i _ v:ParameterName)?
-    flags:(_ ("NOREAD"i / "NOSHOW"i))*
-    __ {
+    withPart:("WITH"i _ params:ArgumentList maybeTo:(_ "TO"i _ v:ParameterName)? )?
+    toPart:("TO"i _ v:ParameterName)?
+    flags:(_ ("NOREAD"i / "NOSHOW"i))* {
       // If a TO clause was attached directly after WITH's argument list, prefer it.
       const toFromWith = (withPart && withPart[3]) ? withPart[3][2] : null;
       const explicitTo = toPart ? toPart[2] : null;
@@ -897,16 +895,16 @@ DoStatement "do statement"
   = "DO"i __ target:(!("FORM"i ![A-Za-z0-9_] / "CASE"i ![A-Za-z0-9_]) (StringLiteral / PostfixExpression)) _
     inPart:(("IN"i _ n:( $([0-9]+) { return parseInt(n,10); } / Identifier / StringLiteral )) _)?
     withPart:("WITH"i _ params:ArgumentList)?
-    __ {
+    {
       const inSession = inPart ? inPart[2] : null;
       return node("DoStatement", { target, inSession, arguments: withPart ? withPart[2] : [] });
     }
 
 ExitStatement "exit"
-  = ("EXIT"i / "QUIT"i) __ { return node("ExitStatement", {}); }
+  = ("EXIT"i / "QUIT"i) { return node("ExitStatement", {}); }
 
 ContinueStatement "continue (LOOP)"
-  = "LOOP"i __ { return node("ContinueStatement", {}); }
+  = "LOOP"i { return node("ContinueStatement", {}); }
 
 // -----------------------------
 // CREATE TABLE/DBF/CURSOR
@@ -921,7 +919,8 @@ CreateStatement "create statement"
     def:(
       _ "(" _ items:CreateDefItems _ ")" _ { return { type: 'columns', items: items }; }
       / _ "FROM"i __ "ARRAY"i __ arr:Identifier { return { type: 'fromArray', array: arr }; }
-    ) __ {
+    )
+    {
       const payload = { 
         kind: (typeof kind === 'string' ? kind.toUpperCase() : kind).toUpperCase(),
         name,
@@ -1042,8 +1041,7 @@ UnknownStatement
     / "CATCH"i      ![A-Za-z0-9_]
     / "FINALLY"i    ![A-Za-z0-9_]
     )
-    raw:$((!LineTerminator .)+ (LineContinuation (!LineTerminator .)*)*)
-    __ {
+    raw:$((!LineTerminator .)+ (LineContinuation (!LineTerminator .)*)*) {
       return node("UnknownStatement", { raw: raw.trim() });
     }
 
@@ -1062,7 +1060,7 @@ SetOrderToStatement
     )
     _ inClause:(_ "IN"i __ target:(Identifier / StringLiteral / NumberLiteral) { return target; })?
     _ dir:("ASCENDING"i / "DESCENDING"i)?
-    __ {
+    {
       const direction = dir ? (typeof dir === 'string' ? dir.toUpperCase() : dir) : (sel.kind === 'TAG' ? sel.direction : null);
       return node('SetOrder', {
         kind: sel.kind,
@@ -1079,7 +1077,7 @@ SetSettingStatement
   ="SET"i _ inner:(
     ("TO"i __ setting:Expression { return node("SetTo", { setting }); })
     / (cmd:KeywordOrIdentifier toPart:(_ "TO"i __ setting:Expression)? argPart:(_ (StringLiteral / Identifier / NumberLiteral))? additive:(_ "ADDITIVE"i)? state:(_ ("ON"i / "OFF"i))? { const argument = toPart ? toPart[2] : (argPart ? argPart[1] : null); const st = state ? state[1] : null; return node("cSetCommand", { command: cmd, argument: argument, state: st ? st.toUpperCase() : null, additive: !!additive }); })
-  ) __ {
+  ) {
       // If TO form, inner is already a SetTo node and we return it directly.
       if (inner && inner.type === 'SetTo') return inner;
       // Otherwise inner is a cSetCommand node; return it as the captured command node.
@@ -1090,8 +1088,7 @@ AppendStatement
   = "APPEND"i _
     blank:("BLANK"i _)?
     inPart:("IN"i _ tableAlias:(Identifier / StringLiteral / NumberLiteral) _)?
-    nomenu:("NOMENU"i _)?
-    __ {
+    nomenu:("NOMENU"i _)? {
       return node("AppendStatement", {
         blank: !!blank,
         inTarget: inPart ? inPart[2] : null,
@@ -1107,8 +1104,7 @@ ReplaceStatement
     forClause:(_ "FOR"i __ condition:Expression)?
     whileClase:(_ "WHILE"i __ condition:Expression)?
     inClause:("IN"i __ target:(Identifier / StringLiteral / NumberLiteral) _)?
-    noOptimize:("NOOPTIMIZE"i)?
-    __ {
+    noOptimize:("NOOPTIMIZE"i)? {
       return node("ReplaceStatement", { 
         scope: scope ? scope[0] : null,
         fields, 
@@ -1125,8 +1121,7 @@ LocateStatement
     forClause:(_ "FOR"i __ condition:Expression)?
     inClause:(_ "IN"i __ target:(Identifier / StringLiteral / NumberLiteral / SelectCore) _)?
     whileClause:(_ "WHILE"i __ condition:Expression)?
-    noopt:(_ "NOOPTIMIZE"i)?
-    __ {
+    noopt:(_ "NOOPTIMIZE"i)? {
       return node("LocateStatement", {
         forCondition: forClause ? forClause[2] : null,
         inTarget: inClause ? inClause[2] : null,
@@ -1153,8 +1148,7 @@ ScanStatement
     whileClause:(_ "WHILE"i __ condition:Expression)?
     __
     body:(Statement __)*
-    endkw:("ENDSCAN"i / ("LOOP"i / "EXIT"i) _? "ENDSCAN"i)?
-    __ {
+    endkw:("ENDSCAN"i / ("LOOP"i / "EXIT"i) _? "ENDSCAN"i)? {
       return node("ScanStatement", {
         noOptimize: !!(noopt && noopt[1]),
         scope: scope || 'ALL',
@@ -1168,8 +1162,10 @@ ScanStatement
 // CALCULATE eExpressionList [Scope] [FOR lExpression1] [WHILE lExpression2]
 //    [TO VarList | TO ARRAY ArrayName] [NOOPTIMIZE] [IN nWorkArea | cTableAlias]
 CalculateStatement
-  = "CALCULATE"i __ exprs:ExpressionList _
-  parts:(CalcOption _)* __ {
+  = ("CALCULATE"i / "Calc"i) __ 
+    exprs:ExpressionList _
+    parts:(CalcOption _)*
+    {
       const opts = { scope: null, forCondition: null, whileCondition: null, to: null, noOptimize: false, inTarget: null };
       for (const p of parts) {
         if (!p) continue;
@@ -1215,8 +1211,7 @@ StoreStatement
       vars:IdentifierList { return { type: 'VarList', vars }; }
       / arr:Identifier "[" _ indexList:ExpressionList _ "]" { return { type: 'ArrayIndexed', array: arr, indexes: indexList }; }
       / arrAssign:Identifier _ "=" _ rhs:Expression { return { type: 'ArrayAssign', target: arrAssign, expression: rhs }; }
-    ) 
-    __ {
+    ) {
     return node('StoreStatement', { expression: expr, target: toPart });
   }
 
@@ -1306,8 +1301,10 @@ Keyword "keyword"
   / ("DO"i          ![a-zA-Z0-9_])
   / ("WHILE"i       ![a-zA-Z0-9_])
   / ("FOR"i         ![a-zA-Z0-9_])
+  / ("for each"i         ![a-zA-Z0-9_])
   / ("CASE"i        ![a-zA-Z0-9_])
   / ("ENDFOR"i      ![a-zA-Z0-9_])
+  / ("NEXT"i        ![a-zA-Z0-9_])
   / ("ENDDO"i       ![a-zA-Z0-9_])
   / ("LOOP"i        ![a-zA-Z0-9_])
   / ("TRY"i        ![a-zA-Z0-9_])
@@ -1321,6 +1318,7 @@ Keyword "keyword"
   / ("INNER JOIN"i       ![a-zA-Z0-9_])
   / ("LEFT OUTER JOIN"i  ![a-zA-Z0-9_])
   / ("RIGHT OUTER JOIN"i ![a-zA-Z0-9_])
+  / ("GROUP BY"i    ![a-zA-Z0-9_])
   / ("ON"i          ![a-zA-Z0-9_])
   / ("WHERE"i       ![a-zA-Z0-9_])
   / ("SELECT"i     ![a-zA-Z0-9_])
@@ -1407,6 +1405,11 @@ PartialLineComment "&& comment"
 
 FullLineComment "* comment"
   = [ \t]* "*" (!LineTerminator .)*
+
+EOS
+  = _ PartialLineComment? LineTerminatorSequence
+  // / __ EOF
+  / __
 
 EOF "end of file"
 	= !.
