@@ -45,6 +45,7 @@ Statement "statement"
     / ExitStatement
     / ContinueStatement
     / SelectStatement
+    / UpdateStatement
     / GoToStatement
     / InsertStatement
     / AssignmentStatement
@@ -528,7 +529,7 @@ OrderItem
   = expr:Expression dir:(__ ("ASC"i / "DESC"i))? { return { expression: expr, direction: dir ? dir[1].toUpperCase() : null }; }
 
 IntoClause
-  = "INTO"i __ dest:(
+  = "INTO"i _ dest:(
       ("CURSOR"i _ a:Identifier { return { kind: 'CURSOR', name: a }; })
       / ("ARRAY"i _ a:Identifier { return { kind: 'ARRAY', name: a }; })
       / ("DBF"i _ n:IdentifierOrString { return { kind: 'DBF', name: n }; })
@@ -693,6 +694,36 @@ InsertStatement
         source: src
       });
     }
+
+// UPDATE Target
+//    SET Column_Name1 = eExpression1 [, Column_Name2 = eExpression2 ...]
+//    [FROM [FORCE] Table_List_Item [[, ...] | [JOIN [ Table_List_Item]]]
+//    WHERE FilterCondition1 [AND | OR FilterCondition2 ...]
+UpdateStatement
+  = "UPDATE"i _ target:IdentifierOrString __ 
+    core:(
+      // FROM ... WHERE ... SET ...
+      from:FromClause _ where:WhereClause _ "SET"i __ assigns:UpdateAssignmentList { return { from, where, assigns }; }
+      // FROM ... SET ... [WHERE ...]
+      / from:FromClause _ "SET"i __ assigns:UpdateAssignmentList _ where:WhereClause? { return { from, where: where || null, assigns }; }
+      // WHERE ... SET ... [FROM ...]
+      / where:WhereClause _ "SET"i __ assigns:UpdateAssignmentList _ from:FromClause? { return { from: from || null, where, assigns }; }
+      // SET ... [FROM ...] [WHERE ...]
+      / "SET"i __ assigns:UpdateAssignmentList _ from:FromClause? _ where:WhereClause? { return { from: from || null, where: where || null, assigns }; }
+    ) __ {
+      return node('UpdateStatement', {
+        target,
+        assignments: core.assigns,
+        from: core.from || null,
+        where: core.where || null
+      });
+    }
+
+UpdateAssignmentList
+  = head:UpdateAssignment tail:(_ "," _ UpdateAssignment)* { return [head, ...tail.map(t => t[3])]; }
+
+UpdateAssignment
+  = field:ParameterName _ "=" _ expr:Expression { return { field, expression: expr }; }
 
 // -----------------------------
 // Loops: FOR ... ENDFOR|NEXT, FOR EACH ... ENDFOR|NEXT and DO WHILE ... ENDDO
@@ -1200,6 +1231,7 @@ Keyword "keyword"
   / ("GOTO"i       ![a-zA-Z0-9_])
   / ("RECORD"i     ![a-zA-Z0-9_])
   / ("CURSOR"i      ![a-zA-Z0-9_])
+  // / ("INTO"i      ![a-zA-Z0-9_])
 
 NumberLiteral "number"
   = value:$("$"? [0-9]+ ("." [0-9]+)? ) {
