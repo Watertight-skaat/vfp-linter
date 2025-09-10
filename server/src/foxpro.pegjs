@@ -31,6 +31,7 @@ Statement "statement"
     / DeclareStatement
     / TryStatement
     / CreateStatement
+    / IndexOnStatement
     / DefineClass
     / LParameters
     / PrintStatement
@@ -624,6 +625,37 @@ FieldsClause
 WithIndexClause
   = ("WITH"i _)? kind:("CDX"i / "PRODUCTION"i) { return typeof kind === 'string' ? kind.toUpperCase() : kind; }
 
+// INDEX ON eExpression TO IDXFileName | TAG TagName [BINARY]
+//    [COLLATE cCollateSequence] [OF CDXFileName] [FOR lExpression]
+//    [COMPACT] [ASCENDING | DESCENDING] [UNIQUE | CANDIDATE] [ADDITIVE]
+IndexOnStatement "index on statement"
+  = "INDEX ON"i __ expr:Expression _ 
+    totag:(("TO"i _ tgt:(IdentifierOrString / UnquotedPath) { return { kind: 'TO', value: tgt }; })
+    / ("TAG"i _ tag:Identifier { return { kind: 'TAG', value: tag }; })) _
+    bin:(("BINARY"i) _)?
+    coll:("COLLATE"i __ cs:IdentifierOrString)? _
+    ofp:("OF"i __ cdx:IdentifierOrString)? _
+    forp:("FOR"i __ fexp:Expression)? _
+    compact:("COMPACT"i _)?
+    dir:("ASCENDING"i / "DESCENDING"i)? _
+    uniq:("UNIQUE"i / "CANDIDATE"i)? _
+    additive:("ADDITIVE"i)? 
+    __ {
+      return node('IndexOnStatement', {
+        expression: expr,
+        to: totag.kind === 'TO' ? totag.value : null,
+        tag: totag.kind === 'TAG' ? totag.value : null,
+        binary: !!bin,
+        collate: coll ? coll[2] : null,
+        of: ofp ? ofp[2] : null,
+        for: forp ? forp[2] : null,
+        compact: !!compact,
+        direction: dir ? (typeof dir === 'string' ? dir.toUpperCase() : dir) : null,
+        uniqueness: uniq ? (typeof uniq === 'string' ? uniq.toUpperCase() : uniq) : null,
+        additive: !!additive
+      });
+    }
+
 TypeClause
   = ("TYPE"i _)? et:ExportType { return et; }
 
@@ -914,7 +946,7 @@ SetStatement
   = "SET"i _ inner:(
     ("TO"i __ setting:Expression { return node("SetTo", { setting }); })
     / (cmd:KeywordOrIdentifier toPart:(_ "TO"i __ setting:Expression)? argPart:(_ (StringLiteral / Identifier / NumberLiteral))? additive:(_ "ADDITIVE"i)? state:(_ ("ON"i / "OFF"i))? { const argument = toPart ? toPart[2] : (argPart ? argPart[1] : null); const st = state ? state[1] : null; return node("cSetCommand", { command: cmd, argument: argument, state: st ? st.toUpperCase() : null, additive: !!additive }); })
-  ) _ LineTerminator? {
+  ) __ {
       // If TO form, inner is already a SetTo node and we return it directly.
       if (inner && inner.type === 'SetTo') return inner;
       // Otherwise inner is a cSetCommand node; return it as the captured command node.
@@ -926,8 +958,7 @@ AppendStatement
     blank:("BLANK"i _)?
     inPart:("IN"i _ tableAlias:(Identifier / StringLiteral / NumberLiteral) _)?
     nomenu:("NOMENU"i _)?
-    LineTerminator? 
-    {
+    __ {
       return node("AppendStatement", {
         blank: !!blank,
         inTarget: inPart ? inPart[2] : null,
@@ -987,7 +1018,7 @@ StoreStatement
       / arr:Identifier "[" _ indexList:ExpressionList _ "]" { return { type: 'ArrayIndexed', array: arr, indexes: indexList }; }
       / arrAssign:Identifier _ "=" _ rhs:Expression { return { type: 'ArrayAssign', target: arrAssign, expression: rhs }; }
     ) 
-    _ LineTerminator? {
+    __ {
     return node('StoreStatement', { expression: expr, target: toPart });
   }
 
