@@ -146,9 +146,11 @@ IdentifierList
       return [head, ...tail.map(t => t[3])];
     }
 
-// Parameter names can be dotted (e.g. m.UserName). Capture as a single name string.
+// Parameter names can be dotted (e.g. m.UserName). Allow an optional leading
+// @ or & immediately before the identifier (e.g. @var, &var or @m.User).
+// Capture as a single name string (including the prefix when present).
 ParameterName
-  = name:$([a-zA-Z_][a-zA-Z0-9_]* (("." / "->") [a-zA-Z_][a-zA-Z0-9_]*)*) { return name; }
+  = name:$([@&]? [a-zA-Z_][a-zA-Z0-9_]* (("." / "->") [a-zA-Z_][a-zA-Z0-9_]*)*) { return name; }
 
 ParameterList
   = head:ParameterName tail:(_ "," _ ParameterName)* { return [head, ...tail.map(t => t[3])]; }
@@ -1256,7 +1258,7 @@ ReturnStatement
 // Lexical
 // -----------------------------
 Identifier
-  = !Keyword name:$([a-zA-Z_][a-zA-Z0-9_]*) { return name; }
+  = !Keyword pref:([@&])? name:$([a-zA-Z_][a-zA-Z0-9_]*) { return (pref ? pref : '') + name; }
 
 KeywordOrIdentifier
   = Keyword / Identifier
