@@ -1074,7 +1074,7 @@ SetOrderToStatement
 
 // SET [cSetCommand] [ON | OFF | TO [eSetting]]
 SetSettingStatement
-  ="SET"i _ inner:(
+  ="SET"i (Whitespace / LineContinuation)+ inner:(
     ("TO"i __ setting:Expression { return node("SetTo", { setting }); })
     / (cmd:KeywordOrIdentifier toPart:(_ "TO"i __ setting:Expression)? argPart:(_ (StringLiteral / Identifier / NumberLiteral))? additive:(_ "ADDITIVE"i)? state:(_ ("ON"i / "OFF"i))? { const argument = toPart ? toPart[2] : (argPart ? argPart[1] : null); const st = state ? state[1] : null; return node("cSetCommand", { command: cmd, argument: argument, state: st ? st.toUpperCase() : null, additive: !!additive }); })
   ) {
