@@ -42,6 +42,7 @@ Statement "statement"
     / CalculateStatement
     / CopyStatement
     / SetStatement
+    / OnKeyStatement
     / PreprocessorStatement
     / IterationStatement
     / ExitStatement
@@ -287,6 +288,12 @@ PreprocessorStatement
   = IncludeStatement
   / DefineStatement
   / PreprocessorIfStatement
+
+// ON KEY [ = expN] [command]
+OnKeyStatement
+  = "ON KEY"i _ eq:(_ "=" _ e:Expression { return e; })? _ cmd:Expression? _ LineTerminator? {
+      return node('OnKeyStatement', { keyExpression: eq ? eq[1] : null, command: cmd || null });
+    }
 
 IncludeStatement
   = "#include"i _ path:(StringLiteral / UnquotedPath) {
@@ -1336,6 +1343,7 @@ Keyword "keyword"
   / ("GOTO"i       ![a-zA-Z0-9_])
   / ("RECORD"i     ![a-zA-Z0-9_])
   / ("CURSOR"i      ![a-zA-Z0-9_])
+  / ("ON KEY"i      ![a-zA-Z0-9_])
 
 NumberLiteral "number"
   = value:$("$"? [0-9]+ ("." [0-9]+)? ) {
