@@ -1,1 +1,1 @@
-{"root":["./src/parser.d.ts","./src/server.ts"],"version":"5.9.2"}
+{"root":["./src/linter.ts","./src/parser.d.ts","./src/server.ts"],"version":"5.9.2"}

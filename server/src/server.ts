@@ -18,6 +18,7 @@ import {
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { parse } from './parser.js'; // Import our Peggy.js parser
+import { runLinterRules } from './linter.js';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
@@ -119,7 +120,8 @@ function validateTextDocument(textDocument: TextDocument): Diagnostic[] {
 
 	try {
 		const ast = parse(text);
-		const linterRules = runLinterRules(ast);
+		console.log(ast.body);
+		const linterRules = runLinterRules(ast) as unknown[] as Diagnostic[];
 		diagnostics.push(...linterRules);
 	} catch (error: any) {
 		console.log(error);
@@ -151,70 +153,6 @@ function validateTextDocument(textDocument: TextDocument): Diagnostic[] {
 	return diagnostics;
 }
 
-// This function walks the AST and checks for custom rules.
-interface AstNode {
-	type: string;
-	name?: string;
-	location?: {
-		start: { line: number; column: number };
-		end: { line: number; column: number }
-	};
-	[k: string]: unknown;
-}
-interface ProgramAst { body?: AstNode[] }
-export function runLinterRules(ast: ProgramAst): Diagnostic[] {
-	const problems: Diagnostic[] = [];
-	if (!ast.body) {
-		console.log("No body in AST");
-		return problems;
-	}
-	// Recursively traverse the AST and collect problems from every node.
-	function traverse(node: AstNode | AstNode[]) {
-		if (!node)
-			return;
-		if (Array.isArray(node)) {
-			for (const item of node)
-				traverse(item);
-			return;
-		}
-		if (typeof node !== 'object' || node === null)
-			return;
-		const maybeNode = node as AstNode;
-		if (maybeNode.type) // If this object looks like an AST node, check it for problems.
-			problems.push(...getProblemsFromNode(maybeNode));
-
-		// Recurse into all object properties to find nested nodes or arrays of nodes.
-		for (const key in maybeNode) {
-			const prop: any = maybeNode[key];
-			if (!prop) continue;
-			if (Array.isArray(prop)) {
-				for (const p of prop)
-					traverse(p);
-			} else if (typeof prop === 'object' && prop?.['type']) {
-				traverse(prop as AstNode);
-			}
-		}
-	}
-
-	traverse(ast.body);
-	return problems;
-}
-function getProblemsFromNode(node: AstNode) {
-	const problems: Diagnostic[] = [];
-	if (node.type === 'UnknownStatement') {
-		const diagnostic: Diagnostic = {
-			severity: DiagnosticSeverity.Error,
-			range: {
-				start: { line: (node.location?.start.line ?? 1) - 1, character: (node.location?.start.column ?? 1) - 1 },
-				end: { line: (node.location?.end.line ?? 1) - 1, character: (node.location?.end.column ?? 2) - 1 }
-			},
-			message: `Unknown or unsupported statement: '${node.raw}'`,
-			source: 'VFP Linter (Syntax)'
-		};
-		problems.push(diagnostic);
-	}
-	return problems;
-}
 
 documents.listen(connection);
 connection.listen();

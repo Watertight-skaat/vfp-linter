@@ -49,8 +49,8 @@ Statement "statement"
     / InsertStatement
     / AssignmentStatement
     / ExpressionStatement
-    / DoFormStatement
     / DoCaseStatement
+    / DoFormStatement
     / DoStatement
     / ProcedureStatement
     / LocateStatement
@@ -320,12 +320,12 @@ Expression
 
 // Basic precedence chain (can be expanded later)
 LogicalOr
-  = head:LogicalAnd tail:(_ ("OR"i / ".OR."i) _ LogicalAnd)* {
+  = head:LogicalAnd tail:(_ (".OR."i / "OR"i) _ LogicalAnd)* {
       return tail.reduce((acc, t) => node("LogicalExpression", { operator: "OR", left: acc, right: t[3] }), head);
     }
 
 LogicalAnd
-  = head:Equality tail:(_ ("AND"i / ".AND."i) _ Equality)* {
+  = head:Equality tail:(_ (".AND."i / "AND"i) _ Equality)* {
       return tail.reduce((acc, t) => node("LogicalExpression", { operator: "AND", left: acc, right: t[3] }), head);
     }
 
@@ -350,7 +350,7 @@ Multiplicative
     }
 
 Unary
-  = op:("NOT"i / ".NOT."i / "!" / "-" / "+") _ expr:Unary {
+  = op:(".NOT."i / "NOT"i / "!" / "-" / "+") _ expr:Unary {
       return node("UnaryExpression", { operator: typeof op === 'string' ? op.toUpperCase() : op, argument: expr });
     }
   / PostfixExpression
@@ -370,7 +370,8 @@ ArgumentList
 
 // Postfix expressions: allow chaining of member access (.prop) and call expressions (args)
 PostfixExpression
-  = head:Primary tail:(("." / "->") _ prop:Identifier { return { type: 'member', prop } } / "(" _ args:ArgumentList? _ ")" { return { type: 'call', args: args || [] } })*
+  = head:Primary tail:(("." / "->") _ prop:Identifier { return { type: 'member', prop } } 
+  / "(" _ args:ArgumentList? _ ")" { return { type: 'call', args: args || [] } })*
     {
       let expr = head;
       for (const t of tail) {
@@ -432,9 +433,10 @@ DoFormStatement "do form statement"
     }
 
 DoStatement "do statement"
-  = "DO"i __ target:(StringLiteral / Identifier) _ 
+  = "DO"i __ target:(StringLiteral / (!("FORM"i ![A-Za-z0-9_] / "CASE"i ![A-Za-z0-9_]) Identifier)) _ 
     inPart:(("IN"i _ n:( $([0-9]+) { return parseInt(n,10); } / Identifier / StringLiteral )) _)?
-    withPart:("WITH"i _ params:ArgumentList)? __ {
+    withPart:("WITH"i _ params:ArgumentList)?
+    __ {
       const inSession = inPart ? inPart[2] : null;
       return node("DoStatement", { target, inSession, arguments: withPart ? withPart[2] : [] });
     }
@@ -784,17 +786,24 @@ DoWhileLoop "do-while loop"
 // DO CASE CASE lExpression1 [Commands] ... [OTHERWISE Commands] ENDCASE
 DoCaseStatement "do case statement"
   = "DO CASE"i __
-    cases:(CaseClause __)+
-    otherwise:("OTHERWISE"i __ othBody:(Statement __)* { return node('BlockStatement', { body: flatten(othBody.map(s => s[0])) }); })?
-    "ENDCASE"i __ {
-      return node('DoCaseStatement', { cases: cases.map(c => c[0]), otherwise: otherwise ? otherwise : null });
+  cases:(CaseClause)*
+  otherwise:("OTHERWISE"i __ othBody:(Statement __)* { return node('BlockStatement', { body: flatten(othBody.map(s => s[0])) }); })?
+  "ENDCASE"i
+  __ {
+      return node('DoCaseStatement', { 
+        cases: cases.map(c => c[0]), 
+        otherwise: otherwise ? otherwise : null 
+      });
     }
 
 CaseClause
-  = "CASE"i __ test:Expression __ 
-    body:(Statement __)* {
-    return node('CaseClause', { test, body: node('BlockStatement', { body: flatten(body.map(s => s[0])) }) });
-  }
+  = "CASE"i _ test:Expression __ 
+    consequent:(Statement __)* {
+      return node('CaseClause', { 
+        test, 
+        consequent: node('BlockStatement', { body: flatten(consequent.map(s => s[0])) }) 
+      });
+    }
 
 ExitStatement "exit"
   = ("EXIT"i / "QUIT"i) __ { return node("ExitStatement", {}); }
@@ -1132,6 +1141,7 @@ Keyword "keyword"
   / ("DO"i          ![a-zA-Z0-9_])
   / ("WHILE"i       ![a-zA-Z0-9_])
   / ("FOR"i         ![a-zA-Z0-9_])
+  / ("CASE"i        ![a-zA-Z0-9_])
   / ("ENDFOR"i      ![a-zA-Z0-9_])
   / ("ENDDO"i       ![a-zA-Z0-9_])
   / ("LOOP"i        ![a-zA-Z0-9_])
@@ -1140,6 +1150,8 @@ Keyword "keyword"
   / ("ENDTRY"i     ![a-zA-Z0-9_])
   / ("THROW"i      ![a-zA-Z0-9_])
   / ("FINALLY"i    ![a-zA-Z0-9_])
+  / ("OTHERWISE"i   ![a-zA-Z0-9_])
+  / ("ENDCASE"i     ![a-zA-Z0-9_])
   / ("SELECT"i     ![a-zA-Z0-9_])
   / ("WITH"i       ![a-zA-Z0-9_])
   / ("WHERE"i      ![a-zA-Z0-9_])
