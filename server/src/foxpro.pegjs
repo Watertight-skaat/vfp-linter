@@ -322,12 +322,12 @@ Expression
 
 // Basic precedence chain (can be expanded later)
 LogicalOr
-  = head:LogicalAnd tail:(_ (".OR."i / "OR"i) _ LogicalAnd)* {
+  = head:LogicalAnd tail:(_ (".OR."i / ("OR"i ![a-zA-Z0-9_])) _ LogicalAnd)* {
       return tail.reduce((acc, t) => node("LogicalExpression", { operator: "OR", left: acc, right: t[3] }), head);
     }
 
 LogicalAnd
-  = head:Equality tail:(_ (".AND."i / "AND"i) _ Equality)* {
+  = head:Equality tail:(_ (".AND."i / ("AND"i ![a-zA-Z0-9_])) _ Equality)* {
       return tail.reduce((acc, t) => node("LogicalExpression", { operator: "AND", left: acc, right: t[3] }), head);
     }
 
@@ -352,7 +352,7 @@ Multiplicative
     }
 
 Unary
-  = op:(".NOT."i / "NOT"i / "!" / "-" / "+") _ expr:Unary {
+  = op:(".NOT."i / ("NOT"i ![a-zA-Z0-9_]) / "!" / "-" / "+") _ expr:Unary {
       return node("UnaryExpression", { operator: typeof op === 'string' ? op.toUpperCase() : op, argument: expr });
     }
   / PostfixExpression
@@ -364,12 +364,21 @@ Primary
   / BooleanLiteral
   / NullLiteral
   / DateTimeLiteral
+  / CastExpression
   / id:Identifier { return (id && id.length && id.charAt(0) === '_') ? node("ImplicitGlobal", { name: id }) : node("Identifier", { name: id }); }
   / "(" _ e:Expression _ ")" { return e; }
 
 // Argument list for call expressions
 ArgumentList
-  = head:Expression tail:(_ "," _ Expression)* { return [head, ...tail.map(t => t[3])]; }
+  = head:(Expression / "*" { return node('SelectStar', {}); }) tail:(_ "," _ (Expression / "*" { return node('SelectStar', {}); }))* { return [head, ...tail.map(t => t[3])]; }
+
+// CAST(expr AS TypeSpec) - simple SQL style cast support
+TypeSpec
+  = id:Identifier _ "(" _ n:NumberLiteral _ ")" { return { kind: 'typed', name: id, size: n }; }
+  / id:IdentifierOrString { return { kind: 'simple', name: id }; }
+
+CastExpression
+  = "CAST"i _ "(" _ e:Expression _ "AS"i _ t:TypeSpec _ ")" { return node("CastExpression", { expression: e, to: t }); }
 
 // Postfix expressions: allow chaining of member access (.prop) and call expressions (args)
 PostfixExpression
@@ -497,7 +506,8 @@ QualifiedTable
   / t:(UnquotedPath / IdentifierOrString) { return { database: null, table: t }; }
 
 JoinClause
-  = jt:JoinType? _ "JOIN"i _ tr:TableRef __ "ON"i __ cond:Expression __ {
+  = jt:JoinType? _ "JOIN"i _ tr:TableRef __ "ON"i __ cond:Expression 
+    __ {
       return { type: jt || null, target: tr, condition: cond };
     }
 
@@ -1231,6 +1241,12 @@ Keyword "keyword"
   / ("FINALLY"i    ![a-zA-Z0-9_])
   / ("OTHERWISE"i   ![a-zA-Z0-9_])
   / ("ENDCASE"i     ![a-zA-Z0-9_])
+  / ("JOIN"i        ![a-zA-Z0-9_])
+  / ("INNER JOIN"i       ![a-zA-Z0-9_])
+  / ("LEFT OUTER JOIN"i  ![a-zA-Z0-9_])
+  / ("RIGHT OUTER JOIN"i ![a-zA-Z0-9_])
+  / ("ON"i          ![a-zA-Z0-9_])
+  / ("WHERE"i       ![a-zA-Z0-9_])
   / ("SELECT"i     ![a-zA-Z0-9_])
   / ("WITH"i       ![a-zA-Z0-9_])
   / ("WHERE"i      ![a-zA-Z0-9_])
@@ -1244,7 +1260,6 @@ Keyword "keyword"
   / ("GOTO"i       ![a-zA-Z0-9_])
   / ("RECORD"i     ![a-zA-Z0-9_])
   / ("CURSOR"i      ![a-zA-Z0-9_])
-  // / ("INTO"i      ![a-zA-Z0-9_])
 
 NumberLiteral "number"
   = value:$("$"? [0-9]+ ("." [0-9]+)? ) {
@@ -1275,7 +1290,7 @@ DateTimeLiteral "datetime"
 
 // example: `s:\code\mosapi\3_3\aalib\mosapi.h` or `libs\system.app`
 UnquotedPath
-  = p:$([^ \t\f\v\r\n]+) { return p; }
+  = p:$([^ \t\f\v\r\n,;]+) { return p; }
 
 LineTerminatorSequence "end of line"
   = "\n"
