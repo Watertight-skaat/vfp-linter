@@ -902,7 +902,7 @@ DoFormStatement "do form statement"
     }
 
 DoStatement "do statement"
-  = "DO"i __ target:(!("FORM"i ![A-Za-z0-9_] / "CASE"i ![A-Za-z0-9_]) (StringLiteral / PostfixExpression / UnquotedPath)) _
+  = "DO"i __ target:(!("FORM"i ![A-Za-z0-9_] / "CASE"i ![A-Za-z0-9_]) (StringLiteral / UnquotedPath / PostfixExpression)) _
     inPart:(("IN"i _ n:( $([0-9]+) { return Number(n); } / Identifier / StringLiteral )) _)?
     withPart:("WITH"i _ params:ArgumentList)?
     {
@@ -1047,7 +1047,8 @@ WithStatement
     }
 
 WithBodyEntry
-  = "." 
+  = "." c:Statement { return c; }
+    / Statement { return node("UnknownStatement", { raw: text() }); }  // Allow non-dot-prefixed statements, but mark as unknown.
 
 // -----------------------------
 // Unknown/catch-all statement
@@ -1388,7 +1389,8 @@ Keyword "keyword"
   / ("ON KEY"i      ![a-zA-Z0-9_])
 
 NumberLiteral "number"
-  = value:$("$"? [0-9]+ ("." [0-9]+)? ) {
+  = "SELECT(0)"i { return node("NumberLiteral", { value: 0, raw: "SELECT(0)", currency: false });}
+    / value:$("$"? [0-9]+ ("." [0-9]+)? ) {
       const raw = value;
       const isCurrency = raw.charAt(0) === '$';
       const num = parseFloat(isCurrency ? raw.slice(1) : raw);

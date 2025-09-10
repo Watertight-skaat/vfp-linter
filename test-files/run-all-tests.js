@@ -29,7 +29,7 @@ for (const file of files) {
 	}
 }
 for (const failure of failedTests) {
-	console.log(`=== ${failure[0]} (x${failure[1].length}) ===`);
+	console.log(`==== ${failure[0]} (x${failure[1].length}) ====`);
 	for (const msg of failure[1])
 		console.log(msg);
 }
