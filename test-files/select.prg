@@ -21,6 +21,8 @@ SELECT * FROM Trancursor t, delivcd d JOIN codes c ON c.stnum + "test" = "test" 
 
 select CAST(fieldname as m(4)) as AliasName from tablename
 
+SELECT * FROM tablename GROUP BY tablename.fieldA HAVING .t. INTO CURSOR cname
+
 SELECT * FROM tablename WHERE field in (select field from tablename2)
 
 SELECT * FROM tablename WHERE field not in (select field from tablename2)

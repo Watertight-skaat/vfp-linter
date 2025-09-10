@@ -1,0 +1,1 @@
+CALCULATE MAX(variableA), MAX(variableB) TO m.variableA, m.variableB FOR testA .and. !testB

@@ -35,6 +35,7 @@ Statement "statement"
     / PrintStatement
     / UseStatement
     / AppendStatement
+    / CalculateStatement
     / CopyStatement
     / SetStatement
     / PreprocessorStatement
@@ -48,6 +49,7 @@ Statement "statement"
     / UpdateStatement
     / DeleteStatement
     / GoToStatement
+    / SkipStatement
     / AssignmentStatement
     / ExpressionStatement
     / DoCaseStatement
@@ -687,6 +689,13 @@ GoToStatement "go/goto statement"
 InClause
   = "IN"i _ target:(Identifier / StringLiteral / NumberLiteral / SelectCore) { return target; }
 
+// SKIP [nRecords] [IN nWorkArea | cTableAlias]
+SkipStatement
+  = "SKIP"i _ n:NumberLiteral? _ inPart:(_ "IN"i __ target:(NumberLiteral / Identifier / StringLiteral) { return target; })? 
+  __ {
+    return node('SkipStatement', { count: n || null, inTarget: inPart ? inPart[2] : null });
+  }
+
 // Opt 1: INSERT INTO dbf_name [(FieldName1 [, FieldName2, ...])]
 //    VALUES (eExpression1 [, eExpression2, ...])
 // Opt 2: INSERT INTO dbf_name FROM ARRAY ArrayName | FROM MEMVAR | FROM NAME ObjectName
@@ -1155,6 +1164,40 @@ ScanStatement
       });
     }
 
+
+// CALCULATE eExpressionList [Scope] [FOR lExpression1] [WHILE lExpression2]
+//    [TO VarList | TO ARRAY ArrayName] [NOOPTIMIZE] [IN nWorkArea | cTableAlias]
+CalculateStatement
+  = "CALCULATE"i __ exprs:ExpressionList _
+  parts:(CalcOption _)* __ {
+      const opts = { scope: null, forCondition: null, whileCondition: null, to: null, noOptimize: false, inTarget: null };
+      for (const p of parts) {
+        if (!p) continue;
+        switch (p.kind) {
+          case 'SCOPE': opts.scope = p.value; break;
+          case 'FOR': opts.forCondition = p.value; break;
+          case 'WHILE': opts.whileCondition = p.value; break;
+          case 'TO': opts.to = p.value; break;
+          case 'NOOPTIMIZE': opts.noOptimize = true; break;
+          case 'IN': opts.inTarget = p.value; break;
+        }
+      }
+      return node('CalculateStatement', { expressions: exprs, scope: opts.scope, forCondition: opts.forCondition, whileCondition: opts.whileCondition, to: opts.to, noOptimize: opts.noOptimize, inTarget: opts.inTarget });
+    }
+
+CalcOption
+  = s:(
+      ("ALL"i { return { kind: 'SCOPE', value: 'ALL' }; })
+    / ("NEXT"i _ n:NumberLiteral { return { kind: 'SCOPE', value: { type: 'NEXT', count: n } }; })
+    / ("RECORD"i _ n:NumberLiteral { return { kind: 'SCOPE', value: { type: 'RECORD', number: n } }; })
+    / ("REST"i { return { kind: 'SCOPE', value: 'REST' }; })
+    / ("FOR"i __ e:Expression { return { kind: 'FOR', value: e }; })
+    / ("WHILE"i __ e:Expression { return { kind: 'WHILE', value: e }; })
+    / ("TO"i __ (vars:IdentifierList { return { kind: 'TO', value: { kind: 'VARS', vars } }; } / ("ARRAY"i __ arr:Identifier { return { kind: 'TO', value: { kind: 'ARRAY', name: arr } }; })))
+    / ("NOOPTIMIZE"i { return { kind: 'NOOPTIMIZE', value: true }; })
+    / ("IN"i __ target:(NumberLiteral / Identifier / StringLiteral / SelectCore) { return { kind: 'IN', value: target }; })
+  ) { return s; }
+
 ReplaceFieldList
   = head:ReplaceField tail:(_ "," _ ReplaceField)* {
       return [head, ...tail.map(t => t[3])];
@@ -1233,6 +1276,8 @@ Keyword "keyword"
   / ("PROCEDURE"i   ![a-zA-Z0-9_])
   / ("LOCATE"i      ![a-zA-Z0-9_])
   / ("SCAN"i        ![a-zA-Z0-9_])
+  / ("SKIP"i        ![a-zA-Z0-9_])
+  / ("CALCULATE"i   ![a-zA-Z0-9_])
   / ("FUNCTION"i    ![a-zA-Z0-9_])
   / ("ENDPROC"i     ![a-zA-Z0-9_])
   / ("ENDFUNC"i     ![a-zA-Z0-9_])
