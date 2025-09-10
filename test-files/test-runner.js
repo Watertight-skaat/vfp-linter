@@ -1,5 +1,5 @@
-/* global console */
-import * as parser from '../server/out/parser.js';
+/* global console process */
+import * as parser from '../server/src/parser.js';
 import * as fs from 'fs';
 import { runLinterRules } from '../server/out/linter.js';
 
@@ -31,4 +31,8 @@ for (const file of files) {
 		}
 	}
 }
-console.log(`Successes: ${successes}, Failures: ${failures}`);
+console.log(`\nSuccesses: ${successes}, Failures: ${failures}`);
+console.log("=== DONE ===");
+if (failures > 0) {
+	process.exit(1);
+}
