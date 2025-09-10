@@ -180,8 +180,8 @@ AssignmentStatement
 
 // Shorthand print statement: ? <expression> or PRINT <expression>
 PrintStatement // todo: Wait window probably should be separate
-  = ("?" / "PRINT"i / "WAIT WINDOW"i) _ expr:Expression __ {
-      return node("PrintStatement", { argument: expr });
+  = ("?" / "PRINT"i / "WAIT WINDOW"i) _ args:ExpressionList __ {
+      return node("PrintStatement", { arguments: args, argument: (args && args.length) ? args[0] : null });
     }
 
 // USE [[DatabaseName!] TableName | SQLViewName | ?]
@@ -802,7 +802,7 @@ DoFormStatement "do form statement"
     }
 
 DoStatement "do statement"
-  = "DO"i __ target:(StringLiteral / (!("FORM"i ![A-Za-z0-9_] / "CASE"i ![A-Za-z0-9_]) Identifier)) _ 
+  = "DO"i __ target:(!("FORM"i ![A-Za-z0-9_] / "CASE"i ![A-Za-z0-9_]) (StringLiteral / PostfixExpression)) _
     inPart:(("IN"i _ n:( $([0-9]+) { return parseInt(n,10); } / Identifier / StringLiteral )) _)?
     withPart:("WITH"i _ params:ArgumentList)?
     __ {
