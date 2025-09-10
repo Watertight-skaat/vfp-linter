@@ -20,3 +20,7 @@ SELECT * FROM Trancursor, delivcd LEFT OUTER JOIN codes ON stnum + "test" = "tes
 SELECT * FROM Trancursor t, delivcd d JOIN codes c ON c.stnum + "test" = "test" WHERE .t.
 
 select CAST(fieldname as m(4)) as AliasName from tablename
+
+SELECT * FROM tablename WHERE field in (select field from tablename2)
+
+SELECT * FROM tablename WHERE field not in (select field from tablename2)

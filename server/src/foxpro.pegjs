@@ -1093,6 +1093,7 @@ AppendStatement
 // REPLACE FieldName1 WITH eExpression1 [ADDITIVE] [, FieldName2 WITH eExpression2 [ADDITIVE]] ... [Scope] [FOR lExpression1] [WHILE lExpression2] [IN nWorkArea | cTableAlias] [NOOPTIMIZE]
 ReplaceStatement
   = "REPLACE"i __
+    scope:(("ALL"i { return 'ALL'; }) _)?
     fields:ReplaceFieldList
     forClause:(_ "FOR"i __ condition:Expression)?
     whileClase:(_ "WHILE"i __ condition:Expression)?
@@ -1100,6 +1101,7 @@ ReplaceStatement
     noOptimize:("NOOPTIMIZE"i)?
     __ {
       return node("ReplaceStatement", { 
+        scope: scope ? scope[0] : null,
         fields, 
         forCondition: forClause ? forClause[2] : null,
         whileCondition: whileClase ? whileClase[2] : null,
