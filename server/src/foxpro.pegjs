@@ -30,24 +30,24 @@ Statement "statement"
     / DimensionStatement
     / DeclareStatement
     / TryStatement
-    / CreateStatement
-    / IndexOnStatement
     / DefineClass
     / LParameters
     / PrintStatement
     / UseStatement
     / AppendStatement
     / CopyStatement
-    / ReplaceStatement
     / SetStatement
     / PreprocessorStatement
     / IterationStatement
     / ExitStatement
     / ContinueStatement
+    / CreateStatement
+    / IndexOnStatement
+    / InsertStatement
     / SelectStatement
     / UpdateStatement
+    / DeleteStatement
     / GoToStatement
-    / InsertStatement
     / AssignmentStatement
     / ExpressionStatement
     / DoCaseStatement
@@ -443,7 +443,7 @@ SelectCore
     where:WhereClause? _
     group:GroupByClause? _
     having:HavingClause? _
-    order:OrderByClause? _
+    order:(OrderByClause _)?
     dest:(IntoClause / ToClause)? _
     pref:PreferenceClause? _
     flags:(NoConsoleFlag? _ PlainFlag? _ NowaitFlag?) {
@@ -514,19 +514,19 @@ WhereClause
   = "WHERE"i _ e:Expression { return e; }
 
 GroupByClause
-  = "GROUP"i _ "BY"i __ items:ExpressionList { return items; }
+  = "GROUP BY"i __ items:ExpressionList { return items; }
 
 HavingClause
   = "HAVING"i __ e:Expression { return e; }
 
 OrderByClause
-  = "ORDER"i _ "BY"i __ items:OrderItemList { return items; }
+  = "ORDER BY"i __ items:OrderItemList { return items; }
 
 OrderItemList
   = head:OrderItem tail:(_ "," _ OrderItem)* { return [head, ...tail.map(t => t[3])]; }
 
 OrderItem
-  = expr:Expression dir:(__ ("ASC"i / "DESC"i))? { return { expression: expr, direction: dir ? dir[1].toUpperCase() : null }; }
+  = expr:Expression dir:(_ ("ASC"i / "DESC"i))? { return { expression: expr, direction: dir ? dir[1].toUpperCase() : null }; }
 
 IntoClause
   = "INTO"i _ dest:(
@@ -669,10 +669,11 @@ GoToStatement "go/goto statement"
 InClause
   = "IN"i _ target:(Identifier / StringLiteral / NumberLiteral / SelectCore) { return target; }
 
-// -----------------------------
-// INSERT INTO
-// -----------------------------
-
+// Opt 1: INSERT INTO dbf_name [(FieldName1 [, FieldName2, ...])]
+//    VALUES (eExpression1 [, eExpression2, ...])
+// Opt 2: INSERT INTO dbf_name FROM ARRAY ArrayName | FROM MEMVAR | FROM NAME ObjectName
+// Opt 3: INSERT INTO dbf_name [(FieldName1 [, FieldName2, ...])]
+//    SELECT SELECTClauses [UNION UnionClause SELECT SELECTClauses ...]
 InsertStatement
   = "INSERT"i __ "INTO"i __ target:IdentifierOrString _
     cols:("(" _ cl:IdentifierList _ ")")? __
@@ -683,10 +684,7 @@ InsertStatement
           / "MEMVAR"i { return { kind: 'from', source: 'MEMVAR', name: null }; }
           / "NAME"i __ obj:Identifier { return { kind: 'from', source: 'NAME', name: obj }; }
         )
-      / sel:SelectCore unions:(_ "UNION"i _ all:("ALL"i)? _ rhs:SelectCore)* {
-          const parts = unions ? unions.map(u => ({ all: !!u[3], select: u[5] })) : [];
-          return { kind: 'select', select: { core: sel, unions: parts } };
-        }
+      / select:SelectStatement { return { kind: 'select', select }; }
     ) __ {
       return node('InsertStatement', {
         target,
@@ -724,6 +722,21 @@ UpdateAssignmentList
 
 UpdateAssignment
   = field:ParameterName _ "=" _ expr:Expression { return { field, expression: expr }; }
+
+// DELETE [Target] FROM [FORCE] Table_List [[, Table_List ...] | [JOIN [ Table_List]]]
+//   [WHERE FilterCondition1 [AND | OR FilterCondition2 ...]]
+DeleteStatement
+  = "DELETE"i _ target:IdentifierOrString? _
+    "FROM"i _ tables:TableList _
+    joins:(JoinClause _)? _
+    where:WhereClause? __ {
+      return node('DeleteStatement', {
+        target: target || null,
+        tables,
+        joins: joins ? joins[0] : null,
+        where: where || null
+      });
+    }
 
 // -----------------------------
 // Loops: FOR ... ENDFOR|NEXT, FOR EACH ... ENDFOR|NEXT and DO WHILE ... ENDDO
@@ -1282,7 +1295,7 @@ __
   = (Whitespace / LineContinuation / Comment / LineTerminatorSequence)*
 
 _ 
-  = (Whitespace / MultiLineCommentNoLineTerminator / LineContinuation)*
+  = (Whitespace / LineContinuation)*
 
 // Semicolon at end of physical line continues the logical line onto the next physical line.
 LineContinuation "semicolon"
@@ -1295,23 +1308,14 @@ EmptyLine "empty line"
 	= __ LineTerminator
 
 Comment "comment"
-  = SingleLineComment
-  / MultiLineComment
+  = PartialLineComment
+  / FullLineComment
 
-//  "&&" or "*"
-SingleLineComment "single-line comment"
+PartialLineComment "&& comment"
   = "&&" (!LineTerminator .)*
-  / "*"  (!LineTerminator .)*
 
-// Note:. technically A '*' comment is only a comment when it appears as the first non-space char.
-// We don't want to caputre tokens like the '*' in a SELECT list (e.g. "SELECT * FROM ...").
-
-
-MultiLineComment "multi-line comment"
-  = "/*" (!"*/" .)* "*/" 
-
-MultiLineCommentNoLineTerminator "/* */ inline comment"
-  = "/*" (!"*/" !LineTerminator .)* "*/"
+FullLineComment "* comment"
+  = [ \t]* "*" (!LineTerminator .)*
 
 EOF "end of file"
 	= !.

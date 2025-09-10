@@ -47,7 +47,7 @@ export function runLinterRules(ast: ProgramAst) {
         severity: 1, // DiagnosticSeverity.Error
         range: { start: { line: startLine, character: startCol }, end: { line: endLine, character: endCol } },
         message: `Unknown or unsupported statement: '${node.raw}'`,
-        source: 'VFP Linter (Syntax)'
+        source: 'VFP Linter'
       });
     }
     return out;
