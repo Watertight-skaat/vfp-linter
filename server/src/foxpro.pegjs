@@ -279,15 +279,23 @@ UseConnPart
 PreprocessorStatement
   = IncludeStatement
   / DefineStatement
+  / PreprocessorIfStatement
 
 IncludeStatement
-  = "#" _ "include"i _ path:(StringLiteral / UnquotedPath) __ {
+  = "#include"i _ path:(StringLiteral / UnquotedPath) __ {
       return node("IncludeStatement", { path });
     }
 
 DefineStatement
-  = "#" _ "define"i _ name:Identifier _ value:$((!LineTerminator .)*) __ {
+  = "#define"i _ name:Identifier _ value:$((!LineTerminator .)*) __ {
       return node("DefineStatement", { name, value: value.trim() });
+    }
+
+// Preprocessor if/else/endif
+PreprocessorIfStatement
+  = start:"#if"i rest:$((!"#endif"i .)*) end:"#endif"i __ {
+      // capture raw preprocessor block (including any #elif/#else lines)
+      return node("PreprocessorIfStatement", { raw: (start + rest + end).trim() });
     }
 
 // Example: DEFINE CLASS myhandler AS Session
@@ -413,13 +421,13 @@ IfStatement "if statement"
     consequent:(Statement __)*
     "ELSE"i __
     alternate:(Statement __)*
-    "ENDIF"i 
+    "ENDIF"i __
     {
       return node("IfStatement", { test, consequent: node("BlockStatement", { body: flatten(consequent.map(s => s[0])) }), alternate: node("BlockStatement", { body: flatten(alternate.map(s => s[0])) }) });
     }
     / "IF"i __ test:Expression __ 
       consequent:(Statement __)* 
-      "ENDIF"i 
+      "ENDIF"i __
     {
       return node("IfStatement", { test, consequent: node("BlockStatement", { body: flatten(consequent.map(s => s[0])) }), alternate: null });
     }
