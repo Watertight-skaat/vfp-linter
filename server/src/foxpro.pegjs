@@ -68,6 +68,7 @@ Statement "statement"
     / ReplaceStatement
     / IfStatement
     / EvalStatement
+    / WithStatement
     / UnknownStatement
     ) { return s; }
 
@@ -901,8 +902,8 @@ DoFormStatement "do form statement"
     }
 
 DoStatement "do statement"
-  = "DO"i __ target:(!("FORM"i ![A-Za-z0-9_] / "CASE"i ![A-Za-z0-9_]) (StringLiteral / PostfixExpression)) _
-    inPart:(("IN"i _ n:( $([0-9]+) { return parseInt(n,10); } / Identifier / StringLiteral )) _)?
+  = "DO"i __ target:(!("FORM"i ![A-Za-z0-9_] / "CASE"i ![A-Za-z0-9_]) (StringLiteral / PostfixExpression / UnquotedPath)) _
+    inPart:(("IN"i _ n:( $([0-9]+) { return Number(n); } / Identifier / StringLiteral )) _)?
     withPart:("WITH"i _ params:ArgumentList)?
     {
       const inSession = inPart ? inPart[2] : null;
@@ -1029,12 +1030,31 @@ TryStatement "try-catch statement"
       });
     }
 
+// WITH ObjectName [AS <Type> [OF <Class Library>]]
+//    [.cStatements]
+// ENDWITH
+WithStatement
+  = "WITH"i _ target:Identifier _ 
+    asPart:(_ "AS"i __ t:Identifier _ ofPart:(_ "OF"i _ cl:Identifier { return cl; })? )? __
+    body:(WithBodyEntry __)*
+    "ENDWITH"i {
+      return node("WithStatement", {
+        target,
+        asType: asPart ? asPart[2] : null,
+        ofClass: asPart && asPart[4] ? asPart[4][2] : null,
+        body: node("BlockStatement", { body: flatten(body.map(b => b[0])) })
+      });
+    }
+
+WithBodyEntry
+  = "." 
+
 // -----------------------------
 // Unknown/catch-all statement
 // -----------------------------
 // Captures a single logical line (respecting semicolon continuations) that didn't
 // match any known statement. Protects block delimiters so structured constructs
-// (IF/DO WHILE/FOR/TRY/DEFINE) can still recognize their endings.
+// (IF/DO WHILE/FOR/TRY/DEFINE/WITH) can still recognize their endings.
 UnknownStatement
   = !("ENDIF"i      ![A-Za-z0-9_]
     / "ELSE"i       ![A-Za-z0-9_]
@@ -1046,6 +1066,7 @@ UnknownStatement
     / "ENDPROC"i    ![A-Za-z0-9_]
     / "ENDFUNC"i    ![A-Za-z0-9_]
     / "ENDCASE"i    ![A-Za-z0-9_]
+    / "ENDWITH"i    ![A-Za-z0-9_]
     / "OTHERWISE"i  ![A-Za-z0-9_]
     / "CATCH"i      ![A-Za-z0-9_]
     / "FINALLY"i    ![A-Za-z0-9_]
@@ -1055,13 +1076,13 @@ UnknownStatement
     }
 
 SetStatement
-  = SetOrderToStatement / SetSettingStatement
+  = SetOrderToStatement / SetRelationToStatement / SetSettingStatement
 
 // SET ORDER TO [nIndexNumber | IDXIndexFileName | [TAG] TagName 
 //   [OF CDXFileName] [IN nWorkArea | cTableAlias]
 //   [ASCENDING | DESCENDING]]
 SetOrderToStatement
-  = "SET ORDER TO"i __
+  = "SET ORDER TO"i _
     sel:(
       n:NumberLiteral { return { kind: 'NUMBER', value: n }; }
       / f:(IdentifierOrString / UnquotedPath) { return { kind: 'FILE', value: f }; }
@@ -1080,6 +1101,27 @@ SetOrderToStatement
         direction: direction
       });
     }
+
+  // SET RELATION TO [eExpression1 INTO nWorkArea1 | cTableAlias1
+  //   [, eExpression2 INTO nWorkArea2 | cTableAlias2 ...]
+  //   [IN nWorkArea | cTableAlias] [ADDITIVE]
+  SetRelationToStatement
+    = "SET RELATION TO"i _
+      first:RelationPair tail:(_ "," _ RelationPair)*
+      inClause:(_ "IN"i __ target:(Identifier / StringLiteral / NumberLiteral) _)?
+      additive:(_ "ADDITIVE"i)? {
+        const pairs = [first, ...tail.map(t => t[3])];
+        return node('SetRelation', {
+          pairs: pairs.map(p => ({ expression: p.expr, into: p.into })),
+          inTarget: inClause ? inClause[2] : null,
+          additive: !!(additive && additive[1])
+        });
+      }
+
+  RelationPair
+    = expr:Expression _ "INTO"i __ into:(Identifier / NumberLiteral / StringLiteral) {
+        return { expr, into };
+      }
 
 // SET [cSetCommand] [ON | OFF | TO [eSetting]]
 SetSettingStatement
