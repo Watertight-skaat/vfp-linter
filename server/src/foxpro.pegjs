@@ -178,8 +178,8 @@ AssignmentStatement
     }
 
 // Shorthand print statement: ? <expression> or PRINT <expression>
-PrintStatement
-  = ("?" / "PRINT"i) _ expr:Expression __ {
+PrintStatement // todo: Wait window probably should be separate
+  = ("?" / "PRINT"i / "WAIT WINDOW"i) _ expr:Expression __ {
       return node("PrintStatement", { argument: expr });
     }
 
@@ -576,16 +576,16 @@ NowaitFlag
   = "NOWAIT"i { return true; }
 
 // -----------------------------
-// COPY
+// COPY/RENAME
 // -----------------------------
-
-CopyStatement "copy statement"
+CopyStatement "copy/rename statement"
   = CopyFileStatement / CopyToStatement
 
 CopyFileStatement
-  = "COPY FILE"i _ src:(Expression / UnquotedPath) _ "TO"i _ dst:(Expression / UnquotedPath) __ {
-      return node('CopyFileStatement', { source: src, destination: dst });
+  = action:("COPY FILE"i / "RENAME"i) _ src:(Expression / UnquotedPath) _ "TO"i _ dst:(Expression / UnquotedPath) __ {
+      return node(action === 'COPY FILE' ? 'CopyFileStatement' : 'RenameStatement', { source: src, destination: dst });
     }
+
 
 CopyToStatement
   = "COPY TO"i
@@ -797,10 +797,10 @@ CaseClause
   }
 
 ExitStatement "exit"
-  = "EXIT"i _ LineTerminator? { return node("ExitStatement", {}); }
+  = ("EXIT"i / "QUIT"i) __ { return node("ExitStatement", {}); }
 
 ContinueStatement "continue (LOOP)"
-  = "LOOP"i _ LineTerminator? { return node("ContinueStatement", {}); }
+  = "LOOP"i __ { return node("ContinueStatement", {}); }
 
 // -----------------------------
 // CREATE TABLE/DBF/CURSOR
@@ -904,7 +904,7 @@ TryStatement "try-catch statement"
     tpart:("THROW"i _ texpr:Expression? __ { return texpr === undefined ? null : texpr; })?
     exitpart:("EXIT"i __ { return true; })?
     fpart:("FINALLY"i __ fstmts:(Statement __)* { return flatten(fstmts.map(s => s[0])); })?
-    "ENDTRY"i __? 
+    "ENDTRY"i __
     {
       return node("TryStatement", {
         tryBlock: node("BlockStatement", { body: flatten(tstmts.map(s => s[0])) }),
@@ -941,9 +941,36 @@ UnknownStatement
       return node("UnknownStatement", { raw: raw.trim() });
     }
 
-// SET [cSetCommand] [ON | OFF | TO [eSetting]]
 SetStatement
-  = "SET"i _ inner:(
+  = SetOrderToStatement / SetSettingStatement
+
+// SET ORDER TO [nIndexNumber | IDXIndexFileName | [TAG] TagName 
+//   [OF CDXFileName] [IN nWorkArea | cTableAlias]
+//   [ASCENDING | DESCENDING]]
+SetOrderToStatement
+  = "SET ORDER TO"i __
+    sel:(
+      n:NumberLiteral { return { kind: 'NUMBER', value: n }; }
+      / f:(IdentifierOrString / UnquotedPath) { return { kind: 'FILE', value: f }; }
+      / t:TagSpec { return { kind: 'TAG', tag: t.tag, of: t.of, direction: t.direction }; }
+    )
+    _ inClause:(_ "IN"i __ target:(Identifier / StringLiteral / NumberLiteral) { return target; })?
+    _ dir:("ASCENDING"i / "DESCENDING"i)?
+    __ {
+      const direction = dir ? (typeof dir === 'string' ? dir.toUpperCase() : dir) : (sel.kind === 'TAG' ? sel.direction : null);
+      return node('SetOrder', {
+        kind: sel.kind,
+        value: sel.kind === 'NUMBER' ? sel.value : (sel.kind === 'FILE' ? sel.value : null),
+        tag: sel.kind === 'TAG' ? sel.tag : null,
+        of: sel.kind === 'TAG' ? sel.of : null,
+        in: inClause ? inClause[1] : null,
+        direction: direction
+      });
+    }
+
+// SET [cSetCommand] [ON | OFF | TO [eSetting]]
+SetSettingStatement
+  ="SET"i _ inner:(
     ("TO"i __ setting:Expression { return node("SetTo", { setting }); })
     / (cmd:KeywordOrIdentifier toPart:(_ "TO"i __ setting:Expression)? argPart:(_ (StringLiteral / Identifier / NumberLiteral))? additive:(_ "ADDITIVE"i)? state:(_ ("ON"i / "OFF"i))? { const argument = toPart ? toPart[2] : (argPart ? argPart[1] : null); const st = state ? state[1] : null; return node("cSetCommand", { command: cmd, argument: argument, state: st ? st.toUpperCase() : null, additive: !!additive }); })
   ) __ {
@@ -1152,7 +1179,7 @@ LineTerminator
 
 // todo: date literal
 DateLiteral "date"
-  = "TODO"i
+  = "{}"i
 
 // example: `s:\code\mosapi\3_3\aalib\mosapi.h` or `libs\system.app`
 UnquotedPath
@@ -1207,11 +1234,5 @@ MultiLineComment "multi-line comment"
 MultiLineCommentNoLineTerminator "/* */ inline comment"
   = "/*" (!"*/" !LineTerminator .)* "*/"
 
-// EOF predicate (for some comment handling if needed later)
-EOF 
+EOF "end of file"
 	= !.
-
-// -----------------------------
-// END
-// -----------------------------
-
