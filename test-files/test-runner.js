@@ -32,7 +32,4 @@ for (const file of files) {
 	}
 }
 console.log(`\nSuccesses: ${successes}, Failures: ${failures}`);
-console.log("=== DONE ===");
-if (failures > 0) {
-	process.exit(1);
-}
+process.exit(failures > 0 ? 1 : 0);

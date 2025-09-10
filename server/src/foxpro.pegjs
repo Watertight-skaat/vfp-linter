@@ -54,6 +54,7 @@ Statement "statement"
     / DoStatement
     / ProcedureStatement
     / LocateStatement
+    / ScanStatement
     / ReturnStatement
     / StoreStatement
     / ReplaceStatement
@@ -361,6 +362,7 @@ Primary
   / StringLiteral
   / BooleanLiteral
   / NullLiteral
+  / DateTimeLiteral
   / id:Identifier { return (id && id.length && id.charAt(0) === '_') ? node("ImplicitGlobal", { name: id }) : node("Identifier", { name: id }); }
   / "(" _ e:Expression _ ")" { return e; }
 
@@ -1039,6 +1041,35 @@ LocateStatement
       });
     }
 
+// SCAN [NOOPTIMIZE] Scope:[ALL | NEXT nRecords | RECORD nRecordNumber | REST] [FOR lExpression1] [WHILE lExpression2]
+//   [Commands]
+//   [LOOP]
+//   [EXIT]
+// ENDSCAN
+ScanStatement
+  = "SCAN"i _
+    noopt:("NOOPTIMIZE"i _)?
+    scope:(
+      ("ALL"i { return 'ALL'; })
+      / ("NEXT"i _ n:NumberLiteral { return { type: 'NEXT', count: n }; })
+      / ("RECORD"i _ n:NumberLiteral { return { type: 'RECORD', number: n }; })
+      / ("REST"i { return 'REST'; })
+    )? _
+    forClause:(_ "FOR"i __ condition:Expression)?
+    whileClause:(_ "WHILE"i __ condition:Expression)?
+    __
+    body:(Statement __)*
+    endkw:("ENDSCAN"i / ("LOOP"i / "EXIT"i) _? "ENDSCAN"i)?
+    __ {
+      return node("ScanStatement", {
+        noOptimize: !!(noopt && noopt[1]),
+        scope: scope || 'ALL',
+        forCondition: forClause ? forClause[2] : null,
+        whileCondition: whileClause ? whileClause[2] : null,
+        body: node("BlockStatement", { body: flatten(body.map(s => s[0])) })
+      });
+    }
+
 ReplaceFieldList
   = head:ReplaceField tail:(_ "," _ ReplaceField)* {
       return [head, ...tail.map(t => t[3])];
@@ -1116,6 +1147,7 @@ Keyword "keyword"
   / ("LPARAMETERS"i ![a-zA-Z0-9_])
   / ("PROCEDURE"i   ![a-zA-Z0-9_])
   / ("LOCATE"i      ![a-zA-Z0-9_])
+  / ("SCAN"i        ![a-zA-Z0-9_])
   / ("FUNCTION"i    ![a-zA-Z0-9_])
   / ("ENDPROC"i     ![a-zA-Z0-9_])
   / ("ENDFUNC"i     ![a-zA-Z0-9_])
@@ -1193,8 +1225,8 @@ LineTerminator
 	= [\n\r\u2028\u2029]
 
 // todo: date literal
-DateLiteral "date"
-  = "{}"i
+DateTimeLiteral "datetime"
+  = "{" _ d:$([^}]*) _ "}" { return node("DateTimeLiteral", { value: d.trim() }); }
 
 // example: `s:\code\mosapi\3_3\aalib\mosapi.h` or `libs\system.app`
 UnquotedPath

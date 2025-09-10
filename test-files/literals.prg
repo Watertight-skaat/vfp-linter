@@ -1,0 +1,10 @@
+test = "string literal"
+test = 1
+test = $123.45
+test = -123.45
+test = 0.123
+test = .f.
+test = .t.
+test = .null.
+test = {} && date
+test = { 2025, 12, 31 } && date
