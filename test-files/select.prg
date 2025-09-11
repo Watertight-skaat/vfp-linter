@@ -27,6 +27,7 @@ SELECT * FROM tablename ;
     *comment
 WHERE .t.
 
+select * from (table1) where test > 1
 SELECT 1 FROM tableA JOIN tableB ON fieldA + "constant" = "constant"
 SELECT * FROM Trancursor, delivcd LEFT OUTER JOIN codes ON stnum + "test" = "test" WHERE .t.
 SELECT * FROM Trancursor t, delivcd d JOIN codes c ON c.stnum + "test" = "test" WHERE .t.

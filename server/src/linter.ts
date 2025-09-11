@@ -60,18 +60,17 @@ function getProblemsFromNode(node: AstNode) {
   if (node.type === 'SelectStatement') {
     const n = node as unknown as Record<string, unknown>;
 
-    const anyHaving = n['having'] as Record<string, unknown> | undefined;
-    const anyGroup = n['groupBy'] as unknown;
-    if (anyHaving && !anyGroup) {
-      const locNode = getLocation(anyHaving) || getLocation(node) || { start: { line: 1, column: 1 }, end: { line: 1, column: 2 } };
+    const havingClause = n['having'] as Record<string, unknown> | undefined;
+    if (havingClause && !n['groupBy']) {
+      const locNode = getLocation(havingClause) || getLocation(node) || { start: { line: 1, column: 1 }, end: { line: 1, column: 2 } };
       const startLine = locNode.start ? (locNode.start.line - 1) : 0;
-      const startCol = locNode.start ? (locNode.start.column - 1) : 0;
       const endLine = locNode.end ? (locNode.end.line - 1) : startLine;
+      const startCol = locNode.start ? (locNode.start.column - 1) : 0;
       const endCol = locNode.end ? (locNode.end.column - 1) : (startCol + 1);
       out.push({
-        severity: DiagnosticSeverity.Warning,
+        severity: DiagnosticSeverity.Information,
         range: { start: { line: startLine, character: startCol }, end: { line: endLine, character: endCol } },
-        message: `HAVING clause without a matching GROUP BY`,
+        message: `There is no group by clause, so this is simply a post-filter on the result set.`,
         source: 'VFP Linter'
       });
     }

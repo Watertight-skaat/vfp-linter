@@ -288,7 +288,9 @@ OrderSpec
     ) { return sel; }
 
 TagSpec
-  = ("TAG"i _)? t:Identifier _ ofPart:("OF"i __ cdx:(IdentifierOrString / UnquotedPath))? _ dir:("ASCENDING"i / "DESCENDING"i)? {
+  = ("TAG"i _)? t:Identifier _ 
+    ofPart:("OF"i __ cdx:(IdentifierOrString / UnquotedPath))? _ 
+    dir:("ASCENDING"i / "DESCENDING"i / "ASC"i / "DESC"i)? {
       return { tag: t, of: ofPart ? ofPart[2] : null, direction: dir ? (typeof dir === 'string' ? dir.toUpperCase() : dir) : null };
     }
 
@@ -390,7 +392,7 @@ Relational
     }
 
 Additive
-  = head:Multiplicative tail:(_ op:("+" / "-") _ Multiplicative)* {
+  = head:Multiplicative tail:(_ op:("+" / "-") __ Multiplicative)* {
       return tail.reduce((acc, t) => node("BinaryExpression", { operator: t[1], left: acc, right: t[3] }), head);
     }
 
@@ -613,13 +615,12 @@ FromSequence
   }
 
 TableRef
-  =sub: (
-    "(" __ sq:SelectStatement __ ")" _ alias:(("AS"i _ a:Identifier { return a; }) / a:Identifier { return a; })? ) {
-      const subquery = sub[2];
-      const alias = sub[5] ? sub[5] : null;
-      return { subquery, alias };
-    }
-    / name:QualifiedTable _ alias:( ("AS"i _ a:Identifier { return a; }) / a:Identifier { return a; })? { return { name, alias: alias || null }; }
+  = tablePart:("(" __ sub:SelectStatement __ ")" { return { subquery: sub }; }
+                / "(" _ tbl:PathOrExpression _ ")" { return { name: tbl }; }
+                / name:QualifiedTable _ { return { name }; }) 
+    _ alias:(("AS"i _ a:Identifier { return a; }) / a:Identifier { return a; })? {
+    return { ...tablePart, alias: alias ? (typeof alias === 'string' ? alias : alias[2]) : tablePart.alias };
+  }
 
 QualifiedTable
   = db:Identifier "!" tbl:Identifier { return { database: db, table: tbl }; }
@@ -1622,7 +1623,7 @@ _
 
 // Semicolon at end of physical line continues the logical line onto the next physical line.
 LineContinuation "semicolon"
-  = ";" [ \t]* (LineTerminatorSequence / !.)
+  = ";" [ \t]* (PartialLineComment? LineTerminatorSequence / LineTerminatorSequence / !.)
 
 Whitespace "whitespace"
   = [ \t\f\v]+ 
