@@ -3,7 +3,7 @@
 	"description": "A language server for VFP",
 	"author": "Sean Kaat",
 	"license": "MIT",
-	"version": "0.1.0",
+	"version": "0.9.0",
 	"publisher": "Watertight",
 	"categories": [],
 	"keywords": [],

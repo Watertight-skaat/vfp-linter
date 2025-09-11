@@ -1565,6 +1565,7 @@ NumberLiteral "number"
 StringLiteral "string"
   = '"' chars:DoubleStringChar* '"' { return node("StringLiteral", { value: chars.join("") }); }
   / "'" chars:SingleStringChar* "'" { return node("StringLiteral", { value: chars.join("") }); }
+  / "[" chars:BracketStringChar* "]" { return node("StringLiteral", { value: chars.join("") }); }
 
 DoubleStringChar
   = '""' { return '"'; }
@@ -1573,6 +1574,10 @@ DoubleStringChar
 SingleStringChar
   = "''" { return "'"; }
   / !"'" . { return text(); }
+
+BracketStringChar
+  = "]]" { return "]"; }
+  / !"]" . { return text(); }
 
 LineTerminator
 	= [\n\r\u2028\u2029]
