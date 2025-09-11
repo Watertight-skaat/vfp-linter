@@ -54,6 +54,7 @@ Statement "statement"
   / SelectStatement
   / UpdateStatement
   / DeleteStatement
+  / ZapStatement
   / GoToStatement
   / SkipStatement
   / UnlockStatement
@@ -491,7 +492,6 @@ SelectCore
     top:("TOP"i _ n:Expression _ percent:("PERCENT"i)? { return { count: n, percent: !!percent }; })? _
     list:SelectList _
     from:FromClause? _
-    joins:(JoinClause __)* _
     withbuf:WithBufferingClause? _
     where:WhereClause? _
     group:GroupByClause? _
@@ -505,6 +505,8 @@ SelectCore
         top: top || null,
         list,
         from: from || null,
+        // if the FromClause provided intermixed items, expose them for consumers
+        fromItems: from ? from.items : null,
         withBuffering: withbuf || null,
         where: where || null,
         groupBy: group || null,
@@ -529,12 +531,26 @@ SelectItem
     }
 
 FromClause
-  = "FROM"i _ force:("FORCE"i _)? tables:TableList {
-      return { force: !!force, tables };
+  = "FROM"i _ force:("FORCE"i _)? seq:FromSequence {
+      // seq contains ordered tables and joins; expose arrays for backwards compatibility
+      return { force: !!force, tables: seq.tables, joins: seq.joins, items: seq.items };
     }
 
 TableList
   = head:TableRef tail:(_ "," _ TableRef)* { return [head, ...tail.map(t => t[3])]; }
+
+// FromSequence allows TableRef and JoinClause to be intermixed, e.g.
+// FROM t1 ; LEFT JOIN t2 ON ... ; ,t3, t4
+FromSequence
+  = first:TableRef tail:(
+      _ "," _ tr:TableRef { return { kind: 'table', value: tr }; }
+    / _ jc:JoinClause { return { kind: 'join', value: jc }; }
+  )* {
+    const items = [ { kind: 'table', value: first }, ...tail ];
+    const tables = items.filter(i => i.kind === 'table').map(i => i.value);
+    const joins = items.filter(i => i.kind === 'join').map(i => i.value);
+    return { items, tables, joins };
+  }
 
 TableRef
   =sub: (
@@ -803,13 +819,14 @@ UpdateAssignment
 //    [IN nWorkArea | cTableAlias] [NOOPTIMIZE]
 DeleteStatement
   = "DELETE"i _ target:IdentifierOrString? _
-    "FROM"i _ tables:TableList _
-    joins:(JoinClause _)? _
+    from:FromClause _
     where:WhereClause? {
       return node('DeleteStatement', {
         target: target || null,
-        tables,
-        joins: joins ? joins[0] : null,
+        // keep backward-compatible fields
+        tables: from.tables,
+        joins: from.joins,
+        fromItems: from.items,
         where: where || null
       });
     }
@@ -831,6 +848,12 @@ DeleteStatement
         noOptimize: !!noopt
       });
     }
+
+// ZAP [IN nWorkArea | cTableAlias]
+ZapStatement
+  = "ZAP"i _ inPart:(_ "IN"i __ target:(NumberLiteral / Identifier / StringLiteral) { return target; })? {
+    return node('ZapStatement', { inTarget: inPart ? inPart[2] : null });
+  }
 
 
 // -----------------------------
@@ -1133,19 +1156,12 @@ SetOrderToStatement
       n:NumberLiteral { return { kind: 'NUMBER', value: n }; }
       / f:(IdentifierOrString / UnquotedPath) { return { kind: 'FILE', value: f }; }
       / t:TagSpec { return { kind: 'TAG', tag: t.tag, of: t.of, direction: t.direction }; }
-    )
+    )?
     _ inClause:(_ "IN"i __ target:(Identifier / StringLiteral / NumberLiteral) { return target; })?
     _ dir:("ASCENDING"i / "DESCENDING"i)?
     {
-      const direction = dir ? (typeof dir === 'string' ? dir.toUpperCase() : dir) : (sel.kind === 'TAG' ? sel.direction : null);
-      return node('SetOrder', {
-        kind: sel.kind,
-        value: sel.kind === 'NUMBER' ? sel.value : (sel.kind === 'FILE' ? sel.value : null),
-        tag: sel.kind === 'TAG' ? sel.tag : null,
-        of: sel.kind === 'TAG' ? sel.of : null,
-        in: inClause ? inClause[1] : null,
-        direction: direction
-      });
+      const direction = dir ? (typeof dir === 'string' ? dir.toUpperCase() : dir) : (sel && sel.kind === 'TAG' ? sel.direction : null);
+      return node('SetOrder', { selection: sel || null, inTarget: inClause ? inClause[2] : null, direction });
     }
 
   // SET RELATION TO [eExpression1 INTO nWorkArea1 | cTableAlias1
@@ -1153,10 +1169,10 @@ SetOrderToStatement
   //   [IN nWorkArea | cTableAlias] [ADDITIVE]
   SetRelationToStatement
     = "SET RELATION TO"i _
-      first:RelationPair tail:(_ "," _ RelationPair)*
+      first:RelationPair? tail:(_ "," _ RelationPair)*
       inClause:(_ "IN"i __ target:(Identifier / StringLiteral / NumberLiteral) _)?
       additive:(_ "ADDITIVE"i)? {
-        const pairs = [first, ...tail.map(t => t[3])];
+        const pairs = first ? [first, ...tail.map(t => t[3])] : [];
         return node('SetRelation', {
           pairs: pairs.map(p => ({ expression: p.expr, into: p.into })),
           inTarget: inClause ? inClause[2] : null,
@@ -1433,10 +1449,11 @@ Keyword "keyword"
   / ("RECORD"i     ![a-zA-Z0-9_])
   / ("CURSOR"i      ![a-zA-Z0-9_])
   / ("ON KEY"i      ![a-zA-Z0-9_])
+  / ("ZAP"i        ![a-zA-Z0-9_])
 
 NumberLiteral "number"
   = "SELECT(0)"i { return node("NumberLiteral", { value: 0, raw: "SELECT(0)", currency: false });}
-    / value:$("$"? [0-9]+ ("." [0-9]+)? ) {
+    / value:$("$"? ( [0-9]+ ("." [0-9]+)? / "." [0-9]+ ) ) {
       const raw = value;
       const isCurrency = raw.charAt(0) === '$';
       const num = parseFloat(isCurrency ? raw.slice(1) : raw);
