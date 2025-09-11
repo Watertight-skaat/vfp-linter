@@ -1,17 +1,31 @@
-// Lightweight JS copy of runLinterRules used by tests.
-// This file intentionally avoids creating a language-server connection so it can be
+// This file intentionally avoids creating a language-server connection so it can be imported by test scripts.
 
-// imported by test scripts.
+interface ProgramAst { 
+  body?: AstNode[] 
+}
 interface AstNode {
   type: string;
   name?: string;
-  location?: {
-    start: { line: number; column: number };
-    end: { line: number; column: number }
-  };
+  location?: Loc;
   [k: string]: unknown;
 }
-interface ProgramAst { body?: AstNode[] }
+interface Loc {
+  start?: {
+    line: number;
+    column: number
+  };
+  end?: {
+    line: number;
+    column: number
+  }
+}
+enum DiagnosticSeverity {
+  Error = 1,
+  Warning = 2,
+  Information = 3,
+  Hint = 4
+}
+
 export function runLinterRules(ast: ProgramAst) {
   const problems: any[] = [];
   if (!ast || !ast.body) return problems;
@@ -36,24 +50,50 @@ export function runLinterRules(ast: ProgramAst) {
     }
   }
 
-  function getProblemsFromNode(node: AstNode) {
-    const out = [];
-    // todo: sql clauses with a HAVING, but no GROUP BY
-    if (node.type === 'UnknownStatement') {
-      const startLine = node.location && node.location.start ? (node.location.start.line - 1) : 0;
-      const startCol = node.location && node.location.start ? (node.location.start.column - 1) : 0;
-      const endLine = node.location && node.location.end ? (node.location.end.line - 1) : startLine;
-      const endCol = node.location && node.location.end ? (node.location.end.column - 1) : (startCol + 1);
+  traverse(ast.body);
+  return problems;
+}
+
+function getProblemsFromNode(node: AstNode) {
+  const out = [];
+  // SQL: report HAVING without GROUP BY
+  if (node.type === 'SelectStatement') {
+    const n = node as unknown as Record<string, unknown>;
+
+    const anyHaving = n['having'] as Record<string, unknown> | undefined;
+    const anyGroup = n['groupBy'] as unknown;
+    if (anyHaving && !anyGroup) {
+      const locNode = getLocation(anyHaving) || getLocation(node) || { start: { line: 1, column: 1 }, end: { line: 1, column: 2 } };
+      const startLine = locNode.start ? (locNode.start.line - 1) : 0;
+      const startCol = locNode.start ? (locNode.start.column - 1) : 0;
+      const endLine = locNode.end ? (locNode.end.line - 1) : startLine;
+      const endCol = locNode.end ? (locNode.end.column - 1) : (startCol + 1);
       out.push({
-        severity: 1, // DiagnosticSeverity.Error
+        severity: DiagnosticSeverity.Warning,
         range: { start: { line: startLine, character: startCol }, end: { line: endLine, character: endCol } },
-        message: `Unknown or unsupported statement: '${node.raw}'`,
+        message: `HAVING clause without a matching GROUP BY`,
         source: 'VFP Linter'
       });
     }
-    return out;
+  } else if (node.type === 'UnknownStatement') {
+    const startLine = node.location && node.location.start ? (node.location.start.line - 1) : 0;
+    const startCol = node.location && node.location.start ? (node.location.start.column - 1) : 0;
+    const endLine = node.location && node.location.end ? (node.location.end.line - 1) : startLine;
+    const endCol = node.location && node.location.end ? (node.location.end.column - 1) : (startCol + 1);
+    out.push({
+      severity: DiagnosticSeverity.Error,
+      range: { start: { line: startLine, character: startCol }, end: { line: endLine, character: endCol } },
+      message: `Unknown or unsupported statement: '${node.raw}'`,
+      source: 'VFP Linter'
+    });
   }
+  return out;
+}
 
-  traverse(ast.body);
-  return problems;
+function getLocation(obj: unknown): Loc | undefined {
+  if (!obj || typeof obj !== 'object') return undefined;
+  const o = obj as Record<string, unknown>;
+  const loc = o['location'];
+  if (!loc || typeof loc !== 'object') return undefined;
+  return loc as Loc;
 }

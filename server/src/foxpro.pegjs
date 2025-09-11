@@ -520,7 +520,14 @@ SelectCore
   = "SELECT"i WS0
     quant:("ALL"i / "DISTINCT"i)? WS0
     top:("TOP"i WS0 n:Expression WS0 percent:("PERCENT"i)? { return { count: n, percent: !!percent }; })? WS0
-    list:SelectList
+    list:(!("FROM"i ![a-zA-Z0-9_]
+          / "WITH"i ![a-zA-Z0-9_]
+          / "WHERE"i ![a-zA-Z0-9_]
+          / "GROUP BY"i ![a-zA-Z0-9_] 
+          / "HAVING"i ![a-zA-Z0-9_] 
+          / "ORDER BY"i ![a-zA-Z0-9_] 
+          / "INTO"i ![a-zA-Z0-9_] 
+          / "UNION"i ![a-zA-Z0-9_]) SelectList)?
     parts:(WSX SelectTailPart)* {
       let from = null, withbuf = null, where = null, group = null, having = null, order = null, destination = null, pref = null, noconsol = false, plain = false, nowait = false;
       for (const t of parts) {
@@ -542,7 +549,7 @@ SelectCore
       return {
         quantifier: quant ? (typeof quant === 'string' ? quant.toUpperCase() : quant) : null,
         top: top || null,
-        list,
+        list: list || [node('SelectStar', {})],
         from: from || null,
         // if the FromClause provided intermixed items, expose them for consumers
         fromItems: from ? from.items : null,
@@ -652,7 +659,8 @@ OrderItem
 
 IntoClause
   = "INTO"i _ dest:(
-      ("CURSOR"i _ a:Identifier { return { kind: 'CURSOR', name: a }; })
+      ("TABLE"i _ p:PathOrExpression { return { kind: 'TABLE', name: p }; })
+      / ("CURSOR"i _ a:Identifier { return { kind: 'CURSOR', name: a }; })
       / ("ARRAY"i _ a:Identifier { return { kind: 'ARRAY', name: a }; })
       / ("DBF"i _ n:IdentifierOrString { return { kind: 'DBF', name: n }; })
       / n:IdentifierOrString { return { kind: 'DEFAULT', name: n }; }
@@ -1245,9 +1253,9 @@ SetOrderToStatement
       / t:TagSpec { return { kind: 'TAG', tag: t.tag, of: t.of, direction: t.direction }; }
     )?
     _ first:( _ ("IN"i __ target:(Identifier / StringLiteral / NumberLiteral) { return { kind: 'IN', value: target }; } 
-             / dir:("ASCENDING"i / "DESCENDING"i) { return { kind: 'DIR', value: dir }; }) )?
+             / dir:("ASCENDING"i / "DESCENDING"i / "ASC"i / "DESC"i) { return { kind: 'DIR', value: dir }; }) )?
     second:( _ ("IN"i __ target:(Identifier / StringLiteral / NumberLiteral) { return { kind: 'IN', value: target }; } 
-              / dir:("ASCENDING"i / "DESCENDING"i) { return { kind: 'DIR', value: dir }; }) )?
+              / dir:("ASCENDING"i / "DESCENDING"i / "ASC"i / "DESC"i) { return { kind: 'DIR', value: dir }; }) )?
     {
       let inTarget = null; let direction = null;
       function apply(opt) { if (!opt) return; const p = opt[1]; if (!p) return; if (p.kind === 'IN') inTarget = p.value; else if (p.kind === 'DIR') direction = typeof p.value === 'string' ? p.value.toUpperCase() : p.value; }
