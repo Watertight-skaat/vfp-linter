@@ -55,6 +55,7 @@ Statement "statement"
     / DeleteStatement
     / GoToStatement
     / SkipStatement
+    / UnlockStatement
     / AssignmentStatement
     / ExpressionStatement
     / DoCaseStatement
@@ -725,6 +726,15 @@ SkipStatement
   {
     return node('SkipStatement', { count: n || null, inTarget: inPart ? inPart[2] : null });
   }
+
+// UNLOCK [RECORD nRecordNumber] [IN nWorkArea | cTableAlias] [ALL]
+UnlockStatement
+  = "UNLOCK"i _
+    rec:(_ "RECORD"i __ n:Expression { return n; })?
+    _ inPart:(_ "IN"i __ target:(NumberLiteral / Identifier / StringLiteral) { return target; })?
+    _ all:("ALL"i)? {
+      return node('UnlockStatement', { record: rec ? rec[2] : null, inTarget: inPart ? inPart[2] : null, all: !!all });
+    }
 
 // Opt 1: INSERT INTO dbf_name [(FieldName1 [, FieldName2, ...])]
 //    VALUES (eExpression1 [, eExpression2, ...])
