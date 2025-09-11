@@ -174,11 +174,18 @@ Pattern
 
 // Allow dotted member chains (e.g. m.test) on the left-hand side of an assignment
 LValue
-  = head:Identifier tail:(("." / "->") _ prop:Identifier)* {
+  = head:Identifier tail:(
+      ("." / "->") _ prop:Identifier { return { type: 'member', prop: prop }; }
+    / "[" _ idxs:ExpressionList _ "]" { return { type: 'index', indexes: idxs }; }
+    )* {
       let expr = node("Identifier", { name: head });
       for (const t of tail) {
-        const propName = t[2];
-        expr = node("MemberExpression", { object: expr, property: node("Identifier", { name: propName }) });
+        if (t.type === 'member') {
+          const propName = t.prop;
+          expr = node("MemberExpression", { object: expr, property: node("Identifier", { name: propName }) });
+        } else if (t.type === 'index') {
+          expr = node('ArrayIndexExpression', { object: expr, indexes: t.indexes });
+        }
       }
       return expr;
     }
@@ -391,9 +398,16 @@ Primary
   / id:Identifier { return (id && id.length && id.charAt(0) === '_') ? node("ImplicitGlobal", { name: id }) : node("Identifier", { name: id }); }
   / "(" _ e:Expression _ ")" { return e; }
 
-// Argument list for call expressions
+// Argument list for call expressions (Allow empty arguments (i.e. consecutive commas) which are represented as null)
 ArgumentList
-  = head:(Expression / "*" { return node('SelectStar', {}); }) tail:(_ "," _ (Expression / "*" { return node('SelectStar', {}); }))* { return [head, ...tail.map(t => t[3])]; }
+  = first:((Expression / "*" { return node('SelectStar', {}); })?) tail:(_ "," _ (Expression / "*" { return node('SelectStar', {}); })? )* {
+    const args = [];
+    args.push(first === undefined ? null : first);
+    for (const t of tail) {
+      args.push(t[3] === undefined ? null : t[3]);
+    }
+    return args;
+  }
 
 // CAST(expr AS TypeSpec) - simple SQL style cast support
 TypeSpec
@@ -405,8 +419,11 @@ CastExpression
 
 // Postfix expressions: allow chaining of member access (.prop) and call expressions (args)
 PostfixExpression
-  = head:Primary tail:(("." / "->") _ prop:Identifier { return { type: 'member', prop } } 
-  / "(" _ args:ArgumentList? _ ")" { return { type: 'call', args: args || [] } })*
+  = head:Primary tail:(
+      ("." / "->") _ prop:Identifier { return { type: 'member', prop } }
+      / "(" _ args:ArgumentList? _ ")" { return { type: 'call', args: args || [] } }
+      / "[" _ idxs:ExpressionList _ "]" { return { type: 'index', indexes: idxs }; }
+    )*
     {
       let expr = head;
       for (const t of tail) {
@@ -414,6 +431,8 @@ PostfixExpression
           expr = node("MemberExpression", { object: expr, property: node("Identifier", { name: t.prop }) });
         } else if (t.type === 'call') {
           expr = node("CallExpression", { callee: expr, arguments: t.args });
+        } else if (t.type === 'index') {
+          expr = node('ArrayIndexExpression', { object: expr, indexes: t.indexes });
         }
       }
       return expr;
@@ -590,7 +609,7 @@ CopyStatement "copy/rename statement"
   = CopyFileStatement / CopyToStatement
 
 CopyFileStatement
-  = action:("COPY FILE"i / "RENAME"i) _ src:(Expression / UnquotedPath) _ "TO"i _ dst:(Expression / UnquotedPath) {
+  = action:("COPY FILE"i / "RENAME"i) _ src:(UnquotedPath / Expression) _ "TO"i _ dst:(UnquotedPath / Expression) {
       return node(action === 'COPY FILE' ? 'CopyFileStatement' : 'RenameStatement', { source: src, destination: dst });
     }
 
@@ -892,7 +911,7 @@ DoFormStatement "do form statement"
       const explicitTo = toPart ? toPart[2] : null;
       return node("DoFormStatement", {
         target,
-        name: namePart ? nameIdent : null,
+        name: namePart ? namePart[2] : null,
         linked: namePart ? !!(namePart[3]) : false,
         arguments: withPart ? withPart[2] : [],
         to: toFromWith || explicitTo || null,
@@ -902,7 +921,8 @@ DoFormStatement "do form statement"
     }
 
 DoStatement "do statement"
-  = "DO"i __ target:(!("FORM"i ![A-Za-z0-9_] / "CASE"i ![A-Za-z0-9_]) (StringLiteral / UnquotedPath / PostfixExpression)) _
+  = "DO"i _ 
+    target:(!("FORM"i ![A-Za-z0-9_] / "CASE"i ![A-Za-z0-9_]) PathOrExpression) _
     inPart:(("IN"i _ n:( $([0-9]+) { return Number(n); } / Identifier / StringLiteral )) _)?
     withPart:("WITH"i _ params:ArgumentList)?
     {
@@ -1034,7 +1054,7 @@ TryStatement "try-catch statement"
 //    [.cStatements]
 // ENDWITH
 WithStatement
-  = "WITH"i _ target:Identifier _ 
+  = "WITH"i _ target:(LValue / PostfixExpression)
     asPart:(_ "AS"i __ t:Identifier _ ofPart:(_ "OF"i _ cl:Identifier { return cl; })? )? __
     body:(WithBodyEntry __)*
     "ENDWITH"i {
@@ -1047,8 +1067,16 @@ WithStatement
     }
 
 WithBodyEntry
-  = "." c:Statement { return c; }
-    / Statement { return node("UnknownStatement", { raw: text() }); }  // Allow non-dot-prefixed statements, but mark as unknown.
+  = "." _? a:DotAssignment { return a; }
+    / "." _? e:PostfixExpression { return node("ExpressionStatement", { expression: e }); }
+    / c:Statement { return c; }
+
+// Support assignments where the left side may contain call/member chains, e.g.
+//   .Objects(n).Style = 1
+DotAssignment
+  = lhs:PostfixExpression __ "=" __ expr:Expression {
+      return node("Assignment", { target: lhs, expression: expr });
+    }
 
 // -----------------------------
 // Unknown/catch-all statement
@@ -1366,6 +1394,7 @@ Keyword "keyword"
   / ("FINALLY"i    ![a-zA-Z0-9_])
   / ("OTHERWISE"i   ![a-zA-Z0-9_])
   / ("ENDCASE"i     ![a-zA-Z0-9_])
+  / ("ENDWITH"i     ![a-zA-Z0-9_])
   / ("JOIN"i        ![a-zA-Z0-9_])
   / ("INNER JOIN"i       ![a-zA-Z0-9_])
   / ("LEFT OUTER JOIN"i  ![a-zA-Z0-9_])
@@ -1418,7 +1447,13 @@ DateTimeLiteral "datetime"
 
 // example: `s:\code\mosapi\3_3\aalib\mosapi.h` or `libs\system.app`
 UnquotedPath
-  = p:$([^ \t\f\v\r\n,;]+) { return p; }
+  = p:$([^ \t\f\v\r\n,;]+) { return node("Path", { path: p }); }
+
+// If the upcoming token (up to a line terminator or , or ;) contains a plus or any
+// spacing characters, prefer parsing an Expression instead of treating it as a path.
+PathOrExpression
+  = UnquotedPath
+  / Expression
 
 LineTerminatorSequence "end of line"
   = "\n"
