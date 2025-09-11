@@ -40,6 +40,7 @@ Statement "statement"
   / UseStatement
   / AppendStatement
   / CalculateStatement
+  / SumStatement
   / CopyStatement
   / EraseStatement
   / SetStatement
@@ -1409,6 +1410,32 @@ CalculateStatement
         }
       }
       return node('CalculateStatement', { expressions: exprs, scope: opts.scope, forCondition: opts.forCondition, whileCondition: opts.whileCondition, to: opts.to, noOptimize: opts.noOptimize, inTarget: opts.inTarget });
+    }
+
+// SUM [eExpressionList]   [Scope] [FOR lExpression1] [WHILE lExpression2]
+//    [TO MemVarNameList | TO ARRAY ArrayName]   [NOOPTIMIZE]
+SumStatement
+  = ("SUM"i) __? parts:(
+      _ (
+        (exprs:ExpressionList { return { kind: 'EXPRS', value: exprs }; })
+      / (p:CalcOption { return p; })
+      )
+    )* {
+      const opts = { scope: null, forCondition: null, whileCondition: null, to: null, noOptimize: false, inTarget: null };
+      let expressions = null;
+      for (const p of parts.map(t => t[1])) {
+        if (!p) continue;
+        if (p.kind === 'EXPRS') { expressions = p.value; continue; }
+        switch (p.kind) {
+          case 'SCOPE': if (!opts.scope) opts.scope = p.value; break;
+          case 'FOR': if (!opts.forCondition) opts.forCondition = p.value; break;
+          case 'WHILE': if (!opts.whileCondition) opts.whileCondition = p.value; break;
+          case 'TO': if (!opts.to) opts.to = p.value; break;
+          case 'NOOPTIMIZE': opts.noOptimize = true; break;
+          case 'IN': if (!opts.inTarget) opts.inTarget = p.value; break;
+        }
+      }
+      return node('SumStatement', { expressions: expressions, scope: opts.scope, forCondition: opts.forCondition, whileCondition: opts.whileCondition, to: opts.to, noOptimize: opts.noOptimize, inTarget: opts.inTarget });
     }
 
 CalcOption
