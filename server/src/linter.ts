@@ -38,6 +38,7 @@ export function runLinterRules(ast: ProgramAst) {
 
   function getProblemsFromNode(node: AstNode) {
     const out = [];
+    // todo: sql clauses with a HAVING, but no GROUP BY
     if (node.type === 'UnknownStatement') {
       const startLine = node.location && node.location.start ? (node.location.start.line - 1) : 0;
       const startCol = node.location && node.location.start ? (node.location.start.column - 1) : 0;

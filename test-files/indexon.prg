@@ -1,0 +1,1 @@
+INDEX ON tableA FOR propa > 0 TAG tname

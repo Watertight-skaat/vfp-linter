@@ -212,7 +212,7 @@ PrintStatement // todo: Wait window probably should be separate
 //  [ALIAS cTableAlias] [EXCLUSIVE] [SHARED] [NOUPDATE] 
 //  [CONNSTRING cConnectionString | nStatementHandle ]
 UseStatement
-  = "USE"i _
+  = "USE "i _
     tgt:UseTarget? _
     parts:(UseOption _)*
     {
@@ -254,6 +254,7 @@ UseStatement
 UseTarget
   = "?" { return { kind: 'PROMPT' }; }
   / name:QualifiedTable { return { kind: 'TABLE', name }; }
+  / expr:PathOrExpression { return { kind: 'EXPR', value: expr }; }
 
 UseOption
   = inC:InClause { return { kind: 'IN', value: inC }; }
@@ -370,8 +371,21 @@ Equality
     }
 
 Relational
-  = head:Additive tail:(_ op:(">=" / ">" / "<=" / "<") _ Additive)* {
-      return tail.reduce((acc, t) => node("BinaryExpression", { operator: t[1], left: acc, right: t[3] }), head);
+  = head:Additive tail:(
+      _ op:(">=" / ">" / "<=" / "<") _ rhs:Additive { return { kind: 'cmp', op, rhs }; }
+      / __ "NOT IN"i __ "(" __ inRhs:(SelectStatement / ExpressionList) __ ")" { return { kind: 'in', not: true, rhs: inRhs }; }
+      / __ "IN"i __ "(" __ inRhs2:(SelectStatement / ExpressionList) __ ")" { return { kind: 'in', not: false, rhs: inRhs2 }; }
+    )* {
+      return tail.reduce((acc, t) => {
+        if (!t) return acc;
+        if (t.kind === 'cmp') {
+          return node("BinaryExpression", { operator: t.op, left: acc, right: t.rhs });
+        }
+        if (t.kind === 'in') {
+          return node("InExpression", { left: acc, not: !!t.not, right: t.rhs });
+        }
+        return acc;
+      }, head);
     }
 
 Additive
@@ -392,7 +406,8 @@ Unary
 
 // Primary base (literals, identifiers, parenthesized expressions)
 Primary
-  = NumberLiteral
+  = ExistsExpression
+  / NumberLiteral
   / StringLiteral
   / BooleanLiteral
   / NullLiteral
@@ -414,11 +429,17 @@ ArgumentList
 
 // CAST(expr AS TypeSpec) - simple SQL style cast support
 TypeSpec
-  = id:Identifier _ "(" _ n:NumberLiteral _ ")" { return { kind: 'typed', name: id, size: n }; }
+  = id:Identifier _ "(" _ w:NumberLiteral _ s:("," _ NumberLiteral _)? ")" { 
+    return { kind: 'typed', name: id, size: w, scale: (s != null ? s[2] : null) }; 
+  }
   / id:IdentifierOrString { return { kind: 'simple', name: id }; }
 
 CastExpression
   = "CAST"i _ "(" _ e:Expression _ "AS"i _ t:TypeSpec _ ")" { return node("CastExpression", { expression: e, to: t }); }
+
+// EXISTS (subquery)
+ExistsExpression
+  = "EXISTS"i _ "(" _ sq:SelectStatement _ ")" { return node("ExistsExpression", { argument: sq }); }
 
 // Postfix expressions: allow chaining of member access (.prop) and call expressions (args)
 PostfixExpression
@@ -481,25 +502,35 @@ IfStatement "if statement"
   //  [INTO StorageDestination | TO DisplayDestination]
   //  [PREFERENCE PreferenceName] [NOCONSOLE] [PLAIN] [NOWAIT]
 SelectStatement
-  = sc:SelectCore unions:(_ "UNION"i _ all:("ALL"i _)? rhs:SelectCore)* {
-      const unionParts = unions ? unions.map(u => ({ all: !!u[3], select: u[5] })) : [];
+  = sc:SelectCore unions:(WSX "UNION"i WSX all:("ALL"i WSX)? rhs:SelectCore { return { all: !!all, select: rhs }; })* {
+      const unionParts = unions ? unions : [];
       return node('SelectStatement', { ...sc, unions: unionParts });
     }
 
 SelectCore
-  = "SELECT"i _
-    quant:("ALL"i / "DISTINCT"i)? _
-    top:("TOP"i _ n:Expression _ percent:("PERCENT"i)? { return { count: n, percent: !!percent }; })? _
-    list:SelectList _
-    from:FromClause? _
-    withbuf:WithBufferingClause? _
-    where:WhereClause? _
-    group:GroupByClause? _
-    having:HavingClause? _
-    order:(OrderByClause _)?
-    dest:(IntoClause / ToClause)? _
-    pref:PreferenceClause? _
-    flags:(NoConsoleFlag? _ PlainFlag? _ NowaitFlag?) {
+  = "SELECT"i WSX
+    quant:("ALL"i / "DISTINCT"i)? WSX
+    top:("TOP"i WSX n:Expression WSX percent:("PERCENT"i)? { return { count: n, percent: !!percent }; })? WSX
+    list:SelectList parts:(WSX SelectTailPart)* {
+      let from = null, withbuf = null, where = null, group = null, having = null,
+          order = null, destination = null, pref = null,
+          noconsol = false, plain = false, nowait = false;
+      for (const t of parts) {
+        const p = t[1];
+        switch (p.kind) {
+          case 'FROM': if (!from) from = p.value; break;
+          case 'WITHBUF': if (!withbuf) withbuf = p.value; break;
+          case 'WHERE': if (!where) where = p.value; break;
+          case 'DEST': if (!destination) destination = p.value; break;
+          case 'GROUP': if (!group) group = p.value; break;
+          case 'HAVING': if (!having) having = p.value; break;
+          case 'ORDER': if (!order) order = p.value; break;
+          case 'PREF': if (!pref) pref = p.value; break;
+          case 'NOCONSOLE': noconsol = true; break;
+          case 'PLAIN': plain = true; break;
+          case 'NOWAIT': nowait = true; break;
+        }
+      }
       return {
         quantifier: quant ? (typeof quant === 'string' ? quant.toUpperCase() : quant) : null,
         top: top || null,
@@ -512,13 +543,27 @@ SelectCore
         groupBy: group || null,
         having: having || null,
         orderBy: order || null,
-        destination: dest || null,
+        destination: destination || null,
         preference: pref || null,
-        noconsol: flags && flags[0] ? true : false,
-        plain: flags && flags[2] ? true : false,
-        nowait: flags && flags[4] ? true : false
+        noconsol,
+        plain,
+        nowait
       };
     }
+
+// Allow SELECT tail clauses to appear in any order, at most once.
+SelectTailPart
+  = from:FromClause { return { kind: 'FROM', value: from }; }
+  / withbuf:WithBufferingClause { return { kind: 'WITHBUF', value: withbuf }; }
+  / where:WhereClause { return { kind: 'WHERE', value: where }; }
+  / dest:(IntoClause / ToClause) { return { kind: 'DEST', value: dest }; }
+  / group:GroupByClause { return { kind: 'GROUP', value: group }; }
+  / having:HavingClause { return { kind: 'HAVING', value: having }; }
+  / order:OrderByClause { return { kind: 'ORDER', value: order }; }
+  / pref:PreferenceClause { return { kind: 'PREF', value: pref }; }
+  / "NOCONSOLE"i { return { kind: 'NOCONSOLE' }; }
+  / "PLAIN"i { return { kind: 'PLAIN' }; }
+  / "NOWAIT"i { return { kind: 'NOWAIT' }; }
 
 SelectList
   = head:SelectItem tail:(_ "," _ SelectItem)* { return [head, ...tail.map(t => t[3])]; }
@@ -627,20 +672,13 @@ CopyStatement "copy/rename statement"
   = CopyFileStatement / CopyToStatement
 
 CopyFileStatement
-  = action:("COPY FILE"i / "RENAME"i) _ src:(UnquotedPath / Expression) _ "TO"i _ dst:(UnquotedPath / Expression) {
+  = action:("COPY FILE"i / "RENAME"i) _ src:PathOrExpression _ "TO"i _ dst:PathOrExpression {
       return node(action === 'COPY FILE' ? 'CopyFileStatement' : 'RenameStatement', { source: src, destination: dst });
     }
 
-  // ERASE FileName | ? [RECYCLE]
-EraseStatement
-  = "ERASE"i _ target:(UnquotedPath / IdentifierOrString / "?") _ recycle:(_ "RECYCLE"i)? {
-      const tgt = (typeof target === 'string' && target === '?') ? { kind: 'PROMPT' } : target;
-      return node('EraseStatement', { target: tgt, recycle: !!(recycle && recycle[1]) });
-    }
-
 CopyToStatement
-  = "COPY TO"i
-    target:(IdentifierOrString / UnquotedPath) _
+  = "COPY TO"i _
+    target:(PathOrExpression) _
     db:DatabaseClause? _
     fields:FieldsClause? _
     forClause:("FOR"i __ fexp:Expression { return fexp; })? _
@@ -662,6 +700,13 @@ CopyToStatement
         codepage: ascp || null
       });
     }
+  
+// ERASE FileName | ? [RECYCLE]
+EraseStatement
+  = "ERASE"i _ target:(PathOrExpression / "?") _ recycle:(_ "RECYCLE"i)? {
+      const tgt = (typeof target === 'string' && target === '?') ? { kind: 'PROMPT' } : target;
+      return node('EraseStatement', { target: tgt, recycle: !!(recycle && recycle[1]) });
+    }
 
 DatabaseClause
   = "DATABASE"i __ db:IdentifierOrString _ name:("NAME"i __ ln:IdentifierOrString { return ln; })? { return { database: db, longName: name || null }; }
@@ -679,32 +724,52 @@ WithIndexClause
 // INDEX ON eExpression TO IDXFileName | TAG TagName [BINARY]
 //    [COLLATE cCollateSequence] [OF CDXFileName] [FOR lExpression]
 //    [COMPACT] [ASCENDING | DESCENDING] [UNIQUE | CANDIDATE] [ADDITIVE]
+// Options may appear in any order.
 IndexOnStatement "index on statement"
-  = "INDEX ON"i __ expr:Expression _ 
-    totag:(("TO"i _ tgt:(IdentifierOrString / UnquotedPath) { return { kind: 'TO', value: tgt }; })
-    / ("TAG"i _ tag:Identifier { return { kind: 'TAG', value: tag }; })) _
-    bin:(("BINARY"i) _)?
-    coll:("COLLATE"i __ cs:IdentifierOrString)? _
-    ofp:("OF"i __ cdx:IdentifierOrString)? _
-    forp:("FOR"i __ fexp:Expression)? _
-    compact:("COMPACT"i _)?
-    dir:("ASCENDING"i / "DESCENDING"i)? _
-    uniq:("UNIQUE"i / "CANDIDATE"i)? _
-    additive:("ADDITIVE"i)? {
+  = "INDEX ON"i __ expr:Expression parts:(_ IndexOnPart)* {
+      // Aggregate options from arbitrary order
+      let to = null, tag = null, binary = false, collate = null, of = null, forExpr = null,
+          compact = false, direction = null, uniqueness = null, additive = false;
+      for (const p of parts.map(t => t[1])) {
+        switch (p.kind) {
+          case 'TO': to = p.value; break;
+          case 'TAG': tag = p.value; break;
+          case 'BINARY': binary = true; break;
+          case 'COLLATE': collate = p.value; break;
+          case 'OF': of = p.value; break;
+          case 'FOR': forExpr = p.value; break;
+          case 'COMPACT': compact = true; break;
+          case 'DIR': direction = (typeof p.value === 'string' ? p.value.toUpperCase() : p.value); break;
+          case 'UNIQ': uniqueness = (typeof p.value === 'string' ? p.value.toUpperCase() : p.value); break;
+          case 'ADDITIVE': additive = true; break;
+        }
+      }
       return node('IndexOnStatement', {
         expression: expr,
-        to: totag.kind === 'TO' ? totag.value : null,
-        tag: totag.kind === 'TAG' ? totag.value : null,
-        binary: !!bin,
-        collate: coll ? coll[2] : null,
-        of: ofp ? ofp[2] : null,
-        for: forp ? forp[2] : null,
-        compact: !!compact,
-        direction: dir ? (typeof dir === 'string' ? dir.toUpperCase() : dir) : null,
-        uniqueness: uniq ? (typeof uniq === 'string' ? uniq.toUpperCase() : uniq) : null,
-        additive: !!additive
+        to,
+        tag,
+        binary,
+        collate,
+        of,
+        for: forExpr,
+        compact,
+        direction,
+        uniqueness,
+        additive
       });
     }
+
+IndexOnPart
+  = "TO"i _ tgt:(IdentifierOrString / UnquotedPath) { return { kind: 'TO', value: tgt }; }
+  / "TAG"i _ tag:Identifier { return { kind: 'TAG', value: tag }; }
+  / "BINARY"i { return { kind: 'BINARY' }; }
+  / "COLLATE"i __ cs:IdentifierOrString { return { kind: 'COLLATE', value: cs }; }
+  / "OF"i __ cdx:(IdentifierOrString / UnquotedPath) { return { kind: 'OF', value: cdx }; }
+  / "FOR"i __ fexp:Expression { return { kind: 'FOR', value: fexp }; }
+  / "COMPACT"i { return { kind: 'COMPACT' }; }
+  / dir:("ASCENDING"i / "DESCENDING"i) { return { kind: 'DIR', value: dir }; }
+  / uniq:("UNIQUE"i / "CANDIDATE"i) { return { kind: 'UNIQ', value: uniq }; }
+  / "ADDITIVE"i { return { kind: 'ADDITIVE' }; }
 
 TypeClause
   = ("TYPE"i _)? et:ExportType { return et; }
@@ -942,7 +1007,7 @@ CaseClause
 //  [TO VarName] [NOREAD] [NOSHOW]
 DoFormStatement "do form statement"
   = "DO FORM"i _ target:(StringLiteral / Identifier / "?") _
-    namePart:("NAME"i _ nameIdent:Identifier _ link:("LINKED"i)? )?
+    namePart:("NAME"i _ nameIdent:ParameterName _ link:("LINKED"i)? )?
     withPart:("WITH"i _ params:ArgumentList maybeTo:(_ "TO"i _ v:ParameterName)? )?
     toPart:("TO"i _ v:ParameterName)?
     flags:(_ ("NOREAD"i / "NOSHOW"i))* {
@@ -963,11 +1028,22 @@ DoFormStatement "do form statement"
 DoStatement "do statement"
   = "DO"i _ 
     target:(!("FORM"i ![A-Za-z0-9_] / "CASE"i ![A-Za-z0-9_]) PathOrExpression) _
-    inPart:(("IN"i _ n:( $([0-9]+) { return Number(n); } / Identifier / StringLiteral )) _)?
-    withPart:("WITH"i _ params:ArgumentList)?
+    // Allow IN and WITH in either order
+    first:(
+      ("WITH"i _ params:ArgumentList { return { kind: 'WITH', params }; })
+      / ("IN"i _ n:( $([0-9]+) { return Number(n); } / Identifier / StringLiteral ) { return { kind: 'IN', value: n }; })
+    )?
+    rest:( _ (
+      ("WITH"i _ params:ArgumentList { return { kind: 'WITH', params }; })
+      / ("IN"i _ n:( $([0-9]+) { return Number(n); } / Identifier / StringLiteral ) { return { kind: 'IN', value: n }; })
+    ))?
     {
-      const inSession = inPart ? inPart[2] : null;
-      return node("DoStatement", { target, inSession, arguments: withPart ? withPart[2] : [] });
+      let withArgs = [];
+      let inSession = null;
+      function apply(p) { if (!p) return; if (p.kind === 'WITH') withArgs = p.params; else if (p.kind === 'IN') inSession = p.value; }
+      apply(first);
+      if (rest) apply(rest[1]);
+      return node("DoStatement", { target, inSession, arguments: withArgs });
     }
 
 ExitStatement "exit"
@@ -1209,10 +1285,10 @@ AppendStatement
       });
     }
 
-// REPLACE FieldName1 WITH eExpression1 [ADDITIVE] [, FieldName2 WITH eExpression2 [ADDITIVE]] ... [Scope] [FOR lExpression1] [WHILE lExpression2] [IN nWorkArea | cTableAlias] [NOOPTIMIZE]
+// REPLACE [ALL | REST] FieldName1 WITH eExpression1 [ADDITIVE] [, FieldName2 WITH eExpression2 [ADDITIVE]] ... [Scope] [FOR lExpression1] [WHILE lExpression2] [IN nWorkArea | cTableAlias] [NOOPTIMIZE]
 ReplaceStatement
-  = "REPLACE"i __
-    scope:(("ALL"i { return 'ALL'; }) _)?
+  = "REPLACE"i _
+    scope: ( "ALL"i { return 'ALL'; } / "REST"i { return 'REST'; })? _
     fields:ReplaceFieldList
     forClause:(_ "FOR"i __ condition:Expression)?
     whileClase:(_ "WHILE"i __ condition:Expression)?
@@ -1417,7 +1493,7 @@ Keyword "keyword"
   / ("for each"i         ![a-zA-Z0-9_])
   / ("CASE"i        ![a-zA-Z0-9_])
   / ("ENDFOR"i      ![a-zA-Z0-9_])
-  / ("NEXT"i        ![a-zA-Z0-9_])
+  / ("NEXT"i        ![a-zA-Z0-9_]) // todo: technically this isn't a keyword.
   / ("ENDDO"i       ![a-zA-Z0-9_])
   / ("LOOP"i        ![a-zA-Z0-9_])
   / ("TRY"i        ![a-zA-Z0-9_])
@@ -1481,12 +1557,13 @@ DateTimeLiteral "datetime"
 
 // example: `s:\code\mosapi\3_3\aalib\mosapi.h` or `libs\system.app`
 UnquotedPath
-  = p:$([^ \t\f\v\r\n,;]+) { return node("Path", { path: p }); }
+  = p:$([^ \t\f\v\r\n,;()+]+) { return node("Path", { path: p }); }
 
 // If the upcoming token (up to a line terminator or , or ;) contains a plus or any
 // spacing characters, prefer parsing an Expression instead of treating it as a path.
 PathOrExpression
-  = UnquotedPath
+  = !("\"" / "'") p:UnquotedPath !(_ ("+" / "-" / "*" / "/")) { return p; }
+  / "(" _ e:Expression _ ")" { return e; }
   / Expression
 
 LineTerminatorSequence "end of line"
@@ -1503,6 +1580,10 @@ BooleanLiteral "boolean"
 NullLiteral "null"
   = ".NULL."i / "NULL"i { return node("NullLiteral", { }); }
 
+// Whitespace/comments that are allowed between SELECT clauses: excludes full-line '*' comments
+WSX
+  = (Whitespace / LineContinuation / PartialLineComment / LineTerminatorSequence)*
+
 __
   = (Whitespace / LineContinuation / Comment / LineTerminatorSequence)*
 
@@ -1511,7 +1592,7 @@ _
 
 // Semicolon at end of physical line continues the logical line onto the next physical line.
 LineContinuation "semicolon"
-  = ";" [ \t]* LineTerminatorSequence 
+  = ";" [ \t]* (LineTerminatorSequence / !.)
 
 Whitespace "whitespace"
   = [ \t\f\v]+ 
