@@ -57,3 +57,11 @@ WHERE prop1 > 0 ;
 
 * test filepath in INTO TABLE
 SELECT * FROM TempProddetFile INTO TABLE dirname\tablename
+
+SELECT * ;
+    FROM workpoints,tableB ;
+    WHERE workpoints.serv_sol ;
+        .and. workpoints.id=tableB.id ;
+    GROUP BY 2 ;
+    INTO CURSOR tk_comp READWRITE NOFILTER ;
+    HAVING current

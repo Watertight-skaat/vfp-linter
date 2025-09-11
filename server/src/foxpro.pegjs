@@ -60,7 +60,7 @@ Statement "statement"
   / SkipStatement
   / UnlockStatement
   / AssignmentStatement
-  / ExpressionStatement
+  / RecallStatement
   / DoCaseStatement
   / DoFormStatement
   / DoStatement
@@ -73,6 +73,7 @@ Statement "statement"
   / IfStatement
   / EvalStatement
   / WithStatement
+  / ExpressionStatement
   / UnknownStatement
   ) { return s; }
 
@@ -662,7 +663,7 @@ OrderItem
 IntoClause
   = "INTO"i _ dest:(
       ("TABLE"i _ p:PathOrExpression { return { kind: 'TABLE', name: p }; })
-      / ("CURSOR"i _ a:Identifier { return { kind: 'CURSOR', name: a }; })
+      / ("CURSOR"i _ a:Identifier flags:(_("READWRITE"i / "NOFILTER"i))* { return { kind: 'CURSOR', name: a }; })
       / ("ARRAY"i _ a:Identifier { return { kind: 'ARRAY', name: a }; })
       / ("DBF"i _ n:IdentifierOrString { return { kind: 'DBF', name: n }; })
       / n:IdentifierOrString { return { kind: 'DEFAULT', name: n }; }
@@ -917,7 +918,7 @@ DeleteStatement
       });
     }
   / "DELETE"i _ 
-    scope:IdentifierOrString? _
+      scope:IdentifierOrString? _
     forp:("FOR"i __ fexp:Expression { return fexp; })? _
     whilep:("WHILE"i __ wexp:Expression { return wexp; })? _
     inPart:("IN"i _ inTarget:(NumberLiteral / Identifier))? _
@@ -940,6 +941,25 @@ ZapStatement
   = "ZAP"i _ inPart:(_ "IN"i __ target:(NumberLiteral / Identifier / StringLiteral) { return target; })? {
     return node('ZapStatement', { inTarget: inPart ? inPart[2] : null });
   }
+
+// RECALL [Scope] [FOR lExpression1] [WHILE lExpression2] [NOOPTIMIZE]
+//    [IN nWorkArea | cTableAlias]
+RecallStatement
+  = "RECALL"i _
+    scope:(!("IN"i) IdentifierOrString)? _
+    forp:(("FOR"i __ fexp:Expression { return fexp; }))? _
+    whilep:(("WHILE"i __ wexp:Expression { return wexp; }))? _
+    noopt:("NOOPTIMIZE"i)? _
+    inPart:(_ "IN"i __ target:(NumberLiteral / Identifier / StringLiteral) { return target; })?
+    {
+      return node('RecallStatement', {
+        scope: scope || null,
+        for: forp || null,
+        while: whilep || null,
+        noOptimize: !!noopt,
+        inTarget: inPart ? inPart[2] : null
+      });
+    }
 
 
 // -----------------------------

@@ -56,8 +56,8 @@ export function runLinterRules(ast: ProgramAst) {
 
 function getProblemsFromNode(node: AstNode) {
   const out = [];
-  // SQL: report HAVING without GROUP BY
-  if (node.type === 'SelectStatement') {
+  
+  if (node.type === 'SelectStatement') { // SQL: report HAVING without GROUP BY
     const n = node as unknown as Record<string, unknown>;
 
     const havingClause = n['having'] as Record<string, unknown> | undefined;
@@ -85,7 +85,8 @@ function getProblemsFromNode(node: AstNode) {
       message: `Unknown or unsupported statement: '${node.raw}'`,
       source: 'VFP Linter'
     });
-  }
+  } 
+  // todo some day: warn about unused locals
   return out;
 }
 
