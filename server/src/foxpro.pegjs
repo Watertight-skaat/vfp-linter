@@ -29,49 +29,50 @@ SourceElements "statement list"
 // A Statement returns either a single AST node or an Array of nodes (e.g. multiple LOCAL vars)
 Statement "statement"
   = s:(LocalStatement
-    / PrivateStatement
-    / PublicStatement
-    / DimensionStatement
-    / DeclareStatement
-    / TryStatement
-    / DefineClass
-    / LParameters
-    / PrintStatement
-    / UseStatement
-    / AppendStatement
-    / CalculateStatement
-    / CopyStatement
-    / SetStatement
-    / OnKeyStatement
-    / PreprocessorStatement
-    / IterationStatement
-    / ExitStatement
-    / ContinueStatement
-    / CreateStatement
-    / IndexOnStatement
-    / InsertStatement
-    / SelectStatement
-    / UpdateStatement
-    / DeleteStatement
-    / GoToStatement
-    / SkipStatement
-    / UnlockStatement
-    / AssignmentStatement
-    / ExpressionStatement
-    / DoCaseStatement
-    / DoFormStatement
-    / DoStatement
-    / ProcedureStatement
-    / LocateStatement
-    / ScanStatement
-    / ReturnStatement
-    / StoreStatement
-    / ReplaceStatement
-    / IfStatement
-    / EvalStatement
-    / WithStatement
-    / UnknownStatement
-    ) { return s; }
+  / PrivateStatement
+  / PublicStatement
+  / DimensionStatement
+  / DeclareStatement
+  / TryStatement
+  / DefineClass
+  / LParameters
+  / PrintStatement
+  / UseStatement
+  / AppendStatement
+  / CalculateStatement
+  / CopyStatement
+  / EraseStatement
+  / SetStatement
+  / OnKeyStatement
+  / PreprocessorStatement
+  / IterationStatement
+  / ExitStatement
+  / ContinueStatement
+  / CreateStatement
+  / IndexOnStatement
+  / InsertStatement
+  / SelectStatement
+  / UpdateStatement
+  / DeleteStatement
+  / GoToStatement
+  / SkipStatement
+  / UnlockStatement
+  / AssignmentStatement
+  / ExpressionStatement
+  / DoCaseStatement
+  / DoFormStatement
+  / DoStatement
+  / ProcedureStatement
+  / LocateStatement
+  / ScanStatement
+  / ReturnStatement
+  / StoreStatement
+  / ReplaceStatement
+  / IfStatement
+  / EvalStatement
+  / WithStatement
+  / UnknownStatement
+  ) { return s; }
 
 // -----------------------------
 // Declarations
@@ -614,6 +615,12 @@ CopyFileStatement
       return node(action === 'COPY FILE' ? 'CopyFileStatement' : 'RenameStatement', { source: src, destination: dst });
     }
 
+  // ERASE FileName | ? [RECYCLE]
+EraseStatement
+  = "ERASE"i _ target:(UnquotedPath / IdentifierOrString / "?") _ recycle:(_ "RECYCLE"i)? {
+      const tgt = (typeof target === 'string' && target === '?') ? { kind: 'PROMPT' } : target;
+      return node('EraseStatement', { target: tgt, recycle: !!(recycle && recycle[1]) });
+    }
 
 CopyToStatement
   = "COPY TO"i
