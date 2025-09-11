@@ -1331,17 +1331,33 @@ ReplaceStatement
 
 // LOCATE [FOR lExpression1] [IN nWorkArea | cTableAlias] [WHILE lExpression2] [NOOPTIMIZE]
 LocateStatement
-  = "LOCATE"i
-    forClause:(_ "FOR"i __ condition:Expression)?
-    inClause:(_ "IN"i __ target:(Identifier / StringLiteral / NumberLiteral / SelectCore) _)?
-    whileClause:(_ "WHILE"i __ condition:Expression)?
-    noopt:(_ "NOOPTIMIZE"i)? {
-      return node("LocateStatement", {
-        forCondition: forClause ? forClause[2] : null,
-        inTarget: inClause ? inClause[2] : null,
-        whileCondition: whileClause ? whileClause[2] : null,
-        noOptimize: !!(noopt && noopt[1])
-      });
+  = "LOCATE"i parts:(
+      _ (
+        ("FOR"i __ condition:Expression { return { kind: 'FOR', value: condition }; })
+      / ("ALL"i { return { kind: 'SCOPE', value: 'ALL' }; })
+      / ("NEXT"i _ n:NumberLiteral { return { kind: 'SCOPE', value: { type: 'NEXT', count: n } }; })
+      / ("RECORD"i _ n:NumberLiteral { return { kind: 'SCOPE', value: { type: 'RECORD', number: n } }; })
+      / ("REST"i { return { kind: 'SCOPE', value: 'REST' }; })
+      / ("IN"i __ target:(Identifier / StringLiteral / NumberLiteral / SelectCore) { return { kind: 'IN', value: target }; })
+      / ("WHILE"i __ condition:Expression { return { kind: 'WHILE', value: condition }; })
+      / ("NOOPTIMIZE"i { return { kind: 'NOOPTIMIZE' }; })
+      )
+    )* {
+      let forCondition = null;
+      let scope = null;
+      let inTarget = null;
+      let whileCondition = null;
+      let noOptimize = false;
+      for (const p of parts.map(t => t[1])) {
+        switch (p.kind) {
+          case 'FOR': if (!forCondition) forCondition = p.value; break;
+          case 'SCOPE': if (!scope) scope = p.value; break;
+          case 'IN': if (!inTarget) inTarget = p.value; break;
+          case 'WHILE': if (!whileCondition) whileCondition = p.value; break;
+          case 'NOOPTIMIZE': noOptimize = true; break;
+        }
+      }
+      return node("LocateStatement", { forCondition, scope, inTarget, whileCondition, noOptimize });
     }
 
 // SCAN [NOOPTIMIZE] Scope:[ALL | NEXT nRecords | RECORD nRecordNumber | REST] [FOR lExpression1] [WHILE lExpression2]
