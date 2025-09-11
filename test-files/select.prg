@@ -1,9 +1,9 @@
 select * from tablename
+SELECT FROM tableA ORDER BY 1, 2
 
 select ;
 	* ;
-from ;
-	tablename
+from tablename
 
 SELECT ;
 	field1, ;
@@ -53,3 +53,6 @@ SELECT prop1, prop2 ;
 FROM tableA ;
 GROUP BY 1, 2 ;
 WHERE prop1 > 0 ;
+
+* test filepath in INTO TABLE
+SELECT * FROM TempProddetFile INTO TABLE dirname\tablename

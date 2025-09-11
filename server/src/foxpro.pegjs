@@ -250,6 +250,7 @@ UseStatement
         connection: opts.connection
       });
     }
+  / "USE"i
 
 UseTarget
   = "?" { return { kind: 'PROMPT' }; }
@@ -394,7 +395,7 @@ Additive
     }
 
 Multiplicative
-  = head:Unary tail:(_ op:("*" / "/") _ Unary)* {
+  = head:Unary tail:(_ op:("*" / "/" / "%") _ Unary)* {
       return tail.reduce((acc, t) => node("BinaryExpression", { operator: t[1], left: acc, right: t[3] }), head);
     }
 
@@ -402,7 +403,15 @@ Unary
   = op:(".NOT."i / ("NOT"i ![a-zA-Z0-9_]) / "!" / "-" / "+") _ expr:Unary {
       return node("UnaryExpression", { operator: typeof op === 'string' ? op.toUpperCase() : op, argument: expr });
     }
-  / PostfixExpression
+  / Exponentiation
+
+// Exponentiation (^) - right-associative and tighter than unary so that
+// -2^2 parses as -(2^2) which matches typical VFP/SQL semantics.
+Exponentiation
+  = head:PostfixExpression tail:(_ "^" _ rhs:(Exponentiation / Unary))? {
+      if (!tail) return head;
+      return node("BinaryExpression", { operator: '^', left: head, right: tail[3] });
+    }
 
 // Primary base (literals, identifiers, parenthesized expressions)
 Primary
@@ -508,13 +517,12 @@ SelectStatement
     }
 
 SelectCore
-  = "SELECT"i WSX
-    quant:("ALL"i / "DISTINCT"i)? WSX
-    top:("TOP"i WSX n:Expression WSX percent:("PERCENT"i)? { return { count: n, percent: !!percent }; })? WSX
-    list:SelectList parts:(WSX SelectTailPart)* {
-      let from = null, withbuf = null, where = null, group = null, having = null,
-          order = null, destination = null, pref = null,
-          noconsol = false, plain = false, nowait = false;
+  = "SELECT"i WS0
+    quant:("ALL"i / "DISTINCT"i)? WS0
+    top:("TOP"i WS0 n:Expression WS0 percent:("PERCENT"i)? { return { count: n, percent: !!percent }; })? WS0
+    list:SelectList
+    parts:(WSX SelectTailPart)* {
+      let from = null, withbuf = null, where = null, group = null, having = null, order = null, destination = null, pref = null, noconsol = false, plain = false, nowait = false;
       for (const t of parts) {
         const p = t[1];
         switch (p.kind) {
@@ -551,6 +559,9 @@ SelectCore
       };
     }
 
+SelectList
+  = head:SelectItem tail:(_ "," _ SelectItem)* { return [head, ...tail.map(t => t[3])]; }
+
 // Allow SELECT tail clauses to appear in any order, at most once.
 SelectTailPart
   = from:FromClause { return { kind: 'FROM', value: from }; }
@@ -564,9 +575,6 @@ SelectTailPart
   / "NOCONSOLE"i { return { kind: 'NOCONSOLE' }; }
   / "PLAIN"i { return { kind: 'PLAIN' }; }
   / "NOWAIT"i { return { kind: 'NOWAIT' }; }
-
-SelectList
-  = head:SelectItem tail:(_ "," _ SelectItem)* { return [head, ...tail.map(t => t[3])]; }
 
 SelectItem
   = "*" { return node('SelectStar', {}); }
@@ -588,8 +596,8 @@ TableList
 // FROM t1 ; LEFT JOIN t2 ON ... ; ,t3, t4
 FromSequence
   = first:TableRef tail:(
-      _ "," _ tr:TableRef { return { kind: 'table', value: tr }; }
-    / _ jc:JoinClause { return { kind: 'join', value: jc }; }
+      WSX "," WSX tr:TableRef { return { kind: 'table', value: tr }; }
+    / WSX jc:JoinClause { return { kind: 'join', value: jc }; }
   )* {
     const items = [ { kind: 'table', value: first }, ...tail ];
     const tables = items.filter(i => i.kind === 'table').map(i => i.value);
@@ -637,7 +645,7 @@ OrderByClause
   = "ORDER BY"i __ items:OrderItemList { return items; }
 
 OrderItemList
-  = head:OrderItem tail:(_ "," _ OrderItem)* { return [head, ...tail.map(t => t[3])]; }
+  = head:OrderItem _ tail:("," _ OrderItem)* { return [head, ...tail.map(t => t[3])]; }
 
 OrderItem
   = expr:Expression dir:(_ ("ASC"i / "DESC"i))? { return { expression: expr, direction: dir ? dir[1].toUpperCase() : null }; }
@@ -883,11 +891,14 @@ UpdateAssignment
 // OPT 2: DELETE [Scope] [FOR lExpression1] [WHILE lExpression2]
 //    [IN nWorkArea | cTableAlias] [NOOPTIMIZE]
 DeleteStatement
-  = "DELETE"i _ target:IdentifierOrString? _
-    from:FromClause _
+  = "DELETE"i _ sel:(
+      from:FromClause { return { target: null, from }; }
+      / target:IdentifierOrString _ from:FromClause { return { target, from }; }
+    ) _
     where:WhereClause? {
+      const from = sel.from;
       return node('DeleteStatement', {
-        target: target || null,
+        target: sel.target || null,
         // keep backward-compatible fields
         tables: from.tables,
         joins: from.joins,
@@ -1233,11 +1244,16 @@ SetOrderToStatement
       / f:(IdentifierOrString / UnquotedPath) { return { kind: 'FILE', value: f }; }
       / t:TagSpec { return { kind: 'TAG', tag: t.tag, of: t.of, direction: t.direction }; }
     )?
-    _ inClause:(_ "IN"i __ target:(Identifier / StringLiteral / NumberLiteral) { return target; })?
-    _ dir:("ASCENDING"i / "DESCENDING"i)?
+    _ first:( _ ("IN"i __ target:(Identifier / StringLiteral / NumberLiteral) { return { kind: 'IN', value: target }; } 
+             / dir:("ASCENDING"i / "DESCENDING"i) { return { kind: 'DIR', value: dir }; }) )?
+    second:( _ ("IN"i __ target:(Identifier / StringLiteral / NumberLiteral) { return { kind: 'IN', value: target }; } 
+              / dir:("ASCENDING"i / "DESCENDING"i) { return { kind: 'DIR', value: dir }; }) )?
     {
-      const direction = dir ? (typeof dir === 'string' ? dir.toUpperCase() : dir) : (sel && sel.kind === 'TAG' ? sel.direction : null);
-      return node('SetOrder', { selection: sel || null, inTarget: inClause ? inClause[2] : null, direction });
+      let inTarget = null; let direction = null;
+      function apply(opt) { if (!opt) return; const p = opt[1]; if (!p) return; if (p.kind === 'IN') inTarget = p.value; else if (p.kind === 'DIR') direction = typeof p.value === 'string' ? p.value.toUpperCase() : p.value; }
+      apply(first); apply(second);
+      if (!direction && sel && sel.kind === 'TAG') direction = sel.direction || null;
+      return node('SetOrder', { selection: sel || null, inTarget, direction });
     }
 
   // SET RELATION TO [eExpression1 INTO nWorkArea1 | cTableAlias1
@@ -1290,8 +1306,8 @@ ReplaceStatement
   = "REPLACE"i _
     scope: ( "ALL"i { return 'ALL'; } / "REST"i { return 'REST'; })? _
     fields:ReplaceFieldList
-    forClause:(_ "FOR"i __ condition:Expression)?
-    whileClase:(_ "WHILE"i __ condition:Expression)?
+    forClause:(_ "FOR"i __ condition:Expression _)?
+    whileClase:(_ "WHILE"i __ condition:Expression _)?
     inClause:("IN"i __ target:(Identifier / StringLiteral / NumberLiteral) _)?
     noOptimize:("NOOPTIMIZE"i)? {
       return node("ReplaceStatement", { 
@@ -1490,21 +1506,22 @@ Keyword "keyword"
   / ("DO"i          ![a-zA-Z0-9_])
   / ("WHILE"i       ![a-zA-Z0-9_])
   / ("FOR"i         ![a-zA-Z0-9_])
-  / ("for each"i         ![a-zA-Z0-9_])
+  / ("for each"i    ![a-zA-Z0-9_])
   / ("CASE"i        ![a-zA-Z0-9_])
   / ("ENDFOR"i      ![a-zA-Z0-9_])
   / ("NEXT"i        ![a-zA-Z0-9_]) // todo: technically this isn't a keyword.
   / ("ENDDO"i       ![a-zA-Z0-9_])
   / ("LOOP"i        ![a-zA-Z0-9_])
-  / ("TRY"i        ![a-zA-Z0-9_])
-  / ("CATCH"i      ![a-zA-Z0-9_])
-  / ("ENDTRY"i     ![a-zA-Z0-9_])
-  / ("THROW"i      ![a-zA-Z0-9_])
-  / ("FINALLY"i    ![a-zA-Z0-9_])
+  / ("TRY"i         ![a-zA-Z0-9_])
+  / ("CATCH"i       ![a-zA-Z0-9_])
+  / ("ENDTRY"i      ![a-zA-Z0-9_])
+  / ("THROW"i       ![a-zA-Z0-9_])
+  / ("FINALLY"i     ![a-zA-Z0-9_])
   / ("OTHERWISE"i   ![a-zA-Z0-9_])
   / ("ENDCASE"i     ![a-zA-Z0-9_])
   / ("ENDWITH"i     ![a-zA-Z0-9_])
   / ("JOIN"i        ![a-zA-Z0-9_])
+  / ("Order by"i    ![a-zA-Z0-9_])
   / ("INNER JOIN"i       ![a-zA-Z0-9_])
   / ("LEFT OUTER JOIN"i  ![a-zA-Z0-9_])
   / ("RIGHT OUTER JOIN"i ![a-zA-Z0-9_])
@@ -1580,9 +1597,14 @@ BooleanLiteral "boolean"
 NullLiteral "null"
   = ".NULL."i / "NULL"i { return node("NullLiteral", { }); }
 
-// Whitespace/comments that are allowed between SELECT clauses: excludes full-line '*' comments
-WSX
+// Whitespace/comments between SELECT clauses: allow both inline (&&) and full-line (*) comments
+// Light whitespace/comment set used near token-sensitive locations
+WS0
   = (Whitespace / LineContinuation / PartialLineComment / LineTerminatorSequence)*
+
+// Rich whitespace/comments between SELECT clauses (includes full-line comments)
+WSX
+  = (Whitespace / LineContinuation / Comment / LineTerminatorSequence)*
 
 __
   = (Whitespace / LineContinuation / Comment / LineTerminatorSequence)*

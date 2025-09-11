@@ -1,0 +1,1 @@
+SET ORDER TO fieldA DESCENDING IN tableA
