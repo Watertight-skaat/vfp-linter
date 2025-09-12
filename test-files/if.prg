@@ -7,3 +7,7 @@ if .t. ; && New Logic since 2/1/17: (if NOT received within the prior 60 days or
     .and. .t.
     ? "test"
 endif
+
+IF !(";" + LOWER(m.folder_data) + ";" $ ";" + LOWER(SET("Path")) + ";")
+	? "test"
+ENDIF

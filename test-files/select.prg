@@ -59,9 +59,18 @@ WHERE prop1 > 0 ;
 SELECT * FROM TempProddetFile INTO TABLE dirname\tablename
 
 SELECT * ;
-    FROM workpoints,tableB ;
-    WHERE workpoints.serv_sol ;
-        .and. workpoints.id=tableB.id ;
-    GROUP BY 2 ;
-    INTO CURSOR tk_comp READWRITE NOFILTER ;
-    HAVING current
+FROM workpoints,tableB ;
+WHERE workpoints.serv_sol ;
+    .and. workpoints.id=tableB.id ;
+GROUP BY 2 ;
+INTO CURSOR tk_comp READWRITE NOFILTER ;
+HAVING current
+
+* test concatenated cursor name
+SELECT * ;
+FROM emailtmp ;
+WHERE test ;
+INTO CURSOR "MessageTemplates" + ALLTRIM(m.ProcessUser)
+
+* some keywords are allowed (like next)
+select * from tableA where .f. or next

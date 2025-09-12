@@ -2,6 +2,8 @@ Update TableA set FieldA = .null. where FieldA = 0
 Update TableA set FieldA = .null. from TableB where TableA.id = TableB.id and TableB.FieldA = 0
 
 * set after FROM
+UPDATE tableA FROM TablB  SET fieldA = .t.
+
 UPDATE WorkPoints ;
 	FROM NewPoints ;
 	SET clicked = NewPoints.clicked ;

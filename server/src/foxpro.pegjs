@@ -394,7 +394,7 @@ Relational
     }
 
 Additive
-  = head:Multiplicative tail:(_ op:("+" / "-") __ Multiplicative)* {
+  = head:Multiplicative tail:(_ op:("+" / "-") _ Multiplicative)* {
       return tail.reduce((acc, t) => node("BinaryExpression", { operator: t[1], left: acc, right: t[3] }), head);
     }
 
@@ -485,7 +485,7 @@ ExpressionStatement "expression statement"
 
 // Leading equals can be used to evaluate/call an expression as a statement, e.g. "=func()"
 EvalStatement "equals-expression statement"
-  = "=" _ expr:PostfixExpression { return node("ExpressionStatement", { expression: expr }); }
+  = "=" _ expr:Expression { return node("ExpressionStatement", { expression: expr }); }
 
 IfStatement "if statement"
   = "IF"i __ test:Expression __ 
@@ -663,7 +663,7 @@ OrderItem
 IntoClause
   = "INTO"i _ dest:(
       ("TABLE"i _ p:PathOrExpression { return { kind: 'TABLE', name: p }; })
-      / ("CURSOR"i _ a:Identifier flags:(_("READWRITE"i / "NOFILTER"i))* { return { kind: 'CURSOR', name: a }; })
+      / ("CURSOR"i _ a:Expression flags:(_("READWRITE"i / "NOFILTER"i))* { return { kind: 'CURSOR', name: a }; })
       / ("ARRAY"i _ a:Identifier { return { kind: 'ARRAY', name: a }; })
       / ("DBF"i _ n:IdentifierOrString { return { kind: 'DBF', name: n }; })
       / n:IdentifierOrString { return { kind: 'DEFAULT', name: n }; }
@@ -856,7 +856,7 @@ InsertStatement
       / "FROM"i __ (
           "ARRAY"i __ arr:Identifier { return { kind: 'from', source: 'ARRAY', name: arr }; }
           / "MEMVAR"i { return { kind: 'from', source: 'MEMVAR', name: null }; }
-          / "NAME"i __ obj:Identifier { return { kind: 'from', source: 'NAME', name: obj }; }
+          / "NAME"i __ obj:ParameterName { return { kind: 'from', source: 'NAME', name: obj }; }
         )
       / select:SelectStatement { return { kind: 'select', select }; }
     ) {
@@ -871,25 +871,36 @@ InsertStatement
 //    SET Column_Name1 = eExpression1 [, Column_Name2 = eExpression2 ...]
 //    [FROM [FORCE] Table_List_Item [[, ...] | [JOIN [ Table_List_Item]]]
 //    WHERE FilterCondition1 [AND | OR FilterCondition2 ...]
+// Clauses may appear in any order, with SET required exactly once (similar to SELECT tail handling)
 UpdateStatement
-  = "UPDATE"i _ target:IdentifierOrString __ 
-    core:(
-      // FROM ... WHERE ... SET ...
-      from:FromClause _ where:WhereClause _ "SET"i __ assigns:UpdateAssignmentList { return { from, where, assigns }; }
-      // FROM ... SET ... [WHERE ...]
-      / from:FromClause _ "SET"i __ assigns:UpdateAssignmentList _ where:WhereClause? { return { from, where: where || null, assigns }; }
-      // WHERE ... SET ... [FROM ...]
-      / where:WhereClause _ "SET"i __ assigns:UpdateAssignmentList _ from:FromClause? { return { from: from || null, where, assigns }; }
-      // SET ... [FROM ...] [WHERE ...]
-      / "SET"i __ assigns:UpdateAssignmentList _ from:FromClause? _ where:WhereClause? { return { from: from || null, where: where || null, assigns }; }
-    ) {
+  = "UPDATE"i _ target:IdentifierOrString WS0
+    pre:(WSX UpdateTailNonSetPart)* WSX 
+    setPart:UpdateSetPart 
+    post:(WSX UpdateTailNonSetPart)* {
+      const parts = [...pre.map(t => t[1]), { kind: 'SET', value: setPart.value }, ...post.map(t => t[1])];
+      let from = null, where = null, assigns = setPart.value;
+      for (const p of parts) {
+        switch (p.kind) {
+          case 'FROM': from = p.value; break;
+          case 'WHERE': where = p.value; break;
+          // 'SET' already captured as setPart
+        }
+      }
       return node('UpdateStatement', {
         target,
-        assignments: core.assigns,
-        from: core.from || null,
-        where: core.where || null
+        assignments: assigns,
+        from: from || null,
+        where: where || null
       });
     }
+
+// Update tail parts used to support arbitrary ordering
+UpdateTailNonSetPart
+  = from:FromClause { return { kind: 'FROM', value: from }; }
+  / where:WhereClause { return { kind: 'WHERE', value: where }; }
+
+UpdateSetPart
+  = "SET"i __ assigns:UpdateAssignmentList { return { kind: 'SET', value: assigns }; }
 
 UpdateAssignmentList
   = head:UpdateAssignment tail:(_ "," _ UpdateAssignment)* { return [head, ...tail.map(t => t[3])]; }
@@ -961,7 +972,6 @@ RecallStatement
       });
     }
 
-
 // -----------------------------
 // Loops: FOR ... ENDFOR|NEXT, FOR EACH ... ENDFOR|NEXT and DO WHILE ... ENDDO
 // -----------------------------
@@ -996,7 +1006,8 @@ ForEachLoop "for-each loop"
       return { typing: type, of: ofPart || null };
     })?
     "IN"i _ group:Expression foxobj:(_ "FOXOBJECT"i)? __
-    body:(Statement __)*
+    // Avoid consuming ENDFOR/NEXT as part of the body when NEXT isn't reserved globally
+    body:((!("ENDFOR"i / "NEXT"i) Statement) __)*
     ("ENDFOR"i / "NEXT"i) _ endVar:ParameterName? 
     {
       const asType = typePart ? typePart.typing : null;
@@ -1319,6 +1330,10 @@ SetSettingStatement
       return inner;
     }
 
+// APPEND FROM FileName | ? [FIELDS FieldList] [FOR lExpression]
+//   [[TYPE] [DELIMITED [WITH Delimiter | WITH BLANK | WITH TAB | WITH CHARACTER Delimiter]
+//     | DIF | FW2 | MOD | PDOX | RPD | SDF | SYLK | WK1 | WK3 | WKS | WR1 | WRK | CSV | XLS | XL5 [SHEET cSheetName] | XL8 [SHEET cSheetName]]]
+//   [AS nCodePage]
 AppendStatement
   = "APPEND"i _
     blank:("BLANK"i _)?
@@ -1330,6 +1345,8 @@ AppendStatement
         nomenu: !!nomenu
       });
     }
+  / "APPEND FROM"i _
+    // todo
 
 // REPLACE [ALL | REST] FieldName1 WITH eExpression1 [ADDITIVE] [, FieldName2 WITH eExpression2 [ADDITIVE]] ... [Scope] [FOR lExpression1] [WHILE lExpression2] [IN nWorkArea | cTableAlias] [NOOPTIMIZE]
 ReplaceStatement
@@ -1581,7 +1598,8 @@ Keyword "keyword"
   / ("for each"i    ![a-zA-Z0-9_])
   / ("CASE"i        ![a-zA-Z0-9_])
   / ("ENDFOR"i      ![a-zA-Z0-9_])
-  / ("NEXT"i        ![a-zA-Z0-9_]) // todo: technically this isn't a keyword.
+  // NOTE: Do not reserve NEXT globally so it can be used as an identifier in expressions.
+  // / ("NEXT"i        ![a-zA-Z0-9_])
   / ("ENDDO"i       ![a-zA-Z0-9_])
   / ("LOOP"i        ![a-zA-Z0-9_])
   / ("TRY"i         ![a-zA-Z0-9_])
@@ -1593,6 +1611,7 @@ Keyword "keyword"
   / ("ENDCASE"i     ![a-zA-Z0-9_])
   / ("ENDWITH"i     ![a-zA-Z0-9_])
   / ("JOIN"i        ![a-zA-Z0-9_])
+  / ("FROM"i       ![a-zA-Z0-9_])
   / ("Order by"i    ![a-zA-Z0-9_])
   / ("INNER JOIN"i       ![a-zA-Z0-9_])
   / ("LEFT OUTER JOIN"i  ![a-zA-Z0-9_])
@@ -1607,6 +1626,7 @@ Keyword "keyword"
   / ("UNION"i      ![a-zA-Z0-9_])
   / ("INTO"i       ![a-zA-Z0-9_])
   / ("INSERT"i     ![a-zA-Z0-9_])
+  / ("UPDATE"i     ![a-zA-Z0-9_])
   / ("COPY"i       ![a-zA-Z0-9_])
   / ("CREATE"i      ![a-zA-Z0-9_])
   / ("GO"i         ![a-zA-Z0-9_])
