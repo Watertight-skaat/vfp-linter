@@ -433,7 +433,7 @@ Primary
 
 // Argument list for call expressions (Allow empty arguments (i.e. consecutive commas) which are represented as null)
 ArgumentList
-  = first:((Expression / "*" { return node('SelectStar', {}); })?) tail:(_ "," _ (Expression / "*" { return node('SelectStar', {}); })? )* {
+  = first:((ArgItem)?) tail:(_ "," _ (ArgItem)? )* {
     const args = [];
     args.push(first === undefined ? null : first);
     for (const t of tail) {
@@ -441,6 +441,14 @@ ArgumentList
     }
     return args;
   }
+
+ArgItem
+  = MacroPrefixedArg
+  / Expression
+  / "*" { return node('SelectStar', {}); }
+
+MacroPrefixedArg
+  = m:MacroSubstitute _ e:Expression { return { type: 'MacroPrefixed', macro: m, expression: e }; }
 
 // CAST(expr AS TypeSpec) - simple SQL style cast support
 TypeSpec
@@ -517,7 +525,7 @@ IfStatement "if statement"
   //  [INTO StorageDestination | TO DisplayDestination]
   //  [PREFERENCE PreferenceName] [NOCONSOLE] [PLAIN] [NOWAIT]
 SelectStatement
-  = sc:SelectCore unions:(WSX "UNION"i WSX all:("ALL"i WSX)? rhs:SelectCore { return { all: !!all, select: rhs }; })* {
+  = sc:SelectCore unions:(ContSpace "UNION"i ContSpace all:("ALL"i ContSpace)? rhs:SelectCore { return { all: !!all, select: rhs }; })* {
       const unionParts = unions ? unions : [];
       return node('SelectStatement', { ...sc, unions: unionParts });
     }
@@ -534,7 +542,7 @@ SelectCore
           / "ORDER BY"i ![a-zA-Z0-9_] 
           / "INTO"i ![a-zA-Z0-9_] 
           / "UNION"i ![a-zA-Z0-9_]) SelectList)?
-    parts:(WSX SelectTailPart)* {
+    parts:(ContSpace SelectTailPart)* {
       let from = null, withbuf = null, where = null, group = null, having = null, order = null, destination = null, pref = null, noconsol = false, plain = false, nowait = false;
       for (const t of parts) {
         const p = t[1];
@@ -585,6 +593,23 @@ SelectTailPart
   / having:HavingClause { return { kind: 'HAVING', value: having }; }
   / order:OrderByClause { return { kind: 'ORDER', value: order }; }
   / pref:PreferenceClause { return { kind: 'PREF', value: pref }; }
+  / ms:MacroSubstitute { return { kind: 'MACRO', value: ms }; }
+  / !(
+      "FROM"i ![A-Za-z0-9_]
+    / "WITH"i ![A-Za-z0-9_]
+    / "WHERE"i ![A-Za-z0-9_]
+    / "GROUP BY"i ![A-Za-z0-9_]
+    / "HAVING"i ![A-Za-z0-9_]
+    / "ORDER BY"i ![A-Za-z0-9_]
+    / "INTO"i ![A-Za-z0-9_]
+    / "UNION"i ![A-Za-z0-9_]
+    / "PREFERENCE"i ![A-Za-z0-9_]
+    / "NOCONSOLE"i ![A-Za-z0-9_]
+    / "PLAIN"i ![A-Za-z0-9_]
+    / "NOWAIT"i ![A-Za-z0-9_]
+    / "," ![A-Za-z0-9_]
+    / "JOIN"i ![A-Za-z0-9_]
+    ) e:Expression { return { kind: 'EXTRA', value: e }; }
   / "NOCONSOLE"i { return { kind: 'NOCONSOLE' }; }
   / "PLAIN"i { return { kind: 'PLAIN' }; }
   / "NOWAIT"i { return { kind: 'NOWAIT' }; }
@@ -592,12 +617,65 @@ SelectTailPart
 SelectItem
   = "*" { return node('SelectStar', {}); }
   / tbl:Identifier "." "*" { return node('SelectStar', { table: tbl }); }
-  / expr:Expression alias:(__ "AS"i __ a:Identifier { return a; })? {
-      return node('SelectItem', { expression: expr, alias: alias ? alias[3] : null });
+  / expr:Expression alias:(
+      _ "AS"i _ a:Identifier { return a; }
+      / _ !(
+          "FROM"i ![a-zA-Z0-9_]
+        / "WITH"i ![a-zA-Z0-9_]
+        / "WHERE"i ![a-zA-Z0-9_]
+        / "GROUP"i ![a-zA-Z0-9_]
+        / "HAVING"i ![a-zA-Z0-9_]
+        / "ORDER"i ![a-zA-Z0-9_]
+        / "INTO"i ![a-zA-Z0-9_]
+        / "UNION"i ![a-zA-Z0-9_]
+        / "PREFERENCE"i ![a-zA-Z0-9_]
+        / "NOCONSOLE"i ![a-zA-Z0-9_]
+        / "PLAIN"i ![a-zA-Z0-9_]
+        / "NOWAIT"i ![a-zA-Z0-9_]
+      ) a:Identifier { return a; }
+    )? {
+      return node('SelectItem', { expression: expr, alias: alias || null }); }
+  / callee:Identifier _? "(" _ args:ArgumentList? _ ")" alias:(
+      _ "AS"i _ a:Identifier { return a; }
+      / _ !(
+          "FROM"i ![a-zA-Z0-9_]
+        / "WITH"i ![a-zA-Z0-9_]
+        / "WHERE"i ![a-zA-Z0-9_]
+        / "GROUP"i ![a-zA-Z0-9_]
+        / "HAVING"i ![a-zA-Z0-9_]
+        / "ORDER"i ![a-zA-Z0-9_]
+        / "INTO"i ![a-zA-Z0-9_]
+        / "UNION"i ![a-zA-Z0-9_]
+        / "PREFERENCE"i ![a-zA-Z0-9_]
+        / "NOCONSOLE"i ![a-zA-Z0-9_]
+        / "PLAIN"i ![a-zA-Z0-9_]
+        / "NOWAIT"i ![a-zA-Z0-9_]
+      ) a:Identifier { return a; }
+    )? {
+      return node('SelectItem', { expression: node('CallExpression', { callee: node('Identifier', { name: callee }), arguments: args || [] }), alias: alias || null });
+    }
+  / "(" _ inner:Expression _ ")" alias:(
+      _ "AS"i _ a:Identifier { return a; }
+      / _ !(
+          "FROM"i ![a-zA-Z0-9_]
+        / "WITH"i ![a-zA-Z0-9_]
+        / "WHERE"i ![a-zA-Z0-9_]
+        / "GROUP"i ![a-zA-Z0-9_]
+        / "HAVING"i ![a-zA-Z0-9_]
+        / "ORDER"i ![a-zA-Z0-9_]
+        / "INTO"i ![a-zA-Z0-9_]
+        / "UNION"i ![a-zA-Z0-9_]
+        / "PREFERENCE"i ![a-zA-Z0-9_]
+        / "NOCONSOLE"i ![a-zA-Z0-9_]
+        / "PLAIN"i ![a-zA-Z0-9_]
+        / "NOWAIT"i ![a-zA-Z0-9_]
+      ) a:Identifier { return a; }
+    )? {
+      return node('SelectItem', { expression: inner, alias: alias || null });
     }
 
 FromClause
-  = "FROM"i WSX force:("FORCE"i WSX)? seq:FromSequence {
+  = "FROM"i ContSpace force:("FORCE"i ContSpace)? seq:FromSequence {
       // seq contains ordered tables and joins; expose arrays for backwards compatibility
       return { force: !!force, tables: seq.tables, joins: seq.joins, items: seq.items };
     }
@@ -608,9 +686,9 @@ TableList
 // FromSequence allows TableRef and JoinClause to be intermixed, e.g.
 // FROM t1 ; LEFT JOIN t2 ON ... ; ,t3, t4
 FromSequence
-  = WSX? first:TableRef tail:(
-      WSX "," WSX tr:TableRef { return { kind: 'table', value: tr }; }
-      / WSX jc:JoinClause { return { kind: 'join', value: jc }; }
+  = ContSpace? first:TableRef tail:(
+      ContSpace "," ContSpace tr:TableRef { return { kind: 'table', value: tr }; }
+      / ContSpace jc:JoinClause { return { kind: 'join', value: jc }; }
     )* {
     const items = [ { kind: 'table', value: first }, ...tail ];
     const tables = items.filter(i => i.kind === 'table').map(i => i.value);
@@ -619,10 +697,10 @@ FromSequence
   }
 
 TableRef
-  = tablePart:("(" __ sub:SelectStatement WSX? ")" { return { subquery: sub }; }
+  = tablePart:("(" __ sub:SelectStatement ContSpace? ")" { return { subquery: sub }; }
                 / "(" _ tbl:Expression _ ")" { return { name: tbl }; }
-                / name:QualifiedTable _ { return { name }; })
-    _ alias:(
+                / name:QualifiedTable { return { name }; })
+    InlineWS alias:(
       ("AS"i _ a:Identifier { return a; })
       / !("SET"i ![A-Za-z0-9_]
          / "WHERE"i ![A-Za-z0-9_]
@@ -1115,12 +1193,14 @@ ContinueStatement "continue (LOOP)"
 CreateStatement "create statement"
   = "CREATE"i _ 
     kind:("TABLE"i / "DBF"i / "CURSOR"i) _ 
-    name:Identifier _
+    name:CreateTarget _
     nameClause:("NAME"i __ longName:Identifier _ { return longName; })? _
     free:("FREE"i _)?
     codepage:("CODEPAGE"i _ "=" _ cp:(NumberLiteral / Identifier))? _
     def:(
-      _ "(" _ items:CreateDefItems _ ")" _ { return { type: 'columns', items: items }; }
+      _ "(" _ items:CreateDefItems _ ")" _ tail:(_ "," _ more:CreateDefItems)? {
+        return { type: 'columns', items: tail ? [...items, ...tail[3]] : items };
+      }
       / _ "FROM"i __ "ARRAY"i __ arr:Identifier { return { type: 'fromArray', array: arr }; }
     )
     {
@@ -1139,6 +1219,11 @@ CreateStatement "create statement"
         return node('CreateStatement', { ...payload, columns: cols, constraints: cons, fromArray: null });
       }
     }
+
+// CREATE target may be a simple identifier or a parenthesized expression (macro/expr)
+CreateTarget
+  = "(" _ e:Expression _ ")" { return e; }
+  / Identifier
 
 CreateDefItems
   = head:CreateDefItem tail:(_ "," _ CreateDefItem)* {
@@ -1768,6 +1853,7 @@ UnquotedPath
 PathOrExpression
   = !("\"" / "'") p:UnquotedPath !(_ ("+" / "-" / "*" / "/")) { return p; }
   / "(" _ e:Expression _ ")" { return e; }
+  / MacroPrefixedArg
   / Expression
 
 LineTerminatorSequence "end of line"
@@ -1799,12 +1885,22 @@ __
 _ 
   = (Whitespace / LineContinuation)*
 
+// Continuation-aware whitespace for SELECT and FROM sections.
+// - On the same physical line: allows spaces and macro substitutions.
+// - If a semicolon line continuation appears: permits comments and newlines afterward.
+ContSpace
+  = (Whitespace / MacroSubstitute)* (LineContinuation (Whitespace / MacroSubstitute / Comment / LineTerminatorSequence)*)*
+
 // Macro-aware lightweight spacer used inside expressions BEFORE an operator.
 // Include macros so something like "expr &m OR ..." doesn't break parsing even if &m
 // expands to an operator. We keep '_' (above) used AFTER operators so that "OR &c"
 // still treats &c as an operand rather than being swallowed as spacing.
 M_ 
   = (Whitespace / LineContinuation / MacroSubstitute)*
+
+// Inline whitespace only (no line continuation); used to avoid swallowing semicolons
+InlineWS
+  = (Whitespace / MacroSubstitute)*
 
 // using &macro allows changing the foxpro at runtime.
 MacroSubstitute "macro substitution"

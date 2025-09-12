@@ -16,9 +16,9 @@ ORDER BY 1 ;
 INTO CURSOR Cursorname
 
 * test JOIN and FROM intermixed
-SELECT *
+SELECT * ;
 FROM tableA ;
-    JOIN tableB ON prop1 = prop2
+    JOIN tableB ON prop1 = prop2 ;
     ,NewTran ;
     ,Prodmast ;
 
@@ -80,3 +80,11 @@ SELECT * FROM (JUSTSTEM(m.varname)) ;
 * try a path
 select * from data/tableA
 select * from data\tableA
+
+* start a select
+SELECT proddet
+* then try a completely different statement (without a semi-colon above)
+SET ORDER TO stpart IN prodmast
+
+* expression in select list
+SELECT NVL(fieldA, 0) = 1 as aliasA FROM  tableA

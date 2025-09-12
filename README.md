@@ -1,5 +1,4 @@
-This isn't done yet.
-classes, functions, procedures, and likely a bunch of other stuff isn't defined yet
+This probably doesn't cover ALL cases, especially as it gets to macro substitution.
 
 ## Structure
 

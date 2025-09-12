@@ -22,7 +22,7 @@ GroupCondition = ",6"
 SELECT * FROM tablename GROUP BY 1,2,3,4,5 &GroupCondition having count(*) > 0
 
 * in subquery
-select * from (;
+select * from ( ;
     SELECT * FROM tableA group by 1,2 &GroupCondition ;
 ) subq
 
@@ -42,3 +42,14 @@ SELECT fieldA as aliasA &my_macro , fieldB FROM tableB ;
 macroA = "fieldA"
 macroB = "fieldB"
 SELECT &macroA as aliasA, &macroB as aliasB FROM enumFieldsTable ;
+
+* before select list
+my_macro = "* from tableA union all select"
+SELECT &my_macro fieldA FROM tableA
+SELECT &my_macro fieldA as aliasA FROM tableA 
+
+* before where list
+SELECT fieldA from tableA WHERE &my_macro my_func(fieldA) into cursor SalesCurTemp
+
+* inside IIF
+SELECT fieldA, IIF(&ReceiptFilt2 fieldA="test", fieldA, 0) as aliasA FROM tableA

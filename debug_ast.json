@@ -1,0 +1,7254 @@
+{
+  "type": "Program",
+  "location": {
+    "source": "./test-files/select.prg",
+    "start": {
+      "offset": 0,
+      "line": 1,
+      "column": 1
+    },
+    "end": {
+      "offset": 2221,
+      "line": 90,
+      "column": 49
+    }
+  },
+  "body": [
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 0,
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "offset": 23,
+          "line": 1,
+          "column": 24
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectStar",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 7,
+                "line": 1,
+                "column": 8
+              },
+              "end": {
+                "offset": 8,
+                "line": 1,
+                "column": 9
+              }
+            }
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 14,
+                    "line": 1,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 23,
+                    "line": 1,
+                    "column": 24
+                  }
+                },
+                "path": "tablename"
+              }
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 14,
+                      "line": 1,
+                      "column": 15
+                    },
+                    "end": {
+                      "offset": 23,
+                      "line": 1,
+                      "column": 24
+                    }
+                  },
+                  "path": "tablename"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 14,
+                    "line": 1,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 23,
+                    "line": 1,
+                    "column": 24
+                  }
+                },
+                "path": "tablename"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": null,
+      "groupBy": null,
+      "having": null,
+      "orderBy": null,
+      "destination": null,
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 25,
+          "line": 2,
+          "column": 1
+        },
+        "end": {
+          "offset": 57,
+          "line": 2,
+          "column": 33
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        {
+          "type": "SelectStar",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 25,
+              "line": 2,
+              "column": 1
+            },
+            "end": {
+              "offset": 57,
+              "line": 2,
+              "column": 33
+            }
+          }
+        }
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 37,
+                    "line": 2,
+                    "column": 13
+                  },
+                  "end": {
+                    "offset": 43,
+                    "line": 2,
+                    "column": 19
+                  }
+                },
+                "path": "tableA"
+              }
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 37,
+                      "line": 2,
+                      "column": 13
+                    },
+                    "end": {
+                      "offset": 43,
+                      "line": 2,
+                      "column": 19
+                    }
+                  },
+                  "path": "tableA"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 37,
+                    "line": 2,
+                    "column": 13
+                  },
+                  "end": {
+                    "offset": 43,
+                    "line": 2,
+                    "column": 19
+                  }
+                },
+                "path": "tableA"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": null,
+      "groupBy": null,
+      "having": null,
+      "orderBy": [
+        {
+          "expression": {
+            "type": "NumberLiteral",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 53,
+                "line": 2,
+                "column": 29
+              },
+              "end": {
+                "offset": 54,
+                "line": 2,
+                "column": 30
+              }
+            },
+            "value": 1,
+            "raw": "1",
+            "currency": false
+          },
+          "direction": null
+        },
+        null
+      ],
+      "destination": null,
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 61,
+          "line": 4,
+          "column": 1
+        },
+        "end": {
+          "offset": 91,
+          "line": 6,
+          "column": 15
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectStar",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 72,
+                "line": 5,
+                "column": 2
+              },
+              "end": {
+                "offset": 73,
+                "line": 5,
+                "column": 3
+              }
+            }
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 82,
+                    "line": 6,
+                    "column": 6
+                  },
+                  "end": {
+                    "offset": 91,
+                    "line": 6,
+                    "column": 15
+                  }
+                },
+                "path": "tablename"
+              }
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 82,
+                      "line": 6,
+                      "column": 6
+                    },
+                    "end": {
+                      "offset": 91,
+                      "line": 6,
+                      "column": 15
+                    }
+                  },
+                  "path": "tablename"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 82,
+                    "line": 6,
+                    "column": 6
+                  },
+                  "end": {
+                    "offset": 91,
+                    "line": 6,
+                    "column": 15
+                  }
+                },
+                "path": "tablename"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": null,
+      "groupBy": null,
+      "having": null,
+      "orderBy": null,
+      "destination": null,
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 95,
+          "line": 8,
+          "column": 1
+        },
+        "end": {
+          "offset": 262,
+          "line": 16,
+          "column": 23
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectItem",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 106,
+                "line": 9,
+                "column": 2
+              },
+              "end": {
+                "offset": 112,
+                "line": 9,
+                "column": 8
+              }
+            },
+            "expression": {
+              "type": "Identifier",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 106,
+                  "line": 9,
+                  "column": 2
+                },
+                "end": {
+                  "offset": 112,
+                  "line": 9,
+                  "column": 8
+                }
+              },
+              "name": "field1"
+            },
+            "alias": null
+          },
+          {
+            "type": "SelectItem",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 118,
+                "line": 10,
+                "column": 2
+              },
+              "end": {
+                "offset": 138,
+                "line": 10,
+                "column": 22
+              }
+            },
+            "expression": {
+              "type": "CallExpression",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 118,
+                  "line": 10,
+                  "column": 2
+                },
+                "end": {
+                  "offset": 129,
+                  "line": 10,
+                  "column": 13
+                }
+              },
+              "callee": {
+                "type": "Identifier",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 118,
+                    "line": 10,
+                    "column": 2
+                  },
+                  "end": {
+                    "offset": 121,
+                    "line": 10,
+                    "column": 5
+                  }
+                },
+                "name": "sum"
+              },
+              "arguments": [
+                {
+                  "type": "Identifier",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 122,
+                      "line": 10,
+                      "column": 6
+                    },
+                    "end": {
+                      "offset": 128,
+                      "line": 10,
+                      "column": 12
+                    }
+                  },
+                  "name": "field2"
+                }
+              ]
+            },
+            "alias": "Total"
+          },
+          {
+            "type": "SelectItem",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 144,
+                "line": 11,
+                "column": 2
+              },
+              "end": {
+                "offset": 161,
+                "line": 11,
+                "column": 19
+              }
+            },
+            "expression": {
+              "type": "CallExpression",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 144,
+                  "line": 11,
+                  "column": 2
+                },
+                "end": {
+                  "offset": 152,
+                  "line": 11,
+                  "column": 10
+                }
+              },
+              "callee": {
+                "type": "Identifier",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 144,
+                    "line": 11,
+                    "column": 2
+                  },
+                  "end": {
+                    "offset": 149,
+                    "line": 11,
+                    "column": 7
+                  }
+                },
+                "name": "count"
+              },
+              "arguments": [
+                {
+                  "type": "SelectStar",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 150,
+                      "line": 11,
+                      "column": 8
+                    },
+                    "end": {
+                      "offset": 151,
+                      "line": 11,
+                      "column": 9
+                    }
+                  }
+                }
+              ]
+            },
+            "alias": "Count"
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 170,
+                    "line": 12,
+                    "column": 6
+                  },
+                  "end": {
+                    "offset": 177,
+                    "line": 12,
+                    "column": 13
+                  }
+                },
+                "path": "metrics"
+              }
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 170,
+                      "line": 12,
+                      "column": 6
+                    },
+                    "end": {
+                      "offset": 177,
+                      "line": 12,
+                      "column": 13
+                    }
+                  },
+                  "path": "metrics"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 170,
+                    "line": 12,
+                    "column": 6
+                  },
+                  "end": {
+                    "offset": 177,
+                    "line": 12,
+                    "column": 13
+                  }
+                },
+                "path": "metrics"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": {
+        "type": "BinaryExpression",
+        "location": {
+          "source": "./test-files/select.prg",
+          "start": {
+            "offset": 187,
+            "line": 13,
+            "column": 7
+          },
+          "end": {
+            "offset": 208,
+            "line": 13,
+            "column": 28
+          }
+        },
+        "operator": ">",
+        "left": {
+          "type": "Identifier",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 187,
+              "line": 13,
+              "column": 7
+            },
+            "end": {
+              "offset": 195,
+              "line": 13,
+              "column": 15
+            }
+          },
+          "name": "datetime"
+        },
+        "right": {
+          "type": "BinaryExpression",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 198,
+              "line": 13,
+              "column": 18
+            },
+            "end": {
+              "offset": 208,
+              "line": 13,
+              "column": 28
+            }
+          },
+          "operator": "-",
+          "left": {
+            "type": "CallExpression",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 198,
+                "line": 13,
+                "column": 18
+              },
+              "end": {
+                "offset": 204,
+                "line": 13,
+                "column": 24
+              }
+            },
+            "callee": {
+              "type": "Identifier",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 198,
+                  "line": 13,
+                  "column": 18
+                },
+                "end": {
+                  "offset": 202,
+                  "line": 13,
+                  "column": 22
+                }
+              },
+              "name": "DATE"
+            },
+            "arguments": [
+              null
+            ]
+          },
+          "right": {
+            "type": "NumberLiteral",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 207,
+                "line": 13,
+                "column": 27
+              },
+              "end": {
+                "offset": 208,
+                "line": 13,
+                "column": 28
+              }
+            },
+            "value": 7,
+            "raw": "7",
+            "currency": false
+          }
+        }
+      },
+      "groupBy": [
+        {
+          "type": "NumberLiteral",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 221,
+              "line": 14,
+              "column": 10
+            },
+            "end": {
+              "offset": 222,
+              "line": 14,
+              "column": 11
+            }
+          },
+          "value": 1,
+          "raw": "1",
+          "currency": false
+        }
+      ],
+      "having": null,
+      "orderBy": [
+        {
+          "expression": {
+            "type": "NumberLiteral",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 235,
+                "line": 15,
+                "column": 10
+              },
+              "end": {
+                "offset": 236,
+                "line": 15,
+                "column": 11
+              }
+            },
+            "value": 1,
+            "raw": "1",
+            "currency": false
+          },
+          "direction": null
+        }
+      ],
+      "destination": {
+        "kind": "CURSOR",
+        "name": {
+          "type": "Identifier",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 252,
+              "line": 16,
+              "column": 13
+            },
+            "end": {
+              "offset": 262,
+              "line": 16,
+              "column": 23
+            }
+          },
+          "name": "Cursorname"
+        }
+      },
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 299,
+          "line": 19,
+          "column": 1
+        },
+        "end": {
+          "offset": 395,
+          "line": 24,
+          "column": 1
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectStar",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 306,
+                "line": 19,
+                "column": 8
+              },
+              "end": {
+                "offset": 307,
+                "line": 19,
+                "column": 9
+              }
+            }
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 316,
+                    "line": 20,
+                    "column": 6
+                  },
+                  "end": {
+                    "offset": 322,
+                    "line": 20,
+                    "column": 12
+                  }
+                },
+                "path": "tableA"
+              }
+            }
+          },
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 367,
+                    "line": 22,
+                    "column": 6
+                  },
+                  "end": {
+                    "offset": 374,
+                    "line": 22,
+                    "column": 13
+                  }
+                },
+                "path": "NewTran"
+              }
+            }
+          },
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 383,
+                    "line": 23,
+                    "column": 6
+                  },
+                  "end": {
+                    "offset": 391,
+                    "line": 23,
+                    "column": 14
+                  }
+                },
+                "path": "Prodmast"
+              }
+            }
+          }
+        ],
+        "joins": [
+          {
+            "type": null,
+            "target": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 335,
+                      "line": 21,
+                      "column": 10
+                    },
+                    "end": {
+                      "offset": 341,
+                      "line": 21,
+                      "column": 16
+                    }
+                  },
+                  "path": "tableB"
+                }
+              }
+            },
+            "condition": {
+              "type": "BinaryExpression",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 345,
+                  "line": 21,
+                  "column": 20
+                },
+                "end": {
+                  "offset": 358,
+                  "line": 21,
+                  "column": 33
+                }
+              },
+              "operator": "=",
+              "left": {
+                "type": "Identifier",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 345,
+                    "line": 21,
+                    "column": 20
+                  },
+                  "end": {
+                    "offset": 350,
+                    "line": 21,
+                    "column": 25
+                  }
+                },
+                "name": "prop1"
+              },
+              "right": {
+                "type": "Identifier",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 353,
+                    "line": 21,
+                    "column": 28
+                  },
+                  "end": {
+                    "offset": 358,
+                    "line": 21,
+                    "column": 33
+                  }
+                },
+                "name": "prop2"
+              }
+            }
+          }
+        ],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 316,
+                      "line": 20,
+                      "column": 6
+                    },
+                    "end": {
+                      "offset": 322,
+                      "line": 20,
+                      "column": 12
+                    }
+                  },
+                  "path": "tableA"
+                }
+              }
+            }
+          },
+          {
+            "kind": "join",
+            "value": {
+              "type": null,
+              "target": {
+                "name": {
+                  "database": null,
+                  "table": {
+                    "type": "Path",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 335,
+                        "line": 21,
+                        "column": 10
+                      },
+                      "end": {
+                        "offset": 341,
+                        "line": 21,
+                        "column": 16
+                      }
+                    },
+                    "path": "tableB"
+                  }
+                }
+              },
+              "condition": {
+                "type": "BinaryExpression",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 345,
+                    "line": 21,
+                    "column": 20
+                  },
+                  "end": {
+                    "offset": 358,
+                    "line": 21,
+                    "column": 33
+                  }
+                },
+                "operator": "=",
+                "left": {
+                  "type": "Identifier",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 345,
+                      "line": 21,
+                      "column": 20
+                    },
+                    "end": {
+                      "offset": 350,
+                      "line": 21,
+                      "column": 25
+                    }
+                  },
+                  "name": "prop1"
+                },
+                "right": {
+                  "type": "Identifier",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 353,
+                      "line": 21,
+                      "column": 28
+                    },
+                    "end": {
+                      "offset": 358,
+                      "line": 21,
+                      "column": 33
+                    }
+                  },
+                  "name": "prop2"
+                }
+              }
+            }
+          },
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 367,
+                      "line": 22,
+                      "column": 6
+                    },
+                    "end": {
+                      "offset": 374,
+                      "line": 22,
+                      "column": 13
+                    }
+                  },
+                  "path": "NewTran"
+                }
+              }
+            }
+          },
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 383,
+                      "line": 23,
+                      "column": 6
+                    },
+                    "end": {
+                      "offset": 391,
+                      "line": 23,
+                      "column": 14
+                    }
+                  },
+                  "path": "Prodmast"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 316,
+                    "line": 20,
+                    "column": 6
+                  },
+                  "end": {
+                    "offset": 322,
+                    "line": 20,
+                    "column": 12
+                  }
+                },
+                "path": "tableA"
+              }
+            }
+          }
+        },
+        {
+          "kind": "join",
+          "value": {
+            "type": null,
+            "target": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 335,
+                      "line": 21,
+                      "column": 10
+                    },
+                    "end": {
+                      "offset": 341,
+                      "line": 21,
+                      "column": 16
+                    }
+                  },
+                  "path": "tableB"
+                }
+              }
+            },
+            "condition": {
+              "type": "BinaryExpression",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 345,
+                  "line": 21,
+                  "column": 20
+                },
+                "end": {
+                  "offset": 358,
+                  "line": 21,
+                  "column": 33
+                }
+              },
+              "operator": "=",
+              "left": {
+                "type": "Identifier",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 345,
+                    "line": 21,
+                    "column": 20
+                  },
+                  "end": {
+                    "offset": 350,
+                    "line": 21,
+                    "column": 25
+                  }
+                },
+                "name": "prop1"
+              },
+              "right": {
+                "type": "Identifier",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 353,
+                    "line": 21,
+                    "column": 28
+                  },
+                  "end": {
+                    "offset": 358,
+                    "line": 21,
+                    "column": 33
+                  }
+                },
+                "name": "prop2"
+              }
+            }
+          }
+        },
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 367,
+                    "line": 22,
+                    "column": 6
+                  },
+                  "end": {
+                    "offset": 374,
+                    "line": 22,
+                    "column": 13
+                  }
+                },
+                "path": "NewTran"
+              }
+            }
+          }
+        },
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 383,
+                    "line": 23,
+                    "column": 6
+                  },
+                  "end": {
+                    "offset": 391,
+                    "line": 23,
+                    "column": 14
+                  }
+                },
+                "path": "Prodmast"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": null,
+      "groupBy": null,
+      "having": null,
+      "orderBy": null,
+      "destination": null,
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 430,
+          "line": 26,
+          "column": 1
+        },
+        "end": {
+          "offset": 461,
+          "line": 27,
+          "column": 5
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectStar",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 437,
+                "line": 26,
+                "column": 8
+              },
+              "end": {
+                "offset": 438,
+                "line": 26,
+                "column": 9
+              }
+            }
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 444,
+                    "line": 26,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 453,
+                    "line": 26,
+                    "column": 24
+                  }
+                },
+                "path": "tablename"
+              }
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 444,
+                      "line": 26,
+                      "column": 15
+                    },
+                    "end": {
+                      "offset": 453,
+                      "line": 26,
+                      "column": 24
+                    }
+                  },
+                  "path": "tablename"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 444,
+                    "line": 26,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 453,
+                    "line": 26,
+                    "column": 24
+                  }
+                },
+                "path": "tablename"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": null,
+      "groupBy": null,
+      "having": null,
+      "orderBy": null,
+      "destination": null,
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "UnknownStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 471,
+          "line": 28,
+          "column": 1
+        },
+        "end": {
+          "offset": 480,
+          "line": 28,
+          "column": 10
+        }
+      },
+      "raw": "WHERE .t."
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 484,
+          "line": 30,
+          "column": 1
+        },
+        "end": {
+          "offset": 521,
+          "line": 30,
+          "column": 38
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectStar",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 491,
+                "line": 30,
+                "column": 8
+              },
+              "end": {
+                "offset": 492,
+                "line": 30,
+                "column": 9
+              }
+            }
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "type": "Identifier",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 499,
+                  "line": 30,
+                  "column": 16
+                },
+                "end": {
+                  "offset": 505,
+                  "line": 30,
+                  "column": 22
+                }
+              },
+              "name": "table1"
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "type": "Identifier",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 499,
+                    "line": 30,
+                    "column": 16
+                  },
+                  "end": {
+                    "offset": 505,
+                    "line": 30,
+                    "column": 22
+                  }
+                },
+                "name": "table1"
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "type": "Identifier",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 499,
+                  "line": 30,
+                  "column": 16
+                },
+                "end": {
+                  "offset": 505,
+                  "line": 30,
+                  "column": 22
+                }
+              },
+              "name": "table1"
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": {
+        "type": "BinaryExpression",
+        "location": {
+          "source": "./test-files/select.prg",
+          "start": {
+            "offset": 513,
+            "line": 30,
+            "column": 30
+          },
+          "end": {
+            "offset": 521,
+            "line": 30,
+            "column": 38
+          }
+        },
+        "operator": ">",
+        "left": {
+          "type": "Identifier",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 513,
+              "line": 30,
+              "column": 30
+            },
+            "end": {
+              "offset": 517,
+              "line": 30,
+              "column": 34
+            }
+          },
+          "name": "test"
+        },
+        "right": {
+          "type": "NumberLiteral",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 520,
+              "line": 30,
+              "column": 37
+            },
+            "end": {
+              "offset": 521,
+              "line": 30,
+              "column": 38
+            }
+          },
+          "value": 1,
+          "raw": "1",
+          "currency": false
+        }
+      },
+      "groupBy": null,
+      "having": null,
+      "orderBy": null,
+      "destination": null,
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 523,
+          "line": 31,
+          "column": 1
+        },
+        "end": {
+          "offset": 591,
+          "line": 31,
+          "column": 69
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectItem",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 530,
+                "line": 31,
+                "column": 8
+              },
+              "end": {
+                "offset": 531,
+                "line": 31,
+                "column": 9
+              }
+            },
+            "expression": {
+              "type": "NumberLiteral",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 530,
+                  "line": 31,
+                  "column": 8
+                },
+                "end": {
+                  "offset": 531,
+                  "line": 31,
+                  "column": 9
+                }
+              },
+              "value": 1,
+              "raw": "1",
+              "currency": false
+            },
+            "alias": null
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 537,
+                    "line": 31,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 543,
+                    "line": 31,
+                    "column": 21
+                  }
+                },
+                "path": "tableA"
+              }
+            }
+          }
+        ],
+        "joins": [
+          {
+            "type": null,
+            "target": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 549,
+                      "line": 31,
+                      "column": 27
+                    },
+                    "end": {
+                      "offset": 555,
+                      "line": 31,
+                      "column": 33
+                    }
+                  },
+                  "path": "tableB"
+                }
+              }
+            },
+            "condition": {
+              "type": "BinaryExpression",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 559,
+                  "line": 31,
+                  "column": 37
+                },
+                "end": {
+                  "offset": 591,
+                  "line": 31,
+                  "column": 69
+                }
+              },
+              "operator": "=",
+              "left": {
+                "type": "BinaryExpression",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 559,
+                    "line": 31,
+                    "column": 37
+                  },
+                  "end": {
+                    "offset": 578,
+                    "line": 31,
+                    "column": 56
+                  }
+                },
+                "operator": "+",
+                "left": {
+                  "type": "Identifier",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 559,
+                      "line": 31,
+                      "column": 37
+                    },
+                    "end": {
+                      "offset": 565,
+                      "line": 31,
+                      "column": 43
+                    }
+                  },
+                  "name": "fieldA"
+                },
+                "right": {
+                  "type": "StringLiteral",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 568,
+                      "line": 31,
+                      "column": 46
+                    },
+                    "end": {
+                      "offset": 578,
+                      "line": 31,
+                      "column": 56
+                    }
+                  },
+                  "value": "constant"
+                }
+              },
+              "right": {
+                "type": "StringLiteral",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 581,
+                    "line": 31,
+                    "column": 59
+                  },
+                  "end": {
+                    "offset": 591,
+                    "line": 31,
+                    "column": 69
+                  }
+                },
+                "value": "constant"
+              }
+            }
+          }
+        ],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 537,
+                      "line": 31,
+                      "column": 15
+                    },
+                    "end": {
+                      "offset": 543,
+                      "line": 31,
+                      "column": 21
+                    }
+                  },
+                  "path": "tableA"
+                }
+              }
+            }
+          },
+          {
+            "kind": "join",
+            "value": {
+              "type": null,
+              "target": {
+                "name": {
+                  "database": null,
+                  "table": {
+                    "type": "Path",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 549,
+                        "line": 31,
+                        "column": 27
+                      },
+                      "end": {
+                        "offset": 555,
+                        "line": 31,
+                        "column": 33
+                      }
+                    },
+                    "path": "tableB"
+                  }
+                }
+              },
+              "condition": {
+                "type": "BinaryExpression",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 559,
+                    "line": 31,
+                    "column": 37
+                  },
+                  "end": {
+                    "offset": 591,
+                    "line": 31,
+                    "column": 69
+                  }
+                },
+                "operator": "=",
+                "left": {
+                  "type": "BinaryExpression",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 559,
+                      "line": 31,
+                      "column": 37
+                    },
+                    "end": {
+                      "offset": 578,
+                      "line": 31,
+                      "column": 56
+                    }
+                  },
+                  "operator": "+",
+                  "left": {
+                    "type": "Identifier",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 559,
+                        "line": 31,
+                        "column": 37
+                      },
+                      "end": {
+                        "offset": 565,
+                        "line": 31,
+                        "column": 43
+                      }
+                    },
+                    "name": "fieldA"
+                  },
+                  "right": {
+                    "type": "StringLiteral",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 568,
+                        "line": 31,
+                        "column": 46
+                      },
+                      "end": {
+                        "offset": 578,
+                        "line": 31,
+                        "column": 56
+                      }
+                    },
+                    "value": "constant"
+                  }
+                },
+                "right": {
+                  "type": "StringLiteral",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 581,
+                      "line": 31,
+                      "column": 59
+                    },
+                    "end": {
+                      "offset": 591,
+                      "line": 31,
+                      "column": 69
+                    }
+                  },
+                  "value": "constant"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 537,
+                    "line": 31,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 543,
+                    "line": 31,
+                    "column": 21
+                  }
+                },
+                "path": "tableA"
+              }
+            }
+          }
+        },
+        {
+          "kind": "join",
+          "value": {
+            "type": null,
+            "target": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 549,
+                      "line": 31,
+                      "column": 27
+                    },
+                    "end": {
+                      "offset": 555,
+                      "line": 31,
+                      "column": 33
+                    }
+                  },
+                  "path": "tableB"
+                }
+              }
+            },
+            "condition": {
+              "type": "BinaryExpression",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 559,
+                  "line": 31,
+                  "column": 37
+                },
+                "end": {
+                  "offset": 591,
+                  "line": 31,
+                  "column": 69
+                }
+              },
+              "operator": "=",
+              "left": {
+                "type": "BinaryExpression",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 559,
+                    "line": 31,
+                    "column": 37
+                  },
+                  "end": {
+                    "offset": 578,
+                    "line": 31,
+                    "column": 56
+                  }
+                },
+                "operator": "+",
+                "left": {
+                  "type": "Identifier",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 559,
+                      "line": 31,
+                      "column": 37
+                    },
+                    "end": {
+                      "offset": 565,
+                      "line": 31,
+                      "column": 43
+                    }
+                  },
+                  "name": "fieldA"
+                },
+                "right": {
+                  "type": "StringLiteral",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 568,
+                      "line": 31,
+                      "column": 46
+                    },
+                    "end": {
+                      "offset": 578,
+                      "line": 31,
+                      "column": 56
+                    }
+                  },
+                  "value": "constant"
+                }
+              },
+              "right": {
+                "type": "StringLiteral",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 581,
+                    "line": 31,
+                    "column": 59
+                  },
+                  "end": {
+                    "offset": 591,
+                    "line": 31,
+                    "column": 69
+                  }
+                },
+                "value": "constant"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": null,
+      "groupBy": null,
+      "having": null,
+      "orderBy": null,
+      "destination": null,
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 593,
+          "line": 32,
+          "column": 1
+        },
+        "end": {
+          "offset": 685,
+          "line": 32,
+          "column": 93
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectStar",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 600,
+                "line": 32,
+                "column": 8
+              },
+              "end": {
+                "offset": 601,
+                "line": 32,
+                "column": 9
+              }
+            }
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 607,
+                    "line": 32,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 617,
+                    "line": 32,
+                    "column": 25
+                  }
+                },
+                "path": "Trancursor"
+              }
+            }
+          },
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 619,
+                    "line": 32,
+                    "column": 27
+                  },
+                  "end": {
+                    "offset": 626,
+                    "line": 32,
+                    "column": 34
+                  }
+                },
+                "path": "delivcd"
+              }
+            }
+          }
+        ],
+        "joins": [
+          {
+            "type": "LEFT",
+            "target": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 643,
+                      "line": 32,
+                      "column": 51
+                    },
+                    "end": {
+                      "offset": 648,
+                      "line": 32,
+                      "column": 56
+                    }
+                  },
+                  "path": "codes"
+                }
+              }
+            },
+            "condition": {
+              "type": "BinaryExpression",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 652,
+                  "line": 32,
+                  "column": 60
+                },
+                "end": {
+                  "offset": 675,
+                  "line": 32,
+                  "column": 83
+                }
+              },
+              "operator": "=",
+              "left": {
+                "type": "BinaryExpression",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 652,
+                    "line": 32,
+                    "column": 60
+                  },
+                  "end": {
+                    "offset": 666,
+                    "line": 32,
+                    "column": 74
+                  }
+                },
+                "operator": "+",
+                "left": {
+                  "type": "Identifier",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 652,
+                      "line": 32,
+                      "column": 60
+                    },
+                    "end": {
+                      "offset": 657,
+                      "line": 32,
+                      "column": 65
+                    }
+                  },
+                  "name": "stnum"
+                },
+                "right": {
+                  "type": "StringLiteral",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 660,
+                      "line": 32,
+                      "column": 68
+                    },
+                    "end": {
+                      "offset": 666,
+                      "line": 32,
+                      "column": 74
+                    }
+                  },
+                  "value": "test"
+                }
+              },
+              "right": {
+                "type": "StringLiteral",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 669,
+                    "line": 32,
+                    "column": 77
+                  },
+                  "end": {
+                    "offset": 675,
+                    "line": 32,
+                    "column": 83
+                  }
+                },
+                "value": "test"
+              }
+            }
+          }
+        ],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 607,
+                      "line": 32,
+                      "column": 15
+                    },
+                    "end": {
+                      "offset": 617,
+                      "line": 32,
+                      "column": 25
+                    }
+                  },
+                  "path": "Trancursor"
+                }
+              }
+            }
+          },
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 619,
+                      "line": 32,
+                      "column": 27
+                    },
+                    "end": {
+                      "offset": 626,
+                      "line": 32,
+                      "column": 34
+                    }
+                  },
+                  "path": "delivcd"
+                }
+              }
+            }
+          },
+          {
+            "kind": "join",
+            "value": {
+              "type": "LEFT",
+              "target": {
+                "name": {
+                  "database": null,
+                  "table": {
+                    "type": "Path",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 643,
+                        "line": 32,
+                        "column": 51
+                      },
+                      "end": {
+                        "offset": 648,
+                        "line": 32,
+                        "column": 56
+                      }
+                    },
+                    "path": "codes"
+                  }
+                }
+              },
+              "condition": {
+                "type": "BinaryExpression",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 652,
+                    "line": 32,
+                    "column": 60
+                  },
+                  "end": {
+                    "offset": 675,
+                    "line": 32,
+                    "column": 83
+                  }
+                },
+                "operator": "=",
+                "left": {
+                  "type": "BinaryExpression",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 652,
+                      "line": 32,
+                      "column": 60
+                    },
+                    "end": {
+                      "offset": 666,
+                      "line": 32,
+                      "column": 74
+                    }
+                  },
+                  "operator": "+",
+                  "left": {
+                    "type": "Identifier",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 652,
+                        "line": 32,
+                        "column": 60
+                      },
+                      "end": {
+                        "offset": 657,
+                        "line": 32,
+                        "column": 65
+                      }
+                    },
+                    "name": "stnum"
+                  },
+                  "right": {
+                    "type": "StringLiteral",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 660,
+                        "line": 32,
+                        "column": 68
+                      },
+                      "end": {
+                        "offset": 666,
+                        "line": 32,
+                        "column": 74
+                      }
+                    },
+                    "value": "test"
+                  }
+                },
+                "right": {
+                  "type": "StringLiteral",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 669,
+                      "line": 32,
+                      "column": 77
+                    },
+                    "end": {
+                      "offset": 675,
+                      "line": 32,
+                      "column": 83
+                    }
+                  },
+                  "value": "test"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 607,
+                    "line": 32,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 617,
+                    "line": 32,
+                    "column": 25
+                  }
+                },
+                "path": "Trancursor"
+              }
+            }
+          }
+        },
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 619,
+                    "line": 32,
+                    "column": 27
+                  },
+                  "end": {
+                    "offset": 626,
+                    "line": 32,
+                    "column": 34
+                  }
+                },
+                "path": "delivcd"
+              }
+            }
+          }
+        },
+        {
+          "kind": "join",
+          "value": {
+            "type": "LEFT",
+            "target": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 643,
+                      "line": 32,
+                      "column": 51
+                    },
+                    "end": {
+                      "offset": 648,
+                      "line": 32,
+                      "column": 56
+                    }
+                  },
+                  "path": "codes"
+                }
+              }
+            },
+            "condition": {
+              "type": "BinaryExpression",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 652,
+                  "line": 32,
+                  "column": 60
+                },
+                "end": {
+                  "offset": 675,
+                  "line": 32,
+                  "column": 83
+                }
+              },
+              "operator": "=",
+              "left": {
+                "type": "BinaryExpression",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 652,
+                    "line": 32,
+                    "column": 60
+                  },
+                  "end": {
+                    "offset": 666,
+                    "line": 32,
+                    "column": 74
+                  }
+                },
+                "operator": "+",
+                "left": {
+                  "type": "Identifier",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 652,
+                      "line": 32,
+                      "column": 60
+                    },
+                    "end": {
+                      "offset": 657,
+                      "line": 32,
+                      "column": 65
+                    }
+                  },
+                  "name": "stnum"
+                },
+                "right": {
+                  "type": "StringLiteral",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 660,
+                      "line": 32,
+                      "column": 68
+                    },
+                    "end": {
+                      "offset": 666,
+                      "line": 32,
+                      "column": 74
+                    }
+                  },
+                  "value": "test"
+                }
+              },
+              "right": {
+                "type": "StringLiteral",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 669,
+                    "line": 32,
+                    "column": 77
+                  },
+                  "end": {
+                    "offset": 675,
+                    "line": 32,
+                    "column": 83
+                  }
+                },
+                "value": "test"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": {
+        "type": "BooleanLiteral",
+        "location": {
+          "source": "./test-files/select.prg",
+          "start": {
+            "offset": 682,
+            "line": 32,
+            "column": 90
+          },
+          "end": {
+            "offset": 685,
+            "line": 32,
+            "column": 93
+          }
+        },
+        "value": true
+      },
+      "groupBy": null,
+      "having": null,
+      "orderBy": null,
+      "destination": null,
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 687,
+          "line": 33,
+          "column": 1
+        },
+        "end": {
+          "offset": 776,
+          "line": 33,
+          "column": 90
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectStar",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 694,
+                "line": 33,
+                "column": 8
+              },
+              "end": {
+                "offset": 695,
+                "line": 33,
+                "column": 9
+              }
+            }
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 701,
+                    "line": 33,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 711,
+                    "line": 33,
+                    "column": 25
+                  }
+                },
+                "path": "Trancursor"
+              }
+            },
+            "alias": "t"
+          },
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 715,
+                    "line": 33,
+                    "column": 29
+                  },
+                  "end": {
+                    "offset": 722,
+                    "line": 33,
+                    "column": 36
+                  }
+                },
+                "path": "delivcd"
+              }
+            },
+            "alias": "d"
+          }
+        ],
+        "joins": [
+          {
+            "type": null,
+            "target": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 730,
+                      "line": 33,
+                      "column": 44
+                    },
+                    "end": {
+                      "offset": 735,
+                      "line": 33,
+                      "column": 49
+                    }
+                  },
+                  "path": "codes"
+                }
+              },
+              "alias": "c"
+            },
+            "condition": {
+              "type": "BinaryExpression",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 741,
+                  "line": 33,
+                  "column": 55
+                },
+                "end": {
+                  "offset": 766,
+                  "line": 33,
+                  "column": 80
+                }
+              },
+              "operator": "=",
+              "left": {
+                "type": "BinaryExpression",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 741,
+                    "line": 33,
+                    "column": 55
+                  },
+                  "end": {
+                    "offset": 757,
+                    "line": 33,
+                    "column": 71
+                  }
+                },
+                "operator": "+",
+                "left": {
+                  "type": "MemberExpression",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 741,
+                      "line": 33,
+                      "column": 55
+                    },
+                    "end": {
+                      "offset": 748,
+                      "line": 33,
+                      "column": 62
+                    }
+                  },
+                  "object": {
+                    "type": "Identifier",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 741,
+                        "line": 33,
+                        "column": 55
+                      },
+                      "end": {
+                        "offset": 742,
+                        "line": 33,
+                        "column": 56
+                      }
+                    },
+                    "name": "c"
+                  },
+                  "property": {
+                    "type": "Identifier",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 741,
+                        "line": 33,
+                        "column": 55
+                      },
+                      "end": {
+                        "offset": 748,
+                        "line": 33,
+                        "column": 62
+                      }
+                    },
+                    "name": "stnum"
+                  }
+                },
+                "right": {
+                  "type": "StringLiteral",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 751,
+                      "line": 33,
+                      "column": 65
+                    },
+                    "end": {
+                      "offset": 757,
+                      "line": 33,
+                      "column": 71
+                    }
+                  },
+                  "value": "test"
+                }
+              },
+              "right": {
+                "type": "StringLiteral",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 760,
+                    "line": 33,
+                    "column": 74
+                  },
+                  "end": {
+                    "offset": 766,
+                    "line": 33,
+                    "column": 80
+                  }
+                },
+                "value": "test"
+              }
+            }
+          }
+        ],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 701,
+                      "line": 33,
+                      "column": 15
+                    },
+                    "end": {
+                      "offset": 711,
+                      "line": 33,
+                      "column": 25
+                    }
+                  },
+                  "path": "Trancursor"
+                }
+              },
+              "alias": "t"
+            }
+          },
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 715,
+                      "line": 33,
+                      "column": 29
+                    },
+                    "end": {
+                      "offset": 722,
+                      "line": 33,
+                      "column": 36
+                    }
+                  },
+                  "path": "delivcd"
+                }
+              },
+              "alias": "d"
+            }
+          },
+          {
+            "kind": "join",
+            "value": {
+              "type": null,
+              "target": {
+                "name": {
+                  "database": null,
+                  "table": {
+                    "type": "Path",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 730,
+                        "line": 33,
+                        "column": 44
+                      },
+                      "end": {
+                        "offset": 735,
+                        "line": 33,
+                        "column": 49
+                      }
+                    },
+                    "path": "codes"
+                  }
+                },
+                "alias": "c"
+              },
+              "condition": {
+                "type": "BinaryExpression",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 741,
+                    "line": 33,
+                    "column": 55
+                  },
+                  "end": {
+                    "offset": 766,
+                    "line": 33,
+                    "column": 80
+                  }
+                },
+                "operator": "=",
+                "left": {
+                  "type": "BinaryExpression",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 741,
+                      "line": 33,
+                      "column": 55
+                    },
+                    "end": {
+                      "offset": 757,
+                      "line": 33,
+                      "column": 71
+                    }
+                  },
+                  "operator": "+",
+                  "left": {
+                    "type": "MemberExpression",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 741,
+                        "line": 33,
+                        "column": 55
+                      },
+                      "end": {
+                        "offset": 748,
+                        "line": 33,
+                        "column": 62
+                      }
+                    },
+                    "object": {
+                      "type": "Identifier",
+                      "location": {
+                        "source": "./test-files/select.prg",
+                        "start": {
+                          "offset": 741,
+                          "line": 33,
+                          "column": 55
+                        },
+                        "end": {
+                          "offset": 742,
+                          "line": 33,
+                          "column": 56
+                        }
+                      },
+                      "name": "c"
+                    },
+                    "property": {
+                      "type": "Identifier",
+                      "location": {
+                        "source": "./test-files/select.prg",
+                        "start": {
+                          "offset": 741,
+                          "line": 33,
+                          "column": 55
+                        },
+                        "end": {
+                          "offset": 748,
+                          "line": 33,
+                          "column": 62
+                        }
+                      },
+                      "name": "stnum"
+                    }
+                  },
+                  "right": {
+                    "type": "StringLiteral",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 751,
+                        "line": 33,
+                        "column": 65
+                      },
+                      "end": {
+                        "offset": 757,
+                        "line": 33,
+                        "column": 71
+                      }
+                    },
+                    "value": "test"
+                  }
+                },
+                "right": {
+                  "type": "StringLiteral",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 760,
+                      "line": 33,
+                      "column": 74
+                    },
+                    "end": {
+                      "offset": 766,
+                      "line": 33,
+                      "column": 80
+                    }
+                  },
+                  "value": "test"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 701,
+                    "line": 33,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 711,
+                    "line": 33,
+                    "column": 25
+                  }
+                },
+                "path": "Trancursor"
+              }
+            },
+            "alias": "t"
+          }
+        },
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 715,
+                    "line": 33,
+                    "column": 29
+                  },
+                  "end": {
+                    "offset": 722,
+                    "line": 33,
+                    "column": 36
+                  }
+                },
+                "path": "delivcd"
+              }
+            },
+            "alias": "d"
+          }
+        },
+        {
+          "kind": "join",
+          "value": {
+            "type": null,
+            "target": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 730,
+                      "line": 33,
+                      "column": 44
+                    },
+                    "end": {
+                      "offset": 735,
+                      "line": 33,
+                      "column": 49
+                    }
+                  },
+                  "path": "codes"
+                }
+              },
+              "alias": "c"
+            },
+            "condition": {
+              "type": "BinaryExpression",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 741,
+                  "line": 33,
+                  "column": 55
+                },
+                "end": {
+                  "offset": 766,
+                  "line": 33,
+                  "column": 80
+                }
+              },
+              "operator": "=",
+              "left": {
+                "type": "BinaryExpression",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 741,
+                    "line": 33,
+                    "column": 55
+                  },
+                  "end": {
+                    "offset": 757,
+                    "line": 33,
+                    "column": 71
+                  }
+                },
+                "operator": "+",
+                "left": {
+                  "type": "MemberExpression",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 741,
+                      "line": 33,
+                      "column": 55
+                    },
+                    "end": {
+                      "offset": 748,
+                      "line": 33,
+                      "column": 62
+                    }
+                  },
+                  "object": {
+                    "type": "Identifier",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 741,
+                        "line": 33,
+                        "column": 55
+                      },
+                      "end": {
+                        "offset": 742,
+                        "line": 33,
+                        "column": 56
+                      }
+                    },
+                    "name": "c"
+                  },
+                  "property": {
+                    "type": "Identifier",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 741,
+                        "line": 33,
+                        "column": 55
+                      },
+                      "end": {
+                        "offset": 748,
+                        "line": 33,
+                        "column": 62
+                      }
+                    },
+                    "name": "stnum"
+                  }
+                },
+                "right": {
+                  "type": "StringLiteral",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 751,
+                      "line": 33,
+                      "column": 65
+                    },
+                    "end": {
+                      "offset": 757,
+                      "line": 33,
+                      "column": 71
+                    }
+                  },
+                  "value": "test"
+                }
+              },
+              "right": {
+                "type": "StringLiteral",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 760,
+                    "line": 33,
+                    "column": 74
+                  },
+                  "end": {
+                    "offset": 766,
+                    "line": 33,
+                    "column": 80
+                  }
+                },
+                "value": "test"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": {
+        "type": "BooleanLiteral",
+        "location": {
+          "source": "./test-files/select.prg",
+          "start": {
+            "offset": 773,
+            "line": 33,
+            "column": 87
+          },
+          "end": {
+            "offset": 776,
+            "line": 33,
+            "column": 90
+          }
+        },
+        "value": true
+      },
+      "groupBy": null,
+      "having": null,
+      "orderBy": null,
+      "destination": null,
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 780,
+          "line": 35,
+          "column": 1
+        },
+        "end": {
+          "offset": 838,
+          "line": 35,
+          "column": 59
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectItem",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 787,
+                "line": 35,
+                "column": 8
+              },
+              "end": {
+                "offset": 823,
+                "line": 35,
+                "column": 44
+              }
+            },
+            "expression": {
+              "type": "CastExpression",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 787,
+                  "line": 35,
+                  "column": 8
+                },
+                "end": {
+                  "offset": 810,
+                  "line": 35,
+                  "column": 31
+                }
+              },
+              "expression": {
+                "type": "Identifier",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 792,
+                    "line": 35,
+                    "column": 13
+                  },
+                  "end": {
+                    "offset": 801,
+                    "line": 35,
+                    "column": 22
+                  }
+                },
+                "name": "fieldname"
+              },
+              "to": {
+                "kind": "typed",
+                "name": "m",
+                "size": {
+                  "type": "NumberLiteral",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 807,
+                      "line": 35,
+                      "column": 28
+                    },
+                    "end": {
+                      "offset": 808,
+                      "line": 35,
+                      "column": 29
+                    }
+                  },
+                  "value": 4,
+                  "raw": "4",
+                  "currency": false
+                },
+                "scale": null
+              }
+            },
+            "alias": "AliasName"
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 829,
+                    "line": 35,
+                    "column": 50
+                  },
+                  "end": {
+                    "offset": 838,
+                    "line": 35,
+                    "column": 59
+                  }
+                },
+                "path": "tablename"
+              }
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 829,
+                      "line": 35,
+                      "column": 50
+                    },
+                    "end": {
+                      "offset": 838,
+                      "line": 35,
+                      "column": 59
+                    }
+                  },
+                  "path": "tablename"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 829,
+                    "line": 35,
+                    "column": 50
+                  },
+                  "end": {
+                    "offset": 838,
+                    "line": 35,
+                    "column": 59
+                  }
+                },
+                "path": "tablename"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": null,
+      "groupBy": null,
+      "having": null,
+      "orderBy": null,
+      "destination": null,
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 842,
+          "line": 37,
+          "column": 1
+        },
+        "end": {
+          "offset": 920,
+          "line": 37,
+          "column": 79
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectStar",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 849,
+                "line": 37,
+                "column": 8
+              },
+              "end": {
+                "offset": 850,
+                "line": 37,
+                "column": 9
+              }
+            }
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 856,
+                    "line": 37,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 865,
+                    "line": 37,
+                    "column": 24
+                  }
+                },
+                "path": "tablename"
+              }
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 856,
+                      "line": 37,
+                      "column": 15
+                    },
+                    "end": {
+                      "offset": 865,
+                      "line": 37,
+                      "column": 24
+                    }
+                  },
+                  "path": "tablename"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 856,
+                    "line": 37,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 865,
+                    "line": 37,
+                    "column": 24
+                  }
+                },
+                "path": "tablename"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": null,
+      "groupBy": [
+        {
+          "type": "MemberExpression",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 875,
+              "line": 37,
+              "column": 34
+            },
+            "end": {
+              "offset": 891,
+              "line": 37,
+              "column": 50
+            }
+          },
+          "object": {
+            "type": "Identifier",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 875,
+                "line": 37,
+                "column": 34
+              },
+              "end": {
+                "offset": 884,
+                "line": 37,
+                "column": 43
+              }
+            },
+            "name": "tablename"
+          },
+          "property": {
+            "type": "Identifier",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 875,
+                "line": 37,
+                "column": 34
+              },
+              "end": {
+                "offset": 891,
+                "line": 37,
+                "column": 50
+              }
+            },
+            "name": "fieldA"
+          }
+        }
+      ],
+      "having": {
+        "type": "BooleanLiteral",
+        "location": {
+          "source": "./test-files/select.prg",
+          "start": {
+            "offset": 899,
+            "line": 37,
+            "column": 58
+          },
+          "end": {
+            "offset": 902,
+            "line": 37,
+            "column": 61
+          }
+        },
+        "value": true
+      },
+      "orderBy": null,
+      "destination": {
+        "kind": "CURSOR",
+        "name": {
+          "type": "Identifier",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 915,
+              "line": 37,
+              "column": 74
+            },
+            "end": {
+              "offset": 920,
+              "line": 37,
+              "column": 79
+            }
+          },
+          "name": "cname"
+        }
+      },
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 930,
+          "line": 40,
+          "column": 1
+        },
+        "end": {
+          "offset": 999,
+          "line": 40,
+          "column": 70
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectStar",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 937,
+                "line": 40,
+                "column": 8
+              },
+              "end": {
+                "offset": 938,
+                "line": 40,
+                "column": 9
+              }
+            }
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 944,
+                    "line": 40,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 953,
+                    "line": 40,
+                    "column": 24
+                  }
+                },
+                "path": "tablename"
+              }
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 944,
+                      "line": 40,
+                      "column": 15
+                    },
+                    "end": {
+                      "offset": 953,
+                      "line": 40,
+                      "column": 24
+                    }
+                  },
+                  "path": "tablename"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 944,
+                    "line": 40,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 953,
+                    "line": 40,
+                    "column": 24
+                  }
+                },
+                "path": "tablename"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": {
+        "type": "InExpression",
+        "location": {
+          "source": "./test-files/select.prg",
+          "start": {
+            "offset": 960,
+            "line": 40,
+            "column": 31
+          },
+          "end": {
+            "offset": 999,
+            "line": 40,
+            "column": 70
+          }
+        },
+        "left": {
+          "type": "Identifier",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 960,
+              "line": 40,
+              "column": 31
+            },
+            "end": {
+              "offset": 965,
+              "line": 40,
+              "column": 36
+            }
+          },
+          "name": "field"
+        },
+        "not": false,
+        "right": {
+          "type": "SelectStatement",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 970,
+              "line": 40,
+              "column": 41
+            },
+            "end": {
+              "offset": 998,
+              "line": 40,
+              "column": 69
+            }
+          },
+          "quantifier": null,
+          "top": null,
+          "list": [
+            null,
+            [
+              {
+                "type": "SelectItem",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 977,
+                    "line": 40,
+                    "column": 48
+                  },
+                  "end": {
+                    "offset": 982,
+                    "line": 40,
+                    "column": 53
+                  }
+                },
+                "expression": {
+                  "type": "Identifier",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 977,
+                      "line": 40,
+                      "column": 48
+                    },
+                    "end": {
+                      "offset": 982,
+                      "line": 40,
+                      "column": 53
+                    }
+                  },
+                  "name": "field"
+                },
+                "alias": null
+              }
+            ]
+          ],
+          "from": {
+            "force": false,
+            "tables": [
+              {
+                "name": {
+                  "database": null,
+                  "table": {
+                    "type": "Path",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 988,
+                        "line": 40,
+                        "column": 59
+                      },
+                      "end": {
+                        "offset": 998,
+                        "line": 40,
+                        "column": 69
+                      }
+                    },
+                    "path": "tablename2"
+                  }
+                }
+              }
+            ],
+            "joins": [],
+            "items": [
+              {
+                "kind": "table",
+                "value": {
+                  "name": {
+                    "database": null,
+                    "table": {
+                      "type": "Path",
+                      "location": {
+                        "source": "./test-files/select.prg",
+                        "start": {
+                          "offset": 988,
+                          "line": 40,
+                          "column": 59
+                        },
+                        "end": {
+                          "offset": 998,
+                          "line": 40,
+                          "column": 69
+                        }
+                      },
+                      "path": "tablename2"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "fromItems": [
+            {
+              "kind": "table",
+              "value": {
+                "name": {
+                  "database": null,
+                  "table": {
+                    "type": "Path",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 988,
+                        "line": 40,
+                        "column": 59
+                      },
+                      "end": {
+                        "offset": 998,
+                        "line": 40,
+                        "column": 69
+                      }
+                    },
+                    "path": "tablename2"
+                  }
+                }
+              }
+            }
+          ],
+          "withBuffering": null,
+          "where": null,
+          "groupBy": null,
+          "having": null,
+          "orderBy": null,
+          "destination": null,
+          "preference": null,
+          "noconsol": false,
+          "plain": false,
+          "nowait": false,
+          "unions": []
+        }
+      },
+      "groupBy": null,
+      "having": null,
+      "orderBy": null,
+      "destination": null,
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 1011,
+          "line": 42,
+          "column": 1
+        },
+        "end": {
+          "offset": 1084,
+          "line": 42,
+          "column": 74
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectStar",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 1018,
+                "line": 42,
+                "column": 8
+              },
+              "end": {
+                "offset": 1019,
+                "line": 42,
+                "column": 9
+              }
+            }
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1025,
+                    "line": 42,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 1034,
+                    "line": 42,
+                    "column": 24
+                  }
+                },
+                "path": "tablename"
+              }
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 1025,
+                      "line": 42,
+                      "column": 15
+                    },
+                    "end": {
+                      "offset": 1034,
+                      "line": 42,
+                      "column": 24
+                    }
+                  },
+                  "path": "tablename"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1025,
+                    "line": 42,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 1034,
+                    "line": 42,
+                    "column": 24
+                  }
+                },
+                "path": "tablename"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": {
+        "type": "InExpression",
+        "location": {
+          "source": "./test-files/select.prg",
+          "start": {
+            "offset": 1041,
+            "line": 42,
+            "column": 31
+          },
+          "end": {
+            "offset": 1084,
+            "line": 42,
+            "column": 74
+          }
+        },
+        "left": {
+          "type": "Identifier",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 1041,
+              "line": 42,
+              "column": 31
+            },
+            "end": {
+              "offset": 1046,
+              "line": 42,
+              "column": 36
+            }
+          },
+          "name": "field"
+        },
+        "not": true,
+        "right": {
+          "type": "SelectStatement",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 1055,
+              "line": 42,
+              "column": 45
+            },
+            "end": {
+              "offset": 1083,
+              "line": 42,
+              "column": 73
+            }
+          },
+          "quantifier": null,
+          "top": null,
+          "list": [
+            null,
+            [
+              {
+                "type": "SelectItem",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1062,
+                    "line": 42,
+                    "column": 52
+                  },
+                  "end": {
+                    "offset": 1067,
+                    "line": 42,
+                    "column": 57
+                  }
+                },
+                "expression": {
+                  "type": "Identifier",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 1062,
+                      "line": 42,
+                      "column": 52
+                    },
+                    "end": {
+                      "offset": 1067,
+                      "line": 42,
+                      "column": 57
+                    }
+                  },
+                  "name": "field"
+                },
+                "alias": null
+              }
+            ]
+          ],
+          "from": {
+            "force": false,
+            "tables": [
+              {
+                "name": {
+                  "database": null,
+                  "table": {
+                    "type": "Path",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 1073,
+                        "line": 42,
+                        "column": 63
+                      },
+                      "end": {
+                        "offset": 1083,
+                        "line": 42,
+                        "column": 73
+                      }
+                    },
+                    "path": "tablename2"
+                  }
+                }
+              }
+            ],
+            "joins": [],
+            "items": [
+              {
+                "kind": "table",
+                "value": {
+                  "name": {
+                    "database": null,
+                    "table": {
+                      "type": "Path",
+                      "location": {
+                        "source": "./test-files/select.prg",
+                        "start": {
+                          "offset": 1073,
+                          "line": 42,
+                          "column": 63
+                        },
+                        "end": {
+                          "offset": 1083,
+                          "line": 42,
+                          "column": 73
+                        }
+                      },
+                      "path": "tablename2"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "fromItems": [
+            {
+              "kind": "table",
+              "value": {
+                "name": {
+                  "database": null,
+                  "table": {
+                    "type": "Path",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 1073,
+                        "line": 42,
+                        "column": 63
+                      },
+                      "end": {
+                        "offset": 1083,
+                        "line": 42,
+                        "column": 73
+                      }
+                    },
+                    "path": "tablename2"
+                  }
+                }
+              }
+            }
+          ],
+          "withBuffering": null,
+          "where": null,
+          "groupBy": null,
+          "having": null,
+          "orderBy": null,
+          "destination": null,
+          "preference": null,
+          "noconsol": false,
+          "plain": false,
+          "nowait": false,
+          "unions": []
+        }
+      },
+      "groupBy": null,
+      "having": null,
+      "orderBy": null,
+      "destination": null,
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 1096,
+          "line": 44,
+          "column": 1
+        },
+        "end": {
+          "offset": 1163,
+          "line": 44,
+          "column": 68
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectStar",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 1103,
+                "line": 44,
+                "column": 8
+              },
+              "end": {
+                "offset": 1104,
+                "line": 44,
+                "column": 9
+              }
+            }
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1110,
+                    "line": 44,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 1119,
+                    "line": 44,
+                    "column": 24
+                  }
+                },
+                "path": "tablename"
+              }
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 1110,
+                      "line": 44,
+                      "column": 15
+                    },
+                    "end": {
+                      "offset": 1119,
+                      "line": 44,
+                      "column": 24
+                    }
+                  },
+                  "path": "tablename"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1110,
+                    "line": 44,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 1119,
+                    "line": 44,
+                    "column": 24
+                  }
+                },
+                "path": "tablename"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": {
+        "type": "ExistsExpression",
+        "location": {
+          "source": "./test-files/select.prg",
+          "start": {
+            "offset": 1126,
+            "line": 44,
+            "column": 31
+          },
+          "end": {
+            "offset": 1163,
+            "line": 44,
+            "column": 68
+          }
+        },
+        "argument": {
+          "type": "SelectStatement",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 1134,
+              "line": 44,
+              "column": 39
+            },
+            "end": {
+              "offset": 1162,
+              "line": 44,
+              "column": 67
+            }
+          },
+          "quantifier": null,
+          "top": null,
+          "list": [
+            null,
+            [
+              {
+                "type": "SelectItem",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1141,
+                    "line": 44,
+                    "column": 46
+                  },
+                  "end": {
+                    "offset": 1146,
+                    "line": 44,
+                    "column": 51
+                  }
+                },
+                "expression": {
+                  "type": "Identifier",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 1141,
+                      "line": 44,
+                      "column": 46
+                    },
+                    "end": {
+                      "offset": 1146,
+                      "line": 44,
+                      "column": 51
+                    }
+                  },
+                  "name": "field"
+                },
+                "alias": null
+              }
+            ]
+          ],
+          "from": {
+            "force": false,
+            "tables": [
+              {
+                "name": {
+                  "database": null,
+                  "table": {
+                    "type": "Path",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 1152,
+                        "line": 44,
+                        "column": 57
+                      },
+                      "end": {
+                        "offset": 1162,
+                        "line": 44,
+                        "column": 67
+                      }
+                    },
+                    "path": "tablename2"
+                  }
+                }
+              }
+            ],
+            "joins": [],
+            "items": [
+              {
+                "kind": "table",
+                "value": {
+                  "name": {
+                    "database": null,
+                    "table": {
+                      "type": "Path",
+                      "location": {
+                        "source": "./test-files/select.prg",
+                        "start": {
+                          "offset": 1152,
+                          "line": 44,
+                          "column": 57
+                        },
+                        "end": {
+                          "offset": 1162,
+                          "line": 44,
+                          "column": 67
+                        }
+                      },
+                      "path": "tablename2"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "fromItems": [
+            {
+              "kind": "table",
+              "value": {
+                "name": {
+                  "database": null,
+                  "table": {
+                    "type": "Path",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 1152,
+                        "line": 44,
+                        "column": 57
+                      },
+                      "end": {
+                        "offset": 1162,
+                        "line": 44,
+                        "column": 67
+                      }
+                    },
+                    "path": "tablename2"
+                  }
+                }
+              }
+            }
+          ],
+          "withBuffering": null,
+          "where": null,
+          "groupBy": null,
+          "having": null,
+          "orderBy": null,
+          "destination": null,
+          "preference": null,
+          "noconsol": false,
+          "plain": false,
+          "nowait": false,
+          "unions": []
+        }
+      },
+      "groupBy": null,
+      "having": null,
+      "orderBy": null,
+      "destination": null,
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 1196,
+          "line": 47,
+          "column": 1
+        },
+        "end": {
+          "offset": 1268,
+          "line": 50,
+          "column": 14
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectItem",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 1203,
+                "line": 47,
+                "column": 8
+              },
+              "end": {
+                "offset": 1208,
+                "line": 47,
+                "column": 13
+              }
+            },
+            "expression": {
+              "type": "Identifier",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 1203,
+                  "line": 47,
+                  "column": 8
+                },
+                "end": {
+                  "offset": 1208,
+                  "line": 47,
+                  "column": 13
+                }
+              },
+              "name": "prop1"
+            },
+            "alias": null
+          },
+          {
+            "type": "SelectItem",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 1210,
+                "line": 47,
+                "column": 15
+              },
+              "end": {
+                "offset": 1215,
+                "line": 47,
+                "column": 20
+              }
+            },
+            "expression": {
+              "type": "Identifier",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 1210,
+                  "line": 47,
+                  "column": 15
+                },
+                "end": {
+                  "offset": 1215,
+                  "line": 47,
+                  "column": 20
+                }
+              },
+              "name": "prop2"
+            },
+            "alias": null
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1224,
+                    "line": 48,
+                    "column": 6
+                  },
+                  "end": {
+                    "offset": 1230,
+                    "line": 48,
+                    "column": 12
+                  }
+                },
+                "path": "tableA"
+              }
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 1224,
+                      "line": 48,
+                      "column": 6
+                    },
+                    "end": {
+                      "offset": 1230,
+                      "line": 48,
+                      "column": 12
+                    }
+                  },
+                  "path": "tableA"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1224,
+                    "line": 48,
+                    "column": 6
+                  },
+                  "end": {
+                    "offset": 1230,
+                    "line": 48,
+                    "column": 12
+                  }
+                },
+                "path": "tableA"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": null,
+      "groupBy": [
+        {
+          "type": "NumberLiteral",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 1264,
+              "line": 50,
+              "column": 10
+            },
+            "end": {
+              "offset": 1265,
+              "line": 50,
+              "column": 11
+            }
+          },
+          "value": 1,
+          "raw": "1",
+          "currency": false
+        },
+        {
+          "type": "NumberLiteral",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 1267,
+              "line": 50,
+              "column": 13
+            },
+            "end": {
+              "offset": 1268,
+              "line": 50,
+              "column": 14
+            }
+          },
+          "value": 2,
+          "raw": "2",
+          "currency": false
+        }
+      ],
+      "having": null,
+      "orderBy": null,
+      "destination": {
+        "kind": "CURSOR",
+        "name": {
+          "type": "Identifier",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 1246,
+              "line": 49,
+              "column": 13
+            },
+            "end": {
+              "offset": 1251,
+              "line": 49,
+              "column": 18
+            }
+          },
+          "name": "cursA"
+        }
+      },
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 1325,
+          "line": 53,
+          "column": 1
+        },
+        "end": {
+          "offset": 1395,
+          "line": 56,
+          "column": 16
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectItem",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 1332,
+                "line": 53,
+                "column": 8
+              },
+              "end": {
+                "offset": 1337,
+                "line": 53,
+                "column": 13
+              }
+            },
+            "expression": {
+              "type": "Identifier",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 1332,
+                  "line": 53,
+                  "column": 8
+                },
+                "end": {
+                  "offset": 1337,
+                  "line": 53,
+                  "column": 13
+                }
+              },
+              "name": "prop1"
+            },
+            "alias": null
+          },
+          {
+            "type": "SelectItem",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 1339,
+                "line": 53,
+                "column": 15
+              },
+              "end": {
+                "offset": 1344,
+                "line": 53,
+                "column": 20
+              }
+            },
+            "expression": {
+              "type": "Identifier",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 1339,
+                  "line": 53,
+                  "column": 15
+                },
+                "end": {
+                  "offset": 1344,
+                  "line": 53,
+                  "column": 20
+                }
+              },
+              "name": "prop2"
+            },
+            "alias": null
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1353,
+                    "line": 54,
+                    "column": 6
+                  },
+                  "end": {
+                    "offset": 1359,
+                    "line": 54,
+                    "column": 12
+                  }
+                },
+                "path": "tableA"
+              }
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 1353,
+                      "line": 54,
+                      "column": 6
+                    },
+                    "end": {
+                      "offset": 1359,
+                      "line": 54,
+                      "column": 12
+                    }
+                  },
+                  "path": "tableA"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1353,
+                    "line": 54,
+                    "column": 6
+                  },
+                  "end": {
+                    "offset": 1359,
+                    "line": 54,
+                    "column": 12
+                  }
+                },
+                "path": "tableA"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": {
+        "type": "BinaryExpression",
+        "location": {
+          "source": "./test-files/select.prg",
+          "start": {
+            "offset": 1386,
+            "line": 56,
+            "column": 7
+          },
+          "end": {
+            "offset": 1395,
+            "line": 56,
+            "column": 16
+          }
+        },
+        "operator": ">",
+        "left": {
+          "type": "Identifier",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 1386,
+              "line": 56,
+              "column": 7
+            },
+            "end": {
+              "offset": 1391,
+              "line": 56,
+              "column": 12
+            }
+          },
+          "name": "prop1"
+        },
+        "right": {
+          "type": "NumberLiteral",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 1394,
+              "line": 56,
+              "column": 15
+            },
+            "end": {
+              "offset": 1395,
+              "line": 56,
+              "column": 16
+            }
+          },
+          "value": 0,
+          "raw": "0",
+          "currency": false
+        }
+      },
+      "groupBy": [
+        {
+          "type": "NumberLiteral",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 1372,
+              "line": 55,
+              "column": 10
+            },
+            "end": {
+              "offset": 1373,
+              "line": 55,
+              "column": 11
+            }
+          },
+          "value": 1,
+          "raw": "1",
+          "currency": false
+        },
+        {
+          "type": "NumberLiteral",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 1375,
+              "line": 55,
+              "column": 13
+            },
+            "end": {
+              "offset": 1376,
+              "line": 55,
+              "column": 14
+            }
+          },
+          "value": 2,
+          "raw": "2",
+          "currency": false
+        }
+      ],
+      "having": null,
+      "orderBy": null,
+      "destination": null,
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 1432,
+          "line": 59,
+          "column": 1
+        },
+        "end": {
+          "offset": 1490,
+          "line": 59,
+          "column": 59
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectStar",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 1439,
+                "line": 59,
+                "column": 8
+              },
+              "end": {
+                "offset": 1440,
+                "line": 59,
+                "column": 9
+              }
+            }
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1446,
+                    "line": 59,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 1461,
+                    "line": 59,
+                    "column": 30
+                  }
+                },
+                "path": "TempProddetFile"
+              }
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 1446,
+                      "line": 59,
+                      "column": 15
+                    },
+                    "end": {
+                      "offset": 1461,
+                      "line": 59,
+                      "column": 30
+                    }
+                  },
+                  "path": "TempProddetFile"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1446,
+                    "line": 59,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 1461,
+                    "line": 59,
+                    "column": 30
+                  }
+                },
+                "path": "TempProddetFile"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": null,
+      "groupBy": null,
+      "having": null,
+      "orderBy": null,
+      "destination": {
+        "kind": "TABLE",
+        "name": {
+          "type": "Path",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 1473,
+              "line": 59,
+              "column": 42
+            },
+            "end": {
+              "offset": 1490,
+              "line": 59,
+              "column": 59
+            }
+          },
+          "path": "dirname\\tablename"
+        }
+      },
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 1494,
+          "line": 61,
+          "column": 1
+        },
+        "end": {
+          "offset": 1668,
+          "line": 67,
+          "column": 15
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectStar",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 1501,
+                "line": 61,
+                "column": 8
+              },
+              "end": {
+                "offset": 1502,
+                "line": 61,
+                "column": 9
+              }
+            }
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1511,
+                    "line": 62,
+                    "column": 6
+                  },
+                  "end": {
+                    "offset": 1521,
+                    "line": 62,
+                    "column": 16
+                  }
+                },
+                "path": "workpoints"
+              }
+            }
+          },
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1522,
+                    "line": 62,
+                    "column": 17
+                  },
+                  "end": {
+                    "offset": 1528,
+                    "line": 62,
+                    "column": 23
+                  }
+                },
+                "path": "tableB"
+              }
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 1511,
+                      "line": 62,
+                      "column": 6
+                    },
+                    "end": {
+                      "offset": 1521,
+                      "line": 62,
+                      "column": 16
+                    }
+                  },
+                  "path": "workpoints"
+                }
+              }
+            }
+          },
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 1522,
+                      "line": 62,
+                      "column": 17
+                    },
+                    "end": {
+                      "offset": 1528,
+                      "line": 62,
+                      "column": 23
+                    }
+                  },
+                  "path": "tableB"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1511,
+                    "line": 62,
+                    "column": 6
+                  },
+                  "end": {
+                    "offset": 1521,
+                    "line": 62,
+                    "column": 16
+                  }
+                },
+                "path": "workpoints"
+              }
+            }
+          }
+        },
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1522,
+                    "line": 62,
+                    "column": 17
+                  },
+                  "end": {
+                    "offset": 1528,
+                    "line": 62,
+                    "column": 23
+                  }
+                },
+                "path": "tableB"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": {
+        "type": "LogicalExpression",
+        "location": {
+          "source": "./test-files/select.prg",
+          "start": {
+            "offset": 1538,
+            "line": 63,
+            "column": 7
+          },
+          "end": {
+            "offset": 1594,
+            "line": 64,
+            "column": 34
+          }
+        },
+        "operator": "AND",
+        "left": {
+          "type": "MemberExpression",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 1538,
+              "line": 63,
+              "column": 7
+            },
+            "end": {
+              "offset": 1557,
+              "line": 63,
+              "column": 26
+            }
+          },
+          "object": {
+            "type": "Identifier",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 1538,
+                "line": 63,
+                "column": 7
+              },
+              "end": {
+                "offset": 1548,
+                "line": 63,
+                "column": 17
+              }
+            },
+            "name": "workpoints"
+          },
+          "property": {
+            "type": "Identifier",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 1538,
+                "line": 63,
+                "column": 7
+              },
+              "end": {
+                "offset": 1557,
+                "line": 63,
+                "column": 26
+              }
+            },
+            "name": "serv_sol"
+          }
+        },
+        "right": {
+          "type": "BinaryExpression",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 1571,
+              "line": 64,
+              "column": 11
+            },
+            "end": {
+              "offset": 1594,
+              "line": 64,
+              "column": 34
+            }
+          },
+          "operator": "=",
+          "left": {
+            "type": "MemberExpression",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 1571,
+                "line": 64,
+                "column": 11
+              },
+              "end": {
+                "offset": 1584,
+                "line": 64,
+                "column": 24
+              }
+            },
+            "object": {
+              "type": "Identifier",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 1571,
+                  "line": 64,
+                  "column": 11
+                },
+                "end": {
+                  "offset": 1581,
+                  "line": 64,
+                  "column": 21
+                }
+              },
+              "name": "workpoints"
+            },
+            "property": {
+              "type": "Identifier",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 1571,
+                  "line": 64,
+                  "column": 11
+                },
+                "end": {
+                  "offset": 1584,
+                  "line": 64,
+                  "column": 24
+                }
+              },
+              "name": "id"
+            }
+          },
+          "right": {
+            "type": "MemberExpression",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 1585,
+                "line": 64,
+                "column": 25
+              },
+              "end": {
+                "offset": 1594,
+                "line": 64,
+                "column": 34
+              }
+            },
+            "object": {
+              "type": "Identifier",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 1585,
+                  "line": 64,
+                  "column": 25
+                },
+                "end": {
+                  "offset": 1591,
+                  "line": 64,
+                  "column": 31
+                }
+              },
+              "name": "tableB"
+            },
+            "property": {
+              "type": "Identifier",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 1585,
+                  "line": 64,
+                  "column": 25
+                },
+                "end": {
+                  "offset": 1594,
+                  "line": 64,
+                  "column": 34
+                }
+              },
+              "name": "id"
+            }
+          }
+        }
+      },
+      "groupBy": [
+        {
+          "type": "NumberLiteral",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 1607,
+              "line": 65,
+              "column": 10
+            },
+            "end": {
+              "offset": 1608,
+              "line": 65,
+              "column": 11
+            }
+          },
+          "value": 2,
+          "raw": "2",
+          "currency": false
+        }
+      ],
+      "having": {
+        "type": "Identifier",
+        "location": {
+          "source": "./test-files/select.prg",
+          "start": {
+            "offset": 1661,
+            "line": 67,
+            "column": 8
+          },
+          "end": {
+            "offset": 1668,
+            "line": 67,
+            "column": 15
+          }
+        },
+        "name": "current"
+      },
+      "orderBy": null,
+      "destination": {
+        "kind": "CURSOR",
+        "name": {
+          "type": "Identifier",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 1624,
+              "line": 66,
+              "column": 13
+            },
+            "end": {
+              "offset": 1631,
+              "line": 66,
+              "column": 20
+            }
+          },
+          "name": "tk_comp"
+        }
+      },
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 1705,
+          "line": 70,
+          "column": 1
+        },
+        "end": {
+          "offset": 1803,
+          "line": 73,
+          "column": 56
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectStar",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 1712,
+                "line": 70,
+                "column": 8
+              },
+              "end": {
+                "offset": 1713,
+                "line": 70,
+                "column": 9
+              }
+            }
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1722,
+                    "line": 71,
+                    "column": 6
+                  },
+                  "end": {
+                    "offset": 1730,
+                    "line": 71,
+                    "column": 14
+                  }
+                },
+                "path": "emailtmp"
+              }
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 1722,
+                      "line": 71,
+                      "column": 6
+                    },
+                    "end": {
+                      "offset": 1730,
+                      "line": 71,
+                      "column": 14
+                    }
+                  },
+                  "path": "emailtmp"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1722,
+                    "line": 71,
+                    "column": 6
+                  },
+                  "end": {
+                    "offset": 1730,
+                    "line": 71,
+                    "column": 14
+                  }
+                },
+                "path": "emailtmp"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": {
+        "type": "Identifier",
+        "location": {
+          "source": "./test-files/select.prg",
+          "start": {
+            "offset": 1740,
+            "line": 72,
+            "column": 7
+          },
+          "end": {
+            "offset": 1744,
+            "line": 72,
+            "column": 11
+          }
+        },
+        "name": "test"
+      },
+      "groupBy": null,
+      "having": null,
+      "orderBy": null,
+      "destination": {
+        "kind": "CURSOR",
+        "name": {
+          "type": "BinaryExpression",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 1760,
+              "line": 73,
+              "column": 13
+            },
+            "end": {
+              "offset": 1803,
+              "line": 73,
+              "column": 56
+            }
+          },
+          "operator": "+",
+          "left": {
+            "type": "StringLiteral",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 1760,
+                "line": 73,
+                "column": 13
+              },
+              "end": {
+                "offset": 1778,
+                "line": 73,
+                "column": 31
+              }
+            },
+            "value": "MessageTemplates"
+          },
+          "right": {
+            "type": "CallExpression",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 1781,
+                "line": 73,
+                "column": 34
+              },
+              "end": {
+                "offset": 1803,
+                "line": 73,
+                "column": 56
+              }
+            },
+            "callee": {
+              "type": "Identifier",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 1781,
+                  "line": 73,
+                  "column": 34
+                },
+                "end": {
+                  "offset": 1788,
+                  "line": 73,
+                  "column": 41
+                }
+              },
+              "name": "ALLTRIM"
+            },
+            "arguments": [
+              {
+                "type": "MemberExpression",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1789,
+                    "line": 73,
+                    "column": 42
+                  },
+                  "end": {
+                    "offset": 1802,
+                    "line": 73,
+                    "column": 55
+                  }
+                },
+                "object": {
+                  "type": "Identifier",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 1789,
+                      "line": 73,
+                      "column": 42
+                    },
+                    "end": {
+                      "offset": 1790,
+                      "line": 73,
+                      "column": 43
+                    }
+                  },
+                  "name": "m"
+                },
+                "property": {
+                  "type": "Identifier",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 1789,
+                      "line": 73,
+                      "column": 42
+                    },
+                    "end": {
+                      "offset": 1802,
+                      "line": 73,
+                      "column": 55
+                    }
+                  },
+                  "name": "ProcessUser"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 1848,
+          "line": 76,
+          "column": 1
+        },
+        "end": {
+          "offset": 1886,
+          "line": 76,
+          "column": 39
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectStar",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 1855,
+                "line": 76,
+                "column": 8
+              },
+              "end": {
+                "offset": 1856,
+                "line": 76,
+                "column": 9
+              }
+            }
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1862,
+                    "line": 76,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 1868,
+                    "line": 76,
+                    "column": 21
+                  }
+                },
+                "path": "tableA"
+              }
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 1862,
+                      "line": 76,
+                      "column": 15
+                    },
+                    "end": {
+                      "offset": 1868,
+                      "line": 76,
+                      "column": 21
+                    }
+                  },
+                  "path": "tableA"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1862,
+                    "line": 76,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 1868,
+                    "line": 76,
+                    "column": 21
+                  }
+                },
+                "path": "tableA"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": {
+        "type": "LogicalExpression",
+        "location": {
+          "source": "./test-files/select.prg",
+          "start": {
+            "offset": 1875,
+            "line": 76,
+            "column": 28
+          },
+          "end": {
+            "offset": 1886,
+            "line": 76,
+            "column": 39
+          }
+        },
+        "operator": "OR",
+        "left": {
+          "type": "BooleanLiteral",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 1875,
+              "line": 76,
+              "column": 28
+            },
+            "end": {
+              "offset": 1878,
+              "line": 76,
+              "column": 31
+            }
+          },
+          "value": false
+        },
+        "right": {
+          "type": "Identifier",
+          "location": {
+            "source": "./test-files/select.prg",
+            "start": {
+              "offset": 1882,
+              "line": 76,
+              "column": 35
+            },
+            "end": {
+              "offset": 1886,
+              "line": 76,
+              "column": 39
+            }
+          },
+          "name": "next"
+        }
+      },
+      "groupBy": null,
+      "having": null,
+      "orderBy": null,
+      "destination": null,
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 1890,
+          "line": 78,
+          "column": 1
+        },
+        "end": {
+          "offset": 1929,
+          "line": 79,
+          "column": 1
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectStar",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 1897,
+                "line": 78,
+                "column": 8
+              },
+              "end": {
+                "offset": 1898,
+                "line": 78,
+                "column": 9
+              }
+            }
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "type": "CallExpression",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 1905,
+                  "line": 78,
+                  "column": 16
+                },
+                "end": {
+                  "offset": 1924,
+                  "line": 78,
+                  "column": 35
+                }
+              },
+              "callee": {
+                "type": "Identifier",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1905,
+                    "line": 78,
+                    "column": 16
+                  },
+                  "end": {
+                    "offset": 1913,
+                    "line": 78,
+                    "column": 24
+                  }
+                },
+                "name": "JUSTSTEM"
+              },
+              "arguments": [
+                {
+                  "type": "MemberExpression",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 1914,
+                      "line": 78,
+                      "column": 25
+                    },
+                    "end": {
+                      "offset": 1923,
+                      "line": 78,
+                      "column": 34
+                    }
+                  },
+                  "object": {
+                    "type": "Identifier",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 1914,
+                        "line": 78,
+                        "column": 25
+                      },
+                      "end": {
+                        "offset": 1915,
+                        "line": 78,
+                        "column": 26
+                      }
+                    },
+                    "name": "m"
+                  },
+                  "property": {
+                    "type": "Identifier",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 1914,
+                        "line": 78,
+                        "column": 25
+                      },
+                      "end": {
+                        "offset": 1923,
+                        "line": 78,
+                        "column": 34
+                      }
+                    },
+                    "name": "varname"
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "type": "CallExpression",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1905,
+                    "line": 78,
+                    "column": 16
+                  },
+                  "end": {
+                    "offset": 1924,
+                    "line": 78,
+                    "column": 35
+                  }
+                },
+                "callee": {
+                  "type": "Identifier",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 1905,
+                      "line": 78,
+                      "column": 16
+                    },
+                    "end": {
+                      "offset": 1913,
+                      "line": 78,
+                      "column": 24
+                    }
+                  },
+                  "name": "JUSTSTEM"
+                },
+                "arguments": [
+                  {
+                    "type": "MemberExpression",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 1914,
+                        "line": 78,
+                        "column": 25
+                      },
+                      "end": {
+                        "offset": 1923,
+                        "line": 78,
+                        "column": 34
+                      }
+                    },
+                    "object": {
+                      "type": "Identifier",
+                      "location": {
+                        "source": "./test-files/select.prg",
+                        "start": {
+                          "offset": 1914,
+                          "line": 78,
+                          "column": 25
+                        },
+                        "end": {
+                          "offset": 1915,
+                          "line": 78,
+                          "column": 26
+                        }
+                      },
+                      "name": "m"
+                    },
+                    "property": {
+                      "type": "Identifier",
+                      "location": {
+                        "source": "./test-files/select.prg",
+                        "start": {
+                          "offset": 1914,
+                          "line": 78,
+                          "column": 25
+                        },
+                        "end": {
+                          "offset": 1923,
+                          "line": 78,
+                          "column": 34
+                        }
+                      },
+                      "name": "varname"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "type": "CallExpression",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 1905,
+                  "line": 78,
+                  "column": 16
+                },
+                "end": {
+                  "offset": 1924,
+                  "line": 78,
+                  "column": 35
+                }
+              },
+              "callee": {
+                "type": "Identifier",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1905,
+                    "line": 78,
+                    "column": 16
+                  },
+                  "end": {
+                    "offset": 1913,
+                    "line": 78,
+                    "column": 24
+                  }
+                },
+                "name": "JUSTSTEM"
+              },
+              "arguments": [
+                {
+                  "type": "MemberExpression",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 1914,
+                      "line": 78,
+                      "column": 25
+                    },
+                    "end": {
+                      "offset": 1923,
+                      "line": 78,
+                      "column": 34
+                    }
+                  },
+                  "object": {
+                    "type": "Identifier",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 1914,
+                        "line": 78,
+                        "column": 25
+                      },
+                      "end": {
+                        "offset": 1915,
+                        "line": 78,
+                        "column": 26
+                      }
+                    },
+                    "name": "m"
+                  },
+                  "property": {
+                    "type": "Identifier",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 1914,
+                        "line": 78,
+                        "column": 25
+                      },
+                      "end": {
+                        "offset": 1923,
+                        "line": 78,
+                        "column": 34
+                      }
+                    },
+                    "name": "varname"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": null,
+      "groupBy": null,
+      "having": null,
+      "orderBy": null,
+      "destination": null,
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 1945,
+          "line": 81,
+          "column": 1
+        },
+        "end": {
+          "offset": 1970,
+          "line": 81,
+          "column": 26
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectStar",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 1952,
+                "line": 81,
+                "column": 8
+              },
+              "end": {
+                "offset": 1953,
+                "line": 81,
+                "column": 9
+              }
+            }
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1959,
+                    "line": 81,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 1970,
+                    "line": 81,
+                    "column": 26
+                  }
+                },
+                "path": "data/tableA"
+              }
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 1959,
+                      "line": 81,
+                      "column": 15
+                    },
+                    "end": {
+                      "offset": 1970,
+                      "line": 81,
+                      "column": 26
+                    }
+                  },
+                  "path": "data/tableA"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1959,
+                    "line": 81,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 1970,
+                    "line": 81,
+                    "column": 26
+                  }
+                },
+                "path": "data/tableA"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": null,
+      "groupBy": null,
+      "having": null,
+      "orderBy": null,
+      "destination": null,
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 1972,
+          "line": 82,
+          "column": 1
+        },
+        "end": {
+          "offset": 1997,
+          "line": 82,
+          "column": 26
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectStar",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 1979,
+                "line": 82,
+                "column": 8
+              },
+              "end": {
+                "offset": 1980,
+                "line": 82,
+                "column": 9
+              }
+            }
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1986,
+                    "line": 82,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 1997,
+                    "line": 82,
+                    "column": 26
+                  }
+                },
+                "path": "data\\tableA"
+              }
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 1986,
+                      "line": 82,
+                      "column": 15
+                    },
+                    "end": {
+                      "offset": 1997,
+                      "line": 82,
+                      "column": 26
+                    }
+                  },
+                  "path": "data\\tableA"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 1986,
+                    "line": 82,
+                    "column": 15
+                  },
+                  "end": {
+                    "offset": 1997,
+                    "line": 82,
+                    "column": 26
+                  }
+                },
+                "path": "data\\tableA"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": null,
+      "groupBy": null,
+      "having": null,
+      "orderBy": null,
+      "destination": null,
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 2019,
+          "line": 85,
+          "column": 1
+        },
+        "end": {
+          "offset": 2033,
+          "line": 85,
+          "column": 15
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectItem",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 2026,
+                "line": 85,
+                "column": 8
+              },
+              "end": {
+                "offset": 2033,
+                "line": 85,
+                "column": 15
+              }
+            },
+            "expression": {
+              "type": "Identifier",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 2026,
+                  "line": 85,
+                  "column": 8
+                },
+                "end": {
+                  "offset": 2033,
+                  "line": 85,
+                  "column": 15
+                }
+              },
+              "name": "proddet"
+            },
+            "alias": null
+          }
+        ]
+      ],
+      "from": null,
+      "fromItems": null,
+      "withBuffering": null,
+      "where": null,
+      "groupBy": null,
+      "having": null,
+      "orderBy": null,
+      "destination": null,
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    },
+    {
+      "type": "SetOrder",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 2109,
+          "line": 87,
+          "column": 1
+        },
+        "end": {
+          "offset": 2140,
+          "line": 87,
+          "column": 32
+        }
+      },
+      "selection": {
+        "kind": "FILE",
+        "value": "stpart"
+      },
+      "inTarget": "prodmast",
+      "direction": null
+    },
+    {
+      "type": "SelectStatement",
+      "location": {
+        "source": "./test-files/select.prg",
+        "start": {
+          "offset": 2173,
+          "line": 90,
+          "column": 1
+        },
+        "end": {
+          "offset": 2221,
+          "line": 90,
+          "column": 49
+        }
+      },
+      "quantifier": null,
+      "top": null,
+      "list": [
+        null,
+        [
+          {
+            "type": "SelectItem",
+            "location": {
+              "source": "./test-files/select.prg",
+              "start": {
+                "offset": 2180,
+                "line": 90,
+                "column": 8
+              },
+              "end": {
+                "offset": 2208,
+                "line": 90,
+                "column": 36
+              }
+            },
+            "expression": {
+              "type": "BinaryExpression",
+              "location": {
+                "source": "./test-files/select.prg",
+                "start": {
+                  "offset": 2180,
+                  "line": 90,
+                  "column": 8
+                },
+                "end": {
+                  "offset": 2198,
+                  "line": 90,
+                  "column": 26
+                }
+              },
+              "operator": "=",
+              "left": {
+                "type": "CallExpression",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 2180,
+                    "line": 90,
+                    "column": 8
+                  },
+                  "end": {
+                    "offset": 2194,
+                    "line": 90,
+                    "column": 22
+                  }
+                },
+                "callee": {
+                  "type": "Identifier",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 2180,
+                      "line": 90,
+                      "column": 8
+                    },
+                    "end": {
+                      "offset": 2183,
+                      "line": 90,
+                      "column": 11
+                    }
+                  },
+                  "name": "NVL"
+                },
+                "arguments": [
+                  {
+                    "type": "Identifier",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 2184,
+                        "line": 90,
+                        "column": 12
+                      },
+                      "end": {
+                        "offset": 2190,
+                        "line": 90,
+                        "column": 18
+                      }
+                    },
+                    "name": "fieldA"
+                  },
+                  {
+                    "type": "NumberLiteral",
+                    "location": {
+                      "source": "./test-files/select.prg",
+                      "start": {
+                        "offset": 2192,
+                        "line": 90,
+                        "column": 20
+                      },
+                      "end": {
+                        "offset": 2193,
+                        "line": 90,
+                        "column": 21
+                      }
+                    },
+                    "value": 0,
+                    "raw": "0",
+                    "currency": false
+                  }
+                ]
+              },
+              "right": {
+                "type": "NumberLiteral",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 2197,
+                    "line": 90,
+                    "column": 25
+                  },
+                  "end": {
+                    "offset": 2198,
+                    "line": 90,
+                    "column": 26
+                  }
+                },
+                "value": 1,
+                "raw": "1",
+                "currency": false
+              }
+            },
+            "alias": "aliasA"
+          }
+        ]
+      ],
+      "from": {
+        "force": false,
+        "tables": [
+          {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 2215,
+                    "line": 90,
+                    "column": 43
+                  },
+                  "end": {
+                    "offset": 2221,
+                    "line": 90,
+                    "column": 49
+                  }
+                },
+                "path": "tableA"
+              }
+            }
+          }
+        ],
+        "joins": [],
+        "items": [
+          {
+            "kind": "table",
+            "value": {
+              "name": {
+                "database": null,
+                "table": {
+                  "type": "Path",
+                  "location": {
+                    "source": "./test-files/select.prg",
+                    "start": {
+                      "offset": 2215,
+                      "line": 90,
+                      "column": 43
+                    },
+                    "end": {
+                      "offset": 2221,
+                      "line": 90,
+                      "column": 49
+                    }
+                  },
+                  "path": "tableA"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fromItems": [
+        {
+          "kind": "table",
+          "value": {
+            "name": {
+              "database": null,
+              "table": {
+                "type": "Path",
+                "location": {
+                  "source": "./test-files/select.prg",
+                  "start": {
+                    "offset": 2215,
+                    "line": 90,
+                    "column": 43
+                  },
+                  "end": {
+                    "offset": 2221,
+                    "line": 90,
+                    "column": 49
+                  }
+                },
+                "path": "tableA"
+              }
+            }
+          }
+        }
+      ],
+      "withBuffering": null,
+      "where": null,
+      "groupBy": null,
+      "having": null,
+      "orderBy": null,
+      "destination": null,
+      "preference": null,
+      "noconsol": false,
+      "plain": false,
+      "nowait": false,
+      "unions": []
+    }
+  ]
+}
