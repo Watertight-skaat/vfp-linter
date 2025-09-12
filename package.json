@@ -29,9 +29,7 @@
 				"extensions": [
 					".prg",
 					".mpr",
-					".spr",
-					".h",
-					".fxp"
+					".spr"
 				]
 			}
 		],
