@@ -615,7 +615,8 @@ SelectTailPart
   / "NOWAIT"i { return { kind: 'NOWAIT' }; }
 
 SelectItem
-  = "*" { return node('SelectStar', {}); }
+  = ms:MacroSubstitute _ si:SelectItem { return si; }
+  / "*" { return node('SelectStar', {}); }
   / tbl:Identifier "." "*" { return node('SelectStar', { table: tbl }); }
   / expr:Expression alias:(
       _ "AS"i _ a:Identifier { return a; }
