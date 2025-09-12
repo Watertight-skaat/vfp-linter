@@ -37,6 +37,7 @@ Statement "statement"
   / DefineClass
   / LParameters
   / PrintStatement
+  / WaitWindowStatement
   / UseStatement
   / AppendStatement
   / CalculateStatement
@@ -203,8 +204,17 @@ AssignmentStatement
 
 // Shorthand print statement: ? <expression> or PRINT <expression>
 PrintStatement // todo: Wait window probably should be separate
-  = ("?" / "PRINT"i / "WAIT WINDOW"i) _ args:ExpressionList {
+  = ("?" / "PRINT"i) _ args:ExpressionList {
       return node("PrintStatement", { arguments: args, argument: (args && args.length) ? args[0] : null });
+    }
+
+// WAIT [cMessageText] [TO VarName] [WINDOW [AT nRow, nColumn]] [NOWAIT]
+//    [CLEAR | NOCLEAR] [TIMEOUT nSeconds]
+WaitWindowStatement
+  = "WAIT WINDOW"i _ opts:(_ ("NOWAIT"i / "NOCLEAR"i))* _ msg:Expression? {
+      const nowait = opts ? opts.some(o => (typeof o[1] === 'string' ? o[1].toUpperCase() : o[1]) === 'NOWAIT') : false;
+      const noclear = opts ? opts.some(o => (typeof o[1] === 'string' ? o[1].toUpperCase() : o[1]) === 'NOCLEAR') : false;
+      return node("WaitWindowStatement", { nowait, noclear, message: msg || null });
     }
 
 // USE [[DatabaseName!] TableName | SQLViewName | ?]
@@ -344,7 +354,7 @@ DeclareStatement
     cFunctionType:("SHORT"i / "LONG"i / "INTEGER"i / "SINGLE"i / "DOUBLE"i / "STRING"i / "OBJECT"i)? _
     functionName:Identifier _ 
     "IN"i _ 
-    libraryName:Identifier _ 
+    libraryName:(UnquotedPath / IdentifierOrString) _ 
     asPart:("AS"i _ aliasName:Identifier _)?
     paramsPart:(_ head:DeclareParameter ( _ "," _ tail:DeclareParameter )*)? _
     LineTerminator? {

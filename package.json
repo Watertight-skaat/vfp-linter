@@ -1,9 +1,9 @@
 {
-	"name": "foxpro-lsp",
+	"name": "foxpro-linter",
 	"description": "A language server for VFP",
 	"author": "Sean Kaat",
 	"license": "MIT",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"publisher": "Watertight",
 	"categories": [],
 	"keywords": [],

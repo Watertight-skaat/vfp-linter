@@ -1,0 +1,1 @@
+WAIT WINDOW NOWAIT NOCLEAR "Downloading: " + INSTALLER_URL + "..."
