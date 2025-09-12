@@ -9,3 +9,5 @@ INSERT INTO TableA FROM NAME m.varname
         FROM TableB ;
         ORDER BY FieldA ;
         INTO CURSOR TableB READWRITE nofilter
+
+INSERT INTO ("testname" + m.test) FROM NAME m.PeriodObj

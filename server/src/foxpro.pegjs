@@ -73,6 +73,7 @@ Statement "statement"
   / IfStatement
   / EvalStatement
   / WithStatement
+  / BrowseStatement
   / ExpressionStatement
   / UnknownStatement
   ) { return s; }
@@ -361,23 +362,23 @@ Expression
 
 // Basic precedence chain (can be expanded later)
 LogicalOr
-  = head:LogicalAnd tail:(_ (".OR."i / ("OR"i ![a-zA-Z0-9_])) _ LogicalAnd)* {
+  = head:LogicalAnd tail:(M_ (".OR."i / ("OR"i ![a-zA-Z0-9_])) _ LogicalAnd)* {
       return tail.reduce((acc, t) => node("LogicalExpression", { operator: "OR", left: acc, right: t[3] }), head);
     }
 
 LogicalAnd
-  = head:Equality tail:(_ (".AND."i / ("AND"i ![a-zA-Z0-9_])) _ Equality)* {
+  = head:Equality tail:(M_ (".AND."i / ("AND"i ![a-zA-Z0-9_])) _ Equality)* {
       return tail.reduce((acc, t) => node("LogicalExpression", { operator: "AND", left: acc, right: t[3] }), head);
     }
 
 Equality
-  = head:Relational tail:(_ op:("==" / "=" / "<>" / "!=" / "#" / "$") _ Relational)* {
+  = head:Relational tail:(M_ op:("==" / "=" / "<>" / "!=" / "#" / "$") _ Relational)* {
       return tail.reduce((acc, t) => node("BinaryExpression", { operator: t[1], left: acc, right: t[3] }), head);
     }
 
 Relational
   = head:Additive tail:(
-      _ op:(">=" / ">" / "<=" / "<") _ rhs:Additive { return { kind: 'cmp', op, rhs }; }
+      M_ op:(">=" / ">" / "<=" / "<") _ rhs:Additive { return { kind: 'cmp', op, rhs }; }
       / __ "NOT IN"i __ "(" __ inRhs:(SelectStatement / ExpressionList) __ ")" { return { kind: 'in', not: true, rhs: inRhs }; }
       / __ "IN"i __ "(" __ inRhs2:(SelectStatement / ExpressionList) __ ")" { return { kind: 'in', not: false, rhs: inRhs2 }; }
     )* {
@@ -394,12 +395,12 @@ Relational
     }
 
 Additive
-  = head:Multiplicative tail:(_ op:("+" / "-") _ Multiplicative)* {
+  = head:Multiplicative tail:(M_ op:("+" / "-") _ Multiplicative)* {
       return tail.reduce((acc, t) => node("BinaryExpression", { operator: t[1], left: acc, right: t[3] }), head);
     }
 
 Multiplicative
-  = head:Unary tail:(_ op:("*" / "/" / "%") _ Unary)* {
+  = head:Unary tail:(M_ op:("*" / "/" / "%") _ Unary)* {
       return tail.reduce((acc, t) => node("BinaryExpression", { operator: t[1], left: acc, right: t[3] }), head);
     }
 
@@ -412,7 +413,7 @@ Unary
 // Exponentiation (^) - right-associative and tighter than unary so that
 // -2^2 parses as -(2^2) which matches typical VFP/SQL semantics.
 Exponentiation
-  = head:PostfixExpression tail:(_ "^" _ rhs:(Exponentiation / Unary))? {
+  = head:PostfixExpression tail:(M_ "^" _ rhs:(Exponentiation / Unary))? {
       if (!tail) return head;
       return node("BinaryExpression", { operator: '^', left: head, right: tail[3] });
     }
@@ -426,6 +427,7 @@ Primary
   / NullLiteral
   / DateTimeLiteral
   / CastExpression
+  / MacroSubstitute
   / id:Identifier { return (id && id.length && id.charAt(0) === '_') ? node("ImplicitGlobal", { name: id }) : node("Identifier", { name: id }); }
   / "(" _ e:Expression _ ")" { return e; }
 
@@ -571,7 +573,7 @@ SelectCore
     }
 
 SelectList
-  = head:SelectItem tail:(_ "," _ SelectItem)* { return [head, ...tail.map(t => t[3])]; }
+  = head:SelectItem tail:(_ (MacroSubstitute _)* "," _ SelectItem)* { return [head, ...tail.map(t => t[4])]; }
 
 // Allow SELECT tail clauses to appear in any order, at most once.
 SelectTailPart
@@ -595,7 +597,7 @@ SelectItem
     }
 
 FromClause
-  = "FROM"i _ force:("FORCE"i _)? seq:FromSequence {
+  = "FROM"i WSX force:("FORCE"i WSX)? seq:FromSequence {
       // seq contains ordered tables and joins; expose arrays for backwards compatibility
       return { force: !!force, tables: seq.tables, joins: seq.joins, items: seq.items };
     }
@@ -606,10 +608,10 @@ TableList
 // FromSequence allows TableRef and JoinClause to be intermixed, e.g.
 // FROM t1 ; LEFT JOIN t2 ON ... ; ,t3, t4
 FromSequence
-  = first:TableRef tail:(
+  = WSX? first:TableRef tail:(
       WSX "," WSX tr:TableRef { return { kind: 'table', value: tr }; }
-    / WSX jc:JoinClause { return { kind: 'join', value: jc }; }
-  )* {
+      / WSX jc:JoinClause { return { kind: 'join', value: jc }; }
+    )* {
     const items = [ { kind: 'table', value: first }, ...tail ];
     const tables = items.filter(i => i.kind === 'table').map(i => i.value);
     const joins = items.filter(i => i.kind === 'join').map(i => i.value);
@@ -617,10 +619,24 @@ FromSequence
   }
 
 TableRef
-  = tablePart:("(" __ sub:SelectStatement __ ")" { return { subquery: sub }; }
-                / "(" _ tbl:PathOrExpression _ ")" { return { name: tbl }; }
-                / name:QualifiedTable _ { return { name }; }) 
-    _ alias:(("AS"i _ a:Identifier { return a; }) / a:Identifier { return a; })? {
+  = tablePart:("(" __ sub:SelectStatement WSX? ")" { return { subquery: sub }; }
+                / "(" _ tbl:Expression _ ")" { return { name: tbl }; }
+                / name:QualifiedTable _ { return { name }; })
+    _ alias:(
+      ("AS"i _ a:Identifier { return a; })
+      / !("SET"i ![A-Za-z0-9_]
+         / "WHERE"i ![A-Za-z0-9_]
+         / "ORDER"i ![A-Za-z0-9_]
+         / "GROUP"i ![A-Za-z0-9_]
+         / "HAVING"i ![A-Za-z0-9_]
+         / "UNION"i ![A-Za-z0-9_]
+         / "INTO"i ![A-Za-z0-9_]
+         / "WITH"i ![A-Za-z0-9_]
+         / "ON"i ![A-Za-z0-9_]
+         / "IN"i ![A-Za-z0-9_]
+         / "JOIN"i ![A-Za-z0-9_])
+        a:Identifier { return a; }
+    )? {
     return { ...tablePart, alias: alias ? (typeof alias === 'string' ? alias : alias[2]) : tablePart.alias };
   }
 
@@ -828,8 +844,8 @@ InClause
 
 // SKIP [nRecords] [IN nWorkArea | cTableAlias]
 SkipStatement
-  = "SKIP"i _ n:NumberLiteral? _ 
-  inPart:(_ "IN"i __ target:(NumberLiteral / Identifier / StringLiteral) { return target; })? 
+  = "SKIP"i _ n:Expression? _ 
+  inPart:(_ "IN"i __ target:(NumberLiteral / PathOrExpression) { return target; })? 
   {
     return node('SkipStatement', { count: n || null, inTarget: inPart ? inPart[2] : null });
   }
@@ -849,7 +865,7 @@ UnlockStatement
 // Opt 3: INSERT INTO dbf_name [(FieldName1 [, FieldName2, ...])]
 //    SELECT SELECTClauses [UNION UnionClause SELECT SELECTClauses ...]
 InsertStatement
-  = "INSERT"i __ "INTO"i __ target:IdentifierOrString _
+  = "INSERT"i __ "INTO"i __ target:PathOrExpression _
     cols:("(" _ cl:IdentifierList _ ")")? __
     src:(
       "VALUES"i _ "(" _ vals:ExpressionList _ ")" { return { kind: 'values', values: vals }; }
@@ -871,36 +887,25 @@ InsertStatement
 //    SET Column_Name1 = eExpression1 [, Column_Name2 = eExpression2 ...]
 //    [FROM [FORCE] Table_List_Item [[, ...] | [JOIN [ Table_List_Item]]]
 //    WHERE FilterCondition1 [AND | OR FilterCondition2 ...]
-// Clauses may appear in any order, with SET required exactly once (similar to SELECT tail handling)
+// Clauses may appear in any order
 UpdateStatement
   = "UPDATE"i _ target:IdentifierOrString WS0
-    pre:(WSX UpdateTailNonSetPart)* WSX 
-    setPart:UpdateSetPart 
-    post:(WSX UpdateTailNonSetPart)* {
-      const parts = [...pre.map(t => t[1]), { kind: 'SET', value: setPart.value }, ...post.map(t => t[1])];
-      let from = null, where = null, assigns = setPart.value;
-      for (const p of parts) {
+    parts:(WSX UpdatePart)* {
+      let set = null, from = null, where = null;
+      for (const p of parts.map(t => t[1])) {
         switch (p.kind) {
-          case 'FROM': from = p.value; break;
-          case 'WHERE': where = p.value; break;
-          // 'SET' already captured as setPart
+          case 'SET': if (!set) set = p.value; break;
+          case 'FROM': if (!from) from = p.value; break;
+          case 'WHERE': if (!where) where = p.value; break;
         }
       }
-      return node('UpdateStatement', {
-        target,
-        assignments: assigns,
-        from: from || null,
-        where: where || null
-      });
+      return node('UpdateStatement', { target, set: set || null, from: from || null, where: where || null });
     }
 
-// Update tail parts used to support arbitrary ordering
-UpdateTailNonSetPart
-  = from:FromClause { return { kind: 'FROM', value: from }; }
-  / where:WhereClause { return { kind: 'WHERE', value: where }; }
-
-UpdateSetPart
+UpdatePart
   = "SET"i __ assigns:UpdateAssignmentList { return { kind: 'SET', value: assigns }; }
+  / from:FromClause { return { kind: 'FROM', value: from }; }
+  / where:WhereClause { return { kind: 'WHERE', value: where }; }
 
 UpdateAssignmentList
   = head:UpdateAssignment tail:(_ "," _ UpdateAssignment)* { return [head, ...tail.map(t => t[3])]; }
@@ -1335,7 +1340,31 @@ SetSettingStatement
 //     | DIF | FW2 | MOD | PDOX | RPD | SDF | SYLK | WK1 | WK3 | WKS | WR1 | WRK | CSV | XLS | XL5 [SHEET cSheetName] | XL8 [SHEET cSheetName]]]
 //   [AS nCodePage]
 AppendStatement
-  = "APPEND"i _
+  = "APPEND FROM"i _
+    src:("?" { return { kind: 'PROMPT' }; } / PathOrExpression) _
+    parts:(AppendFromOption _)* {
+      let fields = null;
+      let forExpr = null;
+      let type = null;
+      let codepage = null;
+      for (const t of parts.map(p => p[0])) {
+        if (!t) continue;
+        switch (t.kind) {
+          case 'FIELDS': fields = t.value; break;
+          case 'FOR': forExpr = t.value; break;
+          case 'TYPE': type = t.value; break;
+          case 'AS': codepage = t.value; break;
+        }
+      }
+      return node("AppendFromStatement", {
+        source: src,
+        fields: fields,
+        for: forExpr,
+        type: type,
+        codepage: codepage
+      });
+    }
+  / "APPEND"i _
     blank:("BLANK"i _)?
     inPart:("IN"i _ tableAlias:(Identifier / StringLiteral / NumberLiteral) _)?
     nomenu:("NOMENU"i _)? {
@@ -1345,8 +1374,68 @@ AppendStatement
         nomenu: !!nomenu
       });
     }
-  / "APPEND FROM"i _
-    // todo
+
+// Options for APPEND FROM, order-insensitive
+AppendFromOption
+  = "FIELDS"i __ f:(IdentifierList / FieldsClause) { return { kind: 'FIELDS', value: f }; }
+  / "FOR"i __ e:Expression { return { kind: 'FOR', value: e }; }
+  / at:AppendTypeClause { return { kind: 'TYPE', value: at }; }
+  / "AS"i __ cp:Expression { return { kind: 'AS', value: cp }; }
+
+// Optional TYPE keyword before the import type
+AppendTypeClause
+  = ("TYPE"i _)? at:AppendType { return at; }
+
+// Import types for APPEND FROM
+AppendType
+  = "DELIMITED"i _ first:AppendDelimitedOption rest:(_ AppendDelimitedOption)* {
+      const opts = [first, ...rest.map(r => r[1])];
+      return { format: 'DELIMITED', options: opts };
+    }
+  / t:("DIF"i / "FW2"i / "MOD"i / "PDOX"i / "RPD"i / "SDF"i / "SYLK"i / "WK1"i / "WK3"i / "WKS"i / "WR1"i / "WRK"i / "CSV"i / "XLS"i / "XL5"i / "XL8"i) _ sheet:("SHEET"i __ s:IdentifierOrString { return s; })? {
+      return { format: (typeof t === 'string' ? t.toUpperCase() : t), sheet: sheet || null };
+    }
+
+// Allow multiple WITH options, including an unquoted single-character like *
+AppendDelimitedOption
+  = "WITH"i __ (
+      "BLANK"i { return { mode: 'BLANK' }; }
+      / "TAB"i { return { mode: 'TAB' }; }
+      / "CHARACTER"i __ ch:(IdentifierOrString / "*" { return "*"; }) { return { mode: 'CHARACTER', character: ch }; }
+      / del:(IdentifierOrString / "*" { return "*"; }) { return { mode: 'DELIMITER', delimiter: del }; }
+    )
+
+// BROWSE [FIELDS FieldList] [FONT cFontName [, nFontSize [, nFontCharSet]]] 
+//    [STYLE cFontStyle] [FOR lExpression1 [REST]] [FORMAT] 
+//    [FREEZE FieldName] [KEY eExpression1 [, eExpression2]] [LAST | NOINIT]
+//    [LOCK nNumberOfFields] [LPARTITION] [NAME ObjectName] [NOAPPEND]
+//    [NOCAPTIONS] [NODELETE] [NOEDIT | NOMODIFY] [NOLGRID] [NORGRID] 
+//    [NOLINK] [NOMENU] [NOOPTIMIZE] [NOREFRESH] [NORMAL] [NOWAIT] 
+//    [PARTITION nColumnNumber [LEDIT] [REDIT]]
+//    [PREFERENCE PreferenceName] [SAVE] [TIMEOUT nSeconds] 
+//    [TITLE cTitleText] [VALID [:F] lExpression2 [ERROR cMessageText]]
+//    [WHEN lExpression3] [WIDTH nFieldWidth] [WINDOW WindowName1]
+//    [IN [WINDOW] WindowName2 | IN SCREEN] [COLOR SCHEME nSchemeNumber]
+BrowseStatement "browse statement"
+  = "BROWSE"i _ parts:(BrowseOption _)* {
+      let fields = null; let cond = null; let norm = false; let nowait = false;
+      for (const p of parts.map(t => t[0])) {
+        if (!p) continue;
+        switch (p.kind) {
+          case 'FIELDS': fields = p.value; break;
+          case 'FOR': cond = p.value; break;
+          case 'NORM': norm = true; break;
+          case 'NOWAIT': nowait = true; break;
+        }
+      }
+      return node('BrowseStatement', { fields: fields || [], for: cond || null, norm, nowait });
+    }
+
+BrowseOption
+  = "FIELDS"i __ list:IdentifierList { return { kind: 'FIELDS', value: list }; }
+  / "FOR"i __ e:Expression { return { kind: 'FOR', value: e }; }
+  / "NORM"i { return { kind: 'NORM' }; }
+  / "NOWAIT"i { return { kind: 'NOWAIT' }; }
 
 // REPLACE [ALL | REST] FieldName1 WITH eExpression1 [ADDITIVE] [, FieldName2 WITH eExpression2 [ADDITIVE]] ... [Scope] [FOR lExpression1] [WHILE lExpression2] [IN nWorkArea | cTableAlias] [NOOPTIMIZE]
 ReplaceStatement
@@ -1635,6 +1724,7 @@ Keyword "keyword"
   / ("CURSOR"i      ![a-zA-Z0-9_])
   / ("ON KEY"i      ![a-zA-Z0-9_])
   / ("ZAP"i        ![a-zA-Z0-9_])
+  / ("BROWSE"i     ![a-zA-Z0-9_])
 
 NumberLiteral "number"
   = "SELECT(0)"i { return node("NumberLiteral", { value: 0, raw: "SELECT(0)", currency: false });}
@@ -1701,13 +1791,24 @@ WS0
 
 // Rich whitespace/comments between SELECT clauses (includes full-line comments)
 WSX
-  = (Whitespace / LineContinuation / Comment / LineTerminatorSequence)*
+  = (Whitespace / LineContinuation / Comment / MacroSubstitute / LineTerminatorSequence)*
 
 __
   = (Whitespace / LineContinuation / Comment / LineTerminatorSequence)*
 
 _ 
   = (Whitespace / LineContinuation)*
+
+// Macro-aware lightweight spacer used inside expressions BEFORE an operator.
+// Include macros so something like "expr &m OR ..." doesn't break parsing even if &m
+// expands to an operator. We keep '_' (above) used AFTER operators so that "OR &c"
+// still treats &c as an operand rather than being swallowed as spacing.
+M_ 
+  = (Whitespace / LineContinuation / MacroSubstitute)*
+
+// using &macro allows changing the foxpro at runtime.
+MacroSubstitute "macro substitution"
+  = "&" name:Identifier { return node("MacroSubstitute", { name }); }
 
 // Semicolon at end of physical line continues the logical line onto the next physical line.
 LineContinuation "semicolon"

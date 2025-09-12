@@ -21,11 +21,6 @@ for (const file of files) {
 		}
 	} catch (e) {
 		failedTests.push([file, [`PARSE Error: ${e.message || e.toString()}`]]);
-		if (e && typeof e.format === 'function') {
-			console.error(e.format([{ source: file, text: src }]));
-		} else {
-			console.error(e.toString ? e.toString() : e);
-		}
 	}
 }
 for (const failure of failedTests) {

@@ -5,8 +5,7 @@ Update TableA set FieldA = .null. from TableB where TableA.id = TableB.id and Ta
 UPDATE tableA FROM TablB  SET fieldA = .t.
 
 UPDATE WorkPoints ;
-	FROM NewPoints ;
-	SET clicked = NewPoints.clicked ;
-		,completed = NewPoints.completed ;
-	WHERE NewPoints.mosnum#SPACE(8) ;
-			.and. NewPoints.id=NewPoints.mosnum+SPACE(8) ;
+FROM NewPoints ;
+SET clicked = NewPoints.clicked, completed = NewPoints.completed ;
+WHERE NewPoints.mosnum # SPACE(8) ;
+	.and. NewPoints.id = NewPoints.mosnum + SPACE(8)

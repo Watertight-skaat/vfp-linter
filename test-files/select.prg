@@ -74,3 +74,9 @@ INTO CURSOR "MessageTemplates" + ALLTRIM(m.ProcessUser)
 
 * some keywords are allowed (like next)
 select * from tableA where .f. or next
+
+SELECT * FROM (JUSTSTEM(m.varname)) ;
+
+* try a path
+select * from data/tableA
+select * from data\tableA
