@@ -1,12 +1,18 @@
 // This file intentionally avoids creating a language-server connection so it can be imported by test scripts.
 
-import type { AstNode, Loc, ProgramAst } from './ast.js';
+import type { AstNode, Loc, Program } from './ast.js';
 
-enum DiagnosticSeverity {
-  Error = 1,
-  Warning = 2,
-  Information = 3,
-  Hint = 4
+// The LSP DiagnosticSeverity values, inlined so this file needs no language-server import.
+// Typed as literals rather than an enum so the result is assignable to Diagnostic[] without a cast.
+const Severity = { Error: 1, Warning: 2, Information: 3, Hint: 4 } as const;
+type Severity = (typeof Severity)[keyof typeof Severity];
+
+export interface LintDiagnostic {
+  severity: Severity;
+  range: { start: { line: number; character: number }; end: { line: number; character: number } };
+  code: string;
+  message: string;
+  source: string;
 }
 
 // A construct the grammar does not cover yet is not the same thing as a construct that is wrong, so unsupported syntax is advisory by default: valid FoxPro the grammar has not learned should not look like a mistake.
@@ -19,11 +25,11 @@ export interface LinterOptions {
 
 const defaultOptions: Required<LinterOptions> = { unsupportedSyntaxSeverity: 'information' };
 
-const severities: Record<SeverityName, DiagnosticSeverity | null> = {
-  error: DiagnosticSeverity.Error,
-  warning: DiagnosticSeverity.Warning,
-  information: DiagnosticSeverity.Information,
-  hint: DiagnosticSeverity.Hint,
+const severities: Record<SeverityName, Severity | null> = {
+  error: Severity.Error,
+  warning: Severity.Warning,
+  information: Severity.Information,
+  hint: Severity.Hint,
   off: null
 };
 
@@ -38,29 +44,24 @@ const blockOpeners = [
   { opener: /^DEFINE\s+CLASS\b/i, terminator: 'ENDDEFINE' }
 ];
 
-export function runLinterRules(ast: ProgramAst, options: LinterOptions = {}) {
-  const problems: any[] = [];
+export function runLinterRules(ast: Program | null | undefined, options: LinterOptions = {}): LintDiagnostic[] {
+  const problems: LintDiagnostic[] = [];
   if (!ast || !ast.body) return problems;
 
   const opts = { ...defaultOptions, ...options };
 
-  function traverse(node: AstNode | AstNode[] | null | undefined) {
-    if (!node) return;
-    if (Array.isArray(node)) {
-      for (const item of node) traverse(item);
+  function traverse(value: unknown) {
+    if (Array.isArray(value)) {
+      for (const item of value) traverse(item);
       return;
     }
-    if (typeof node !== 'object' || node === null) return;
-    if (node.type) problems.push(...getProblemsFromNode(node, opts));
+    if (!value || typeof value !== 'object') return;
+    const node = value as AstNode;
+    if (typeof node.type === 'string') problems.push(...getProblemsFromNode(node, opts));
 
-    for (const key in node) {
-      const prop = node[key];
-      if (!prop) continue;
-      if (Array.isArray(prop)) {
-        for (const p of prop) traverse(p);
-      } else if (typeof prop === 'object' && prop && (prop as any)?.['type']) {
-        traverse(prop as AstNode);
-      }
+    // A generic walk over a union has to reach the properties reflectively.
+    for (const child of Object.values(node as unknown as Record<string, unknown>)) {
+      if (child && typeof child === 'object') traverse(child);
     }
   }
 
@@ -68,30 +69,27 @@ export function runLinterRules(ast: ProgramAst, options: LinterOptions = {}) {
   return problems;
 }
 
-function getProblemsFromNode(node: AstNode, opts: Required<LinterOptions>) {
-  const out = [];
+function getProblemsFromNode(node: AstNode, opts: Required<LinterOptions>): LintDiagnostic[] {
+  const out: LintDiagnostic[] = [];
 
   if (node.type === 'SelectStatement') { // SQL: report HAVING without GROUP BY
-    const n = node as unknown as Record<string, unknown>;
-
-    const havingClause = n['having'] as Record<string, unknown> | undefined;
-    if (havingClause && !n['groupBy']) {
+    if (node.having && !node.groupBy) {
       out.push({
-        severity: DiagnosticSeverity.Information,
-        range: toRange(getLocation(havingClause) || node.location),
+        severity: Severity.Information,
+        range: toRange(node.having.location ?? node.location),
         code: 'having-without-group-by',
         message: `There is no group by clause, so this is simply a post-filter on the result set.`,
         source: 'VFP Linter'
       });
     }
   } else if (node.type === 'UnknownStatement') {
-    const raw = typeof node.raw === 'string' ? node.raw : '';
+    const raw = node.raw ?? '';
     const unterminated = blockOpeners.find(b => b.opener.test(raw));
     if (unterminated) {
       // The catch-all also absorbs the opening line of a block whose terminator is missing: the block rule fails and the line falls through to UnknownStatement.
       // That is broken code rather than syntax the linter has not learned, so it stays an Error: the parser never throws for it, and downgrading it with everything else would hide it.
       out.push({
-        severity: DiagnosticSeverity.Error,
+        severity: Severity.Error,
         range: toRange(node.location),
         code: 'unterminated-block',
         message: `This opens a block that could not be parsed. Check for a missing ${unterminated.terminator}: '${raw}'`,
@@ -111,8 +109,7 @@ function getProblemsFromNode(node: AstNode, opts: Required<LinterOptions>) {
     }
   }
   // todo some day: warn about unused locals
-  // todo: warn about naming variables badly (VFP Hungarian prefixes: lc/ln/ll/ld/lo/la,
-  //       and flag a prefix that disagrees with what is assigned, e.g. lcCount = 0)
+  // todo: warn about naming variables badly (VFP Hungarian prefixes: lc/ln/ll/ld/lo/la, and flag a prefix that disagrees with what is assigned, e.g. lcCount = 0)
   // Both of the above, plus implicit PRIVATE and work-area handling, read buildSymbolTable() in scope.ts.
   return out;
 }
@@ -124,12 +121,4 @@ function toRange(loc: Loc | undefined) {
   const endLine = loc?.end ? loc.end.line - 1 : startLine;
   const endCol = loc?.end ? loc.end.column - 1 : startCol + 1;
   return { start: { line: startLine, character: startCol }, end: { line: endLine, character: endCol } };
-}
-
-function getLocation(obj: unknown): Loc | undefined {
-  if (!obj || typeof obj !== 'object') return undefined;
-  const o = obj as Record<string, unknown>;
-  const loc = o['location'];
-  if (!loc || typeof loc !== 'object') return undefined;
-  return loc as Loc;
 }

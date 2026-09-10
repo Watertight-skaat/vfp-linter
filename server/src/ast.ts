@@ -1,4 +1,9 @@
-// Minimal shared shapes for the Peggy AST. `parse()` returns `any`; a full discriminated union over the ~90 node types the grammar emits is a separate job.
+// A discriminated union over every node the Peggy grammar emits, so rules narrow on `type` instead of
+// indexing into untyped bags. `parse()` still returns `any`, so cast its result to Program at the boundary.
+// test-files/run-ast-tests.js re-derives the node names and property names from foxpro.pegjs and asserts
+// they match this file exactly, so the two cannot drift apart silently.
+// Properties are typed from the grammar where its shape is fixed. A few option bags vary by which clause
+// matched and are typed `unknown` on purpose: that forces a rule to narrow rather than trust a guess.
 
 // Parser positions are 1-based on both axes; LSP ranges are 0-based, so every consumer subtracts.
 export interface Position {
@@ -11,15 +16,953 @@ export interface Loc {
   end?: Position;
 }
 
-export interface AstNode {
-  type: string;
-  name?: string;
+export interface NodeBase {
   location?: Loc;
-  [k: string]: unknown;
 }
 
-export interface ProgramAst {
-  type?: string;
-  body?: AstNode[];
-  location?: Loc;
+/** IdentifierOrString: the grammar returns a bare string for an identifier, a node for a quoted one. */
+export type IdentifierOrString = string | StringLiteral;
+
+/** Anywhere the grammar accepts an arbitrary expression. */
+export type Expr =
+  | Identifier
+  | ImplicitGlobal
+  | NumberLiteral
+  | StringLiteral
+  | BooleanLiteral
+  | NullLiteral
+  | DateTimeLiteral
+  | MacroSubstitute
+  | Path
+  | BinaryExpression
+  | LogicalExpression
+  | UnaryExpression
+  | InExpression
+  | CallExpression
+  | MemberExpression
+  | ArrayIndexExpression
+  | CastExpression
+  | ExistsExpression
+  | SelectStatement
+  | SelectStar;
+
+// ---------------------------------------------------------------------------
+// Plain objects the grammar returns alongside nodes. These have no `location`, and where they carry a
+// `type` field (StoreTarget) it is not a node type -- do not feed them to a node-type switch.
+// ---------------------------------------------------------------------------
+
+export interface QualifiedTable {
+  database: string | null;
+  table: Path | IdentifierOrString;
 }
+
+export interface TableRef {
+  name?: Expr | QualifiedTable;
+  subquery?: SelectStatement;
+  alias: string | null;
+}
+
+export interface JoinClause {
+  type: 'LEFT' | 'RIGHT' | 'FULL' | 'INNER' | null;
+  target: TableRef;
+  condition: Expr;
+}
+
+export type FromItem = { kind: 'table'; value: TableRef } | { kind: 'join'; value: JoinClause };
+
+export interface FromClause {
+  force: boolean;
+  tables: TableRef[];
+  joins: JoinClause[];
+  items: FromItem[];
+}
+
+/** INTO TABLE/CURSOR/ARRAY/DBF, a bare INTO, or TO. */
+export type SelectDestination =
+  | { kind: 'TABLE'; name: Expr | Path }
+  | { kind: 'CURSOR'; name: Expr }
+  | { kind: 'ARRAY'; name: string }
+  | { kind: 'DBF'; name: IdentifierOrString }
+  | { kind: 'DEFAULT'; name: IdentifierOrString }
+  | { kind: 'TO'; name: IdentifierOrString };
+
+/** The table named by USE, or `?` for the picker. */
+export type UseTargetRef =
+  | { kind: 'PROMPT' }
+  | { kind: 'TABLE'; name: QualifiedTable }
+  | { kind: 'EXPR'; value: Expr };
+
+/** STORE ... TO, in its three forms. `type` here is not a node type. */
+export type StoreTarget =
+  | { type: 'VarList'; vars: string[] }
+  | { type: 'ArrayIndexed'; array: string; indexes: Expr[] }
+  | { type: 'ArrayAssign'; target: string; expression: Expr };
+
+/** The TO clause of CALCULATE and SUM. */
+export type CalcTarget = { kind: 'VARS'; vars: string[] } | { kind: 'ARRAY'; name: string };
+
+/** A scope clause: ALL, REST, NEXT n or RECORD n. */
+export type RecordScope = 'ALL' | 'REST' | { type: 'NEXT'; count: NumberLiteral } | { type: 'RECORD'; number: NumberLiteral };
+
+export interface DimensionItem {
+  name: string;
+  rows: Expr;
+  columns: Expr | null;
+  asType: IdentifierOrString | null;
+}
+
+export interface ProcedureParam {
+  name: string;
+  type: IdentifierOrString | null;
+}
+
+export interface DeclareParameter {
+  type: string;
+  byRef: boolean;
+  name: string;
+}
+
+export interface CatchClause {
+  to: string | null;
+  when: Expr | null;
+  body: BlockStatement;
+}
+
+export interface ReplaceField {
+  field: string;
+  value: Expr;
+  additive: boolean;
+}
+
+export interface FieldSize {
+  width: Expr;
+  precision: Expr | null;
+}
+
+export interface ColumnKey {
+  primaryKey: boolean;
+  unique: boolean;
+  collate: IdentifierOrString | null;
+}
+
+export interface TableReference {
+  table: IdentifierOrString;
+  tag: string | null;
+}
+
+export interface ColumnCheck {
+  expr: Expr;
+  error: StringLiteral | null;
+}
+
+export interface ColumnAutoInc {
+  nextValue: NumberLiteral | Identifier | null;
+  step: NumberLiteral | Identifier | null;
+}
+
+/** INSERT INTO ... VALUES / FROM ARRAY|MEMVAR|NAME / SELECT. */
+export type InsertSource =
+  | { kind: 'values'; values: Expr[] }
+  | { kind: 'from'; source: 'ARRAY' | 'MEMVAR' | 'NAME'; name: string | null }
+  | { kind: 'select'; select: SelectStatement };
+
+export interface UpdateAssignment {
+  target: string;
+  expression: Expr;
+}
+
+export interface RelationPair {
+  expression: Expr;
+  into: Expr;
+}
+
+export interface TagSpec {
+  tag: string;
+  of: IdentifierOrString | Path | null;
+  direction: 'ASCENDING' | 'DESCENDING' | 'ASC' | 'DESC' | null;
+}
+
+/** SET ORDER TO, by index number, file or tag. */
+export type OrderSelection =
+  | { kind: 'NUMBER'; value: NumberLiteral }
+  | { kind: 'FILE'; value: IdentifierOrString | Path }
+  | ({ kind: 'TAG' } & TagSpec);
+
+/** FIELDS <list> | FIELDS LIKE <pattern> | FIELDS EXCEPT <pattern>. */
+export type FieldsSelection =
+  | { kind: 'list'; fields: string[] }
+  | { kind: 'like'; pattern: string }
+  | { kind: 'except'; pattern: string };
+
+/** The export format of a COPY TO or APPEND FROM TYPE clause. DELIMITED carries its own options. */
+export type ExportType =
+  | { format: string; sheet?: IdentifierOrString | null }
+  | { format: 'DELIMITED'; options: unknown };
+
+export interface DatabaseClause {
+  database: IdentifierOrString;
+  longName: IdentifierOrString | null;
+}
+
+// ---------------------------------------------------------------------------
+// Expressions
+// ---------------------------------------------------------------------------
+
+export interface Identifier extends NodeBase {
+  type: 'Identifier';
+  name: string;
+}
+
+/** A name beginning with an underscore, which VFP reserves for its own system variables. */
+export interface ImplicitGlobal extends NodeBase {
+  type: 'ImplicitGlobal';
+  name: string;
+}
+
+export interface NumberLiteral extends NodeBase {
+  type: 'NumberLiteral';
+  value: number;
+  raw: string;
+  currency: boolean;
+}
+
+export interface StringLiteral extends NodeBase {
+  type: 'StringLiteral';
+  value: string;
+}
+
+export interface BooleanLiteral extends NodeBase {
+  type: 'BooleanLiteral';
+  value: boolean;
+}
+
+export interface NullLiteral extends NodeBase {
+  type: 'NullLiteral';
+}
+
+export interface DateTimeLiteral extends NodeBase {
+  type: 'DateTimeLiteral';
+  value: string;
+}
+
+/** &name, which expands to FoxPro source at run time and so defeats static analysis. */
+export interface MacroSubstitute extends NodeBase {
+  type: 'MacroSubstitute';
+  name: string;
+}
+
+/** An unquoted file path, from the clauses that accept one. */
+export interface Path extends NodeBase {
+  type: 'Path';
+  path: string;
+}
+
+export interface BinaryExpression extends NodeBase {
+  type: 'BinaryExpression';
+  operator: string;
+  left: Expr;
+  right: Expr;
+}
+
+export interface LogicalExpression extends NodeBase {
+  type: 'LogicalExpression';
+  operator: 'AND' | 'OR';
+  left: Expr;
+  right: Expr;
+}
+
+export interface UnaryExpression extends NodeBase {
+  type: 'UnaryExpression';
+  operator: string;
+  argument: Expr;
+}
+
+export interface InExpression extends NodeBase {
+  type: 'InExpression';
+  left: Expr;
+  not: boolean;
+  right: SelectStatement | Expr[];
+}
+
+export interface CallExpression extends NodeBase {
+  type: 'CallExpression';
+  callee: Expr;
+  /** A null entry is an omitted argument, as in `f(1, , 3)`. */
+  arguments: (Expr | null)[];
+}
+
+export interface MemberExpression extends NodeBase {
+  type: 'MemberExpression';
+  object: Expr;
+  property: Identifier;
+}
+
+export interface ArrayIndexExpression extends NodeBase {
+  type: 'ArrayIndexExpression';
+  object: Expr;
+  indexes: Expr[];
+}
+
+export interface CastExpression extends NodeBase {
+  type: 'CastExpression';
+  expression: Expr;
+  to: { kind: 'typed'; name: string; size: NumberLiteral; scale: NumberLiteral | null } | { kind: 'simple'; name: IdentifierOrString };
+}
+
+export interface ExistsExpression extends NodeBase {
+  type: 'ExistsExpression';
+  argument: SelectStatement;
+}
+
+// ---------------------------------------------------------------------------
+// Structure
+// ---------------------------------------------------------------------------
+
+export interface Program extends NodeBase {
+  type: 'Program';
+  body: Statement[];
+}
+
+export interface BlockStatement extends NodeBase {
+  type: 'BlockStatement';
+  body: Statement[];
+}
+
+export interface ProcedureStatement extends NodeBase {
+  type: 'ProcedureStatement';
+  name: string;
+  isFunction: boolean;
+  /** Typed objects for the `f(a AS Integer)` form, bare strings for the LPARAMETERS form. */
+  parameters: ProcedureParam[] | string[];
+  returnType: IdentifierOrString | null;
+  body: BlockStatement;
+  returnExpression: Expr | null;
+  /** True when the parameters came from an LPARAMETERS/PARAMETERS line rather than a parameter list. */
+  lparameters: boolean;
+}
+
+export interface DefineClass extends NodeBase {
+  type: 'DefineClass';
+  name: string;
+  base: string | null;
+  ofClass: StringLiteral | Path | null;
+  olePublic: boolean;
+  body: Statement[];
+}
+
+export interface DeclareStatement extends NodeBase {
+  type: 'DeclareStatement';
+  returnType: string | null;
+  functionName: string;
+  libraryName: Path | IdentifierOrString;
+  aliasName: string | null;
+  parameters: DeclareParameter[];
+}
+
+// ---------------------------------------------------------------------------
+// Declarations
+// ---------------------------------------------------------------------------
+
+export interface LocalDeclaration extends NodeBase {
+  type: 'LocalDeclaration';
+  name: string;
+  asType: string | null;
+  ofClass: string | null;
+}
+
+export interface LocalArrayDeclaration extends NodeBase {
+  type: 'LocalArrayDeclaration';
+  name: string;
+  rows: Expr;
+  columns: Expr | null;
+  asType: string | null;
+  ofClass: string | null;
+}
+
+export interface PublicDeclaration extends NodeBase {
+  type: 'PublicDeclaration';
+  name: string;
+}
+
+export interface PrivateDeclaration extends NodeBase {
+  type: 'PrivateDeclaration';
+  name: string;
+}
+
+/** PRIVATE ALL, which hides every variable of the caller. */
+export interface PrivateAll extends NodeBase {
+  type: 'PrivateAll';
+}
+
+export interface PrivateAllLike extends NodeBase {
+  type: 'PrivateAllLike';
+  pattern: string;
+}
+
+/** A bare PRIVATE with no names, which declares nothing. */
+export interface PrivateDirective extends NodeBase {
+  type: 'PrivateDirective';
+}
+
+export interface ParametersDeclaration extends NodeBase {
+  type: 'ParametersDeclaration';
+  names: string[];
+}
+
+export interface DimensionStatement extends NodeBase {
+  type: 'DimensionStatement';
+  items: DimensionItem[];
+}
+
+// ---------------------------------------------------------------------------
+// Control flow
+// ---------------------------------------------------------------------------
+
+export interface IfStatement extends NodeBase {
+  type: 'IfStatement';
+  test: Expr;
+  consequent: BlockStatement;
+  alternate: BlockStatement | null;
+}
+
+export interface DoCaseStatement extends NodeBase {
+  type: 'DoCaseStatement';
+  cases: CaseClause[];
+  otherwise: BlockStatement | null;
+}
+
+export interface CaseClause extends NodeBase {
+  type: 'CaseClause';
+  test: Expr;
+  consequent: BlockStatement;
+}
+
+export interface ForStatement extends NodeBase {
+  type: 'ForStatement';
+  /** A bare name, so the only location available is the statement's own. */
+  variable: string;
+  init: Expr;
+  final: Expr;
+  step: Expr | null;
+  endVariable: string | null;
+  body: BlockStatement;
+}
+
+export interface ForEachStatement extends NodeBase {
+  type: 'ForEachStatement';
+  variable: string;
+  asType: string | null;
+  ofClass: { library: string } | null;
+  collection: Expr;
+  foxObject: boolean;
+  endVariable: string | null;
+  body: BlockStatement;
+}
+
+export interface DoWhileStatement extends NodeBase {
+  type: 'DoWhileStatement';
+  test: Expr;
+  body: BlockStatement;
+}
+
+export interface ScanStatement extends NodeBase {
+  type: 'ScanStatement';
+  noOptimize: boolean;
+  scope: RecordScope;
+  forCondition: Expr | null;
+  whileCondition: Expr | null;
+  body: BlockStatement;
+}
+
+export interface TryStatement extends NodeBase {
+  type: 'TryStatement';
+  tryBlock: BlockStatement;
+  catchClause: CatchClause | null;
+  thrown: Expr | null;
+  didExit: boolean;
+  finallyBlock: BlockStatement | null;
+}
+
+export interface WithStatement extends NodeBase {
+  type: 'WithStatement';
+  target: Expr;
+  asType: string | null;
+  ofClass: string | null;
+  body: BlockStatement;
+}
+
+export interface ReturnStatement extends NodeBase {
+  type: 'ReturnStatement';
+  argument: Expr | null;
+}
+
+export interface ExitStatement extends NodeBase {
+  type: 'ExitStatement';
+}
+
+/** LOOP, which continues the enclosing loop. */
+export interface ContinueStatement extends NodeBase {
+  type: 'ContinueStatement';
+}
+
+export interface DoStatement extends NodeBase {
+  type: 'DoStatement';
+  target: Expr | Path | QualifiedTable;
+  inSession: number | string | StringLiteral | null;
+  arguments: (Expr | null)[];
+}
+
+export interface DoFormStatement extends NodeBase {
+  type: 'DoFormStatement';
+  target: IdentifierOrString | '?';
+  name: string | null;
+  linked: boolean;
+  arguments: (Expr | null)[];
+  to: string | null;
+  noread: boolean;
+  noshow: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Assignment and expression statements
+// ---------------------------------------------------------------------------
+
+export interface Assignment extends NodeBase {
+  type: 'Assignment';
+  target: Expr;
+  expression: Expr;
+}
+
+export interface StoreStatement extends NodeBase {
+  type: 'StoreStatement';
+  expression: Expr;
+  target: StoreTarget;
+}
+
+export interface ExpressionStatement extends NodeBase {
+  type: 'ExpressionStatement';
+  expression: Expr;
+}
+
+export interface PrintStatement extends NodeBase {
+  type: 'PrintStatement';
+  arguments: Expr[];
+  /** The first argument, kept for callers that only want one. */
+  argument: Expr | null;
+}
+
+export interface WaitWindowStatement extends NodeBase {
+  type: 'WaitWindowStatement';
+  nowait: boolean;
+  noclear: boolean;
+  message: Expr | null;
+}
+
+// ---------------------------------------------------------------------------
+// SQL
+// ---------------------------------------------------------------------------
+
+export interface SelectStatement extends NodeBase {
+  type: 'SelectStatement';
+  quantifier: 'ALL' | 'DISTINCT' | null;
+  top: { count: Expr; percent: boolean } | null;
+  list: (SelectItem | SelectStar)[];
+  from: FromClause | null;
+  /** from.items, hoisted for convenience; null when there is no FROM. */
+  fromItems: FromItem[] | null;
+  withBuffering: unknown;
+  where: Expr | null;
+  groupBy: Expr[] | null;
+  having: Expr | null;
+  orderBy: unknown;
+  destination: SelectDestination | null;
+  preference: IdentifierOrString | null;
+  noconsol: boolean;
+  plain: boolean;
+  nowait: boolean;
+  unions: { all: boolean; select: SelectStatement }[];
+}
+
+export interface SelectItem extends NodeBase {
+  type: 'SelectItem';
+  expression: Expr;
+  alias: string | null;
+}
+
+export interface SelectStar extends NodeBase {
+  type: 'SelectStar';
+  table?: string;
+}
+
+export interface InsertStatement extends NodeBase {
+  type: 'InsertStatement';
+  target: Expr | Path;
+  columns: string[] | null;
+  source: InsertSource;
+}
+
+export interface UpdateStatement extends NodeBase {
+  type: 'UpdateStatement';
+  target: IdentifierOrString;
+  set: UpdateAssignment[] | null;
+  from: FromClause | null;
+  where: Expr | null;
+}
+
+/** Both the SQL form (DELETE FROM ...) and the Xbase form (DELETE FOR ...), so most fields are optional. */
+export interface DeleteStatement extends NodeBase {
+  type: 'DeleteStatement';
+  target: IdentifierOrString | null;
+  tables: TableRef[] | null;
+  joins: JoinClause[] | null;
+  fromItems?: FromItem[];
+  where: Expr | null;
+  scope?: IdentifierOrString | null;
+  for?: Expr | null;
+  while?: Expr | null;
+  inTarget?: Expr | null;
+  noOptimize?: boolean;
+}
+
+export interface CreateStatement extends NodeBase {
+  type: 'CreateStatement';
+  kind: 'TABLE' | 'DBF' | 'CURSOR';
+  name: Expr | string;
+  longName: string | null;
+  free: boolean;
+  codepage: NumberLiteral | string | null;
+  columns: ColumnDefinition[];
+  constraints: TableConstraint[];
+  fromArray: string | null;
+}
+
+export interface ColumnDefinition extends NodeBase {
+  type: 'ColumnDefinition';
+  name: string;
+  fieldType: string;
+  size: FieldSize | null;
+  nullability: 'NULL' | 'NOT NULL' | null;
+  check: ColumnCheck | null;
+  autoinc: ColumnAutoInc | null;
+  default: Expr | null;
+  key: ColumnKey | null;
+  references: TableReference | null;
+  nocptrans: boolean;
+}
+
+export interface TableConstraint extends NodeBase {
+  type: 'TableConstraint';
+  kind: 'PRIMARY KEY' | 'UNIQUE' | 'FOREIGN KEY' | 'CHECK';
+  expression: Expr;
+  tag?: string;
+  collate?: IdentifierOrString | null;
+  nodup?: boolean;
+  references?: TableReference;
+  error?: StringLiteral | null;
+}
+
+// ---------------------------------------------------------------------------
+// Tables and work areas
+// ---------------------------------------------------------------------------
+
+export interface UseStatement extends NodeBase {
+  type: 'UseStatement';
+  /** Null for a bare USE, which closes the current work area. */
+  target: UseTargetRef | null;
+  inTarget: Expr | null;
+  online: boolean;
+  admin: boolean;
+  again: boolean;
+  norequery: boolean;
+  dataSession: Expr | null;
+  nodata: boolean;
+  index: unknown;
+  alias: IdentifierOrString | null;
+  exclusive: boolean;
+  shared: boolean;
+  noUpdate: boolean;
+  connection: unknown;
+}
+
+export interface LocateStatement extends NodeBase {
+  type: 'LocateStatement';
+  forCondition: Expr | null;
+  scope: RecordScope | null;
+  inTarget: Expr | null;
+  whileCondition: Expr | null;
+  noOptimize: boolean;
+}
+
+export interface ReplaceStatement extends NodeBase {
+  type: 'ReplaceStatement';
+  fields: ReplaceField[];
+  scope: RecordScope | null;
+  forCondition: Expr | null;
+  whileCondition: Expr | null;
+  inTarget: Expr | null;
+  noOptimize: boolean;
+}
+
+export interface CalculateStatement extends NodeBase {
+  type: 'CalculateStatement';
+  expressions: Expr[];
+  scope: RecordScope | null;
+  forCondition: Expr | null;
+  whileCondition: Expr | null;
+  to: CalcTarget | null;
+  noOptimize: boolean;
+  inTarget: Expr | null;
+}
+
+export interface SumStatement extends NodeBase {
+  type: 'SumStatement';
+  expressions: Expr[] | null;
+  scope: RecordScope | null;
+  forCondition: Expr | null;
+  whileCondition: Expr | null;
+  to: CalcTarget | null;
+  noOptimize: boolean;
+  inTarget: Expr | null;
+}
+
+export interface SkipStatement extends NodeBase {
+  type: 'SkipStatement';
+  count: Expr | null;
+  inTarget: Expr | null;
+}
+
+export interface GoToStatement extends NodeBase {
+  type: 'GoToStatement';
+  command: 'GO' | 'GOTO';
+  position: 'TOP' | 'BOTTOM' | null;
+  record: Expr | null;
+  inTarget: Expr | null;
+}
+
+export interface ZapStatement extends NodeBase {
+  type: 'ZapStatement';
+  inTarget: Expr | null;
+}
+
+export interface RecallStatement extends NodeBase {
+  type: 'RecallStatement';
+  scope: IdentifierOrString | null;
+  for: Expr | null;
+  while: Expr | null;
+  noOptimize: boolean;
+  inTarget: Expr | null;
+}
+
+export interface UnlockStatement extends NodeBase {
+  type: 'UnlockStatement';
+  record: Expr | null;
+  inTarget: Expr | null;
+  all: boolean;
+}
+
+export interface BrowseStatement extends NodeBase {
+  type: 'BrowseStatement';
+  fields: string[] | null;
+  for: Expr | null;
+  norm: boolean;
+  nowait: boolean;
+}
+
+export interface AppendStatement extends NodeBase {
+  type: 'AppendStatement';
+  blank: boolean;
+  inTarget: Expr | null;
+  nomenu: boolean;
+}
+
+export interface AppendFromStatement extends NodeBase {
+  type: 'AppendFromStatement';
+  source: { kind: 'PROMPT' } | Expr | Path;
+  fields: string[] | FieldsSelection | null;
+  for: Expr | null;
+  /** The TYPE clause, whose shape depends on the export format that matched. */
+  exportType: ExportType | null;
+  codepage: Expr | null;
+}
+
+export interface CopyToStatement extends NodeBase {
+  type: 'CopyToStatement';
+  target: Expr | Path;
+  database: DatabaseClause | null;
+  fields: FieldsSelection | null;
+  for: Expr | null;
+  while: Expr | null;
+  index: 'CDX' | 'PRODUCTION' | null;
+  noOptimize: boolean;
+  /** The TYPE clause, whose shape depends on the export format that matched. */
+  exportType: ExportType | null;
+  codepage: Expr | null;
+}
+
+export interface EraseStatement extends NodeBase {
+  type: 'EraseStatement';
+  target: Expr | Path | '?';
+  recycle: boolean;
+}
+
+export interface IndexOnStatement extends NodeBase {
+  type: 'IndexOnStatement';
+  expression: Expr;
+  to: IdentifierOrString | Path | null;
+  tag: string | null;
+  binary: boolean;
+  collate: IdentifierOrString | null;
+  of: IdentifierOrString | Path | null;
+  for: Expr | null;
+  compact: boolean;
+  direction: 'ASCENDING' | 'DESCENDING' | null;
+  uniqueness: 'UNIQUE' | 'CANDIDATE' | null;
+  additive: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// SET
+// ---------------------------------------------------------------------------
+
+/** SET TO <expr>, with no setting name. */
+export interface SetTo extends NodeBase {
+  type: 'SetTo';
+  setting: Expr;
+}
+
+export interface SetOrder extends NodeBase {
+  type: 'SetOrder';
+  selection: OrderSelection | null;
+  inTarget: Expr | null;
+  direction: 'ASCENDING' | 'DESCENDING' | 'ASC' | 'DESC' | null;
+}
+
+export interface SetRelation extends NodeBase {
+  type: 'SetRelation';
+  pairs: RelationPair[];
+  inTarget: Expr | null;
+  additive: boolean;
+}
+
+/** Any other SET, named after the cSetCommand placeholder in the VFP documentation. */
+export interface SetCommand extends NodeBase {
+  type: 'SetCommand';
+  command: string | Keyword;
+  argument: Expr | null;
+  state: 'ON' | 'OFF' | null;
+  additive: boolean;
+}
+
+/** A reserved word, which KeywordOrIdentifier can return in place of a name. */
+export type Keyword = string | unknown[];
+
+// ---------------------------------------------------------------------------
+// Preprocessor and fallback
+// ---------------------------------------------------------------------------
+
+export interface IncludeStatement extends NodeBase {
+  type: 'IncludeStatement';
+  path: StringLiteral | Path;
+}
+
+export interface DefineStatement extends NodeBase {
+  type: 'DefineStatement';
+  name: string;
+  value: string | null;
+}
+
+/** #IF / #ELSE / #ENDIF, kept as raw text rather than evaluated. */
+export interface PreprocessorIfStatement extends NodeBase {
+  type: 'PreprocessorIfStatement';
+  raw: string;
+}
+
+export interface OnKeyStatement extends NodeBase {
+  type: 'OnKeyStatement';
+  keyExpression: Expr | null;
+  command: Expr | null;
+}
+
+/** A statement the grammar does not cover. Advisory by default: see unsupportedSyntaxSeverity. */
+export interface UnknownStatement extends NodeBase {
+  type: 'UnknownStatement';
+  raw: string;
+}
+
+// ---------------------------------------------------------------------------
+// Unions
+// ---------------------------------------------------------------------------
+
+export type Statement =
+  | AppendFromStatement
+  | AppendStatement
+  | Assignment
+  | BlockStatement
+  | BrowseStatement
+  | CalculateStatement
+  | CaseClause
+  | ColumnDefinition
+  | ContinueStatement
+  | CopyToStatement
+  | CreateStatement
+  | DeclareStatement
+  | DefineClass
+  | DefineStatement
+  | DeleteStatement
+  | DimensionStatement
+  | DoCaseStatement
+  | DoFormStatement
+  | DoStatement
+  | DoWhileStatement
+  | EraseStatement
+  | ExitStatement
+  | ExpressionStatement
+  | ForEachStatement
+  | ForStatement
+  | GoToStatement
+  | IfStatement
+  | IncludeStatement
+  | IndexOnStatement
+  | InsertStatement
+  | LocalArrayDeclaration
+  | LocalDeclaration
+  | LocateStatement
+  | OnKeyStatement
+  | ParametersDeclaration
+  | PreprocessorIfStatement
+  | PrintStatement
+  | PrivateAll
+  | PrivateAllLike
+  | PrivateDeclaration
+  | PrivateDirective
+  | ProcedureStatement
+  | Program
+  | PublicDeclaration
+  | RecallStatement
+  | ReplaceStatement
+  | ReturnStatement
+  | ScanStatement
+  | SelectItem
+  | SelectStatement
+  | SetCommand
+  | SetOrder
+  | SetRelation
+  | SetTo
+  | SkipStatement
+  | StoreStatement
+  | SumStatement
+  | TableConstraint
+  | TryStatement
+  | UnknownStatement
+  | UnlockStatement
+  | UpdateStatement
+  | UseStatement
+  | WaitWindowStatement
+  | WithStatement
+  | ZapStatement;
+
+/** Every node the grammar emits. */
+export type AstNode = Statement | Expr;
+
+/** The node type names, for an exhaustiveness check over the union. */
+export type AstNodeType = AstNode['type'];

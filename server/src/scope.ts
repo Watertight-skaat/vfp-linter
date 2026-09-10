@@ -2,7 +2,7 @@
 // The rules in linter.ts are a stateless AST walk -- getProblemsFromNode sees one node and knows nothing about what came before it.
 // The scope-dependent rules (implicit PRIVATE from an undeclared assignment, unused LOCAL, a missing m. prefix on a name that is also a field, work-area handling) all read this structure instead of re-walking the tree themselves.
 
-import type { AstNode, Loc, ProgramAst } from './ast.js';
+import type { AstNode, DefineClass, Expr, Loc, ProcedureStatement, Program, SelectStatement } from './ast.js';
 
 /** Which statement brought the name into being. */
 export type SymbolKind =
@@ -85,7 +85,7 @@ export interface SymbolTable {
 // THIS and friends are always in scope and are never memory variables.
 const pseudoVariables = new Set(['THIS', 'THISFORM', 'THISFORMSET', 'PARENT']);
 
-export function buildSymbolTable(ast: ProgramAst | null | undefined): SymbolTable {
+export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
   const scopes: Scope[] = [];
   // Depth rather than a flag, because subqueries nest.
   let sqlDepth = 0;
@@ -164,33 +164,31 @@ export function buildSymbolTable(ast: ProgramAst | null | undefined): SymbolTabl
   }
 
   // A routine boundary. PROCEDURE/FUNCTION do not nest in VFP, but the grammar nests them when ENDPROC is omitted, so a nested routine becomes its own scope either way.
-  function visitRoutine(node: AstNode, parent: Scope) {
+  function visitRoutine(node: ProcedureStatement, parent: Scope) {
     const inClass = parent.kind === 'class';
-    const name = str(node.name) ?? '(anonymous)';
+    const name = node.name;
     const scope = newScope(
       inClass ? parent.name + '.' + name : name,
       inClass ? 'method' : (node.isFunction ? 'function' : 'procedure'),
       node.location ?? null,
       parent
     );
-    for (const param of asArray(node.parameters)) {
+    for (const param of node.parameters) {
       // Function-style params are { name, type }; the LPARAMETERS form is a bare string.
-      const isObject = param && typeof param === 'object';
-      declare(scope, isObject ? (param as AstNode).name : param, 'parameter', node.location ?? null,
-        isObject ? (param as AstNode).type : null);
+      const typed = typeof param === 'string' ? null : param;
+      declare(scope, typed ? typed.name : param, 'parameter', node.location ?? null, typed ? typed.type : null);
     }
     visit(node.body, scope);
     visit(node.returnExpression, scope);
   }
 
-  function visitClass(node: AstNode, parent: Scope) {
-    const scope = newScope(str(node.name) ?? '(anonymous)', 'class', node.location ?? null, parent);
-    for (const member of asArray(node.body)) {
-      const stmt = member as AstNode | null;
+  function visitClass(node: DefineClass, parent: Scope) {
+    const scope = newScope(node.name, 'class', node.location ?? null, parent);
+    for (const stmt of node.body) {
       if (!stmt || typeof stmt !== 'object') continue;
       // `cName = ""` at class-body level declares a property, not a variable.
-      if (stmt.type === 'Assignment' && (stmt.target as AstNode | undefined)?.type === 'Identifier') {
-        declare(scope, (stmt.target as AstNode).name, 'property', stmt.location ?? null);
+      if (stmt.type === 'Assignment' && stmt.target.type === 'Identifier') {
+        declare(scope, stmt.target.name, 'property', stmt.location ?? null);
         visit(stmt.expression, scope);
         continue;
       }
@@ -199,32 +197,29 @@ export function buildSymbolTable(ast: ProgramAst | null | undefined): SymbolTabl
   }
 
   // Assignment targets: a bare name or m.name is a write, anything else (THIS.x, oObj.x) is a read of the object it hangs off.
-  function visitTarget(target: unknown, scope: Scope, at: Loc | null) {
-    const node = target as AstNode | null;
-    if (!node || typeof node !== 'object') {
+  function visitTarget(target: Expr | string | null | undefined, scope: Scope, at: Loc | null) {
+    if (!target || typeof target !== 'object') {
       reference(scope, target, 'write', at);
       return;
     }
-    if (node.type === 'Identifier') {
-      reference(scope, node.name, 'write', node.location ?? at);
+    if (target.type === 'Identifier') {
+      reference(scope, target.name, 'write', target.location ?? at);
       return;
     }
-    if (node.type === 'MemberExpression') {
-      const object = node.object as AstNode | undefined;
-      const property = node.property as AstNode | undefined;
-      if (object?.type === 'Identifier' && str(object.name)?.toUpperCase() === 'M') {
-        reference(scope, property?.name, 'write', node.location ?? at, true);
+    if (target.type === 'MemberExpression') {
+      if (isMemvarPrefix(target.object)) {
+        reference(scope, target.property.name, 'write', target.location ?? at, true);
         return;
       }
-      visit(object, scope);
+      visit(target.object, scope);
       return;
     }
-    if (node.type === 'ArrayIndexExpression') {
-      visitTarget(node.object, scope, at);
-      visit(node.indexes, scope);
+    if (target.type === 'ArrayIndexExpression') {
+      visitTarget(target.object, scope, at);
+      visit(target.indexes, scope);
       return;
     }
-    visit(node, scope);
+    visit(target, scope);
   }
 
   function visit(value: unknown, scope: Scope): void {
@@ -233,6 +228,7 @@ export function buildSymbolTable(ast: ProgramAst | null | undefined): SymbolTabl
       return;
     }
     if (!value || typeof value !== 'object') return;
+    // A few of the grammar's plain option objects also carry a `type` field; they match no case below and fall through to visitChildren.
     const node = value as AstNode;
     const at = node.location ?? null;
 
@@ -257,14 +253,13 @@ export function buildSymbolTable(ast: ProgramAst | null | undefined): SymbolTabl
         scope.privateAll = true;
         return;
       case 'ParametersDeclaration':
-        for (const name of asArray(node.names)) declare(scope, name, 'parameter', at);
+        for (const name of node.names) declare(scope, name, 'parameter', at);
         return;
       case 'DimensionStatement':
-        for (const item of asArray(node.items)) {
-          const entry = item as AstNode;
-          declare(scope, entry.name, 'dimension', at, entry.asType, true);
-          visit(entry.rows, scope);
-          visit(entry.columns, scope);
+        for (const item of node.items) {
+          declare(scope, item.name, 'dimension', at, item.asType, true);
+          visit(item.rows, scope);
+          visit(item.columns, scope);
         }
         return;
 
@@ -274,13 +269,13 @@ export function buildSymbolTable(ast: ProgramAst | null | undefined): SymbolTabl
         visit(node.expression, scope);
         return;
       case 'StoreStatement': {
-        const target = node.target as AstNode | undefined;
-        if (target?.type === 'VarList') {
-          for (const name of asArray(target.vars)) reference(scope, name, 'write', at);
-        } else if (target?.type === 'ArrayIndexed') {
+        const target = node.target;
+        if (target.type === 'VarList') {
+          for (const name of target.vars) reference(scope, name, 'write', at);
+        } else if (target.type === 'ArrayIndexed') {
           reference(scope, target.array, 'write', at);
           visit(target.indexes, scope);
-        } else if (target?.type === 'ArrayAssign') {
+        } else {
           reference(scope, target.target, 'write', at);
           visit(target.expression, scope);
         }
@@ -288,17 +283,21 @@ export function buildSymbolTable(ast: ProgramAst | null | undefined): SymbolTabl
         return;
       }
       case 'ForStatement':
-      case 'ForEachStatement':
         reference(scope, node.variable, 'write', at);
         visit(node.init, scope);
         visit(node.final, scope);
         visit(node.step, scope);
+        visit(node.body, scope);
+        return;
+      case 'ForEachStatement':
+        reference(scope, node.variable, 'write', at);
         visit(node.collection, scope);
         visit(node.body, scope);
         return;
       case 'CalculateStatement':
       case 'SumStatement':
-        visitCalcTo(node, scope, at);
+        if (node.to?.kind === 'ARRAY') reference(scope, node.to.name, 'write', at);
+        else for (const name of node.to?.vars ?? []) reference(scope, name, 'write', at);
         visit(node.expressions, scope);
         visit(node.forCondition, scope);
         visit(node.whileCondition, scope);
@@ -306,18 +305,18 @@ export function buildSymbolTable(ast: ProgramAst | null | undefined): SymbolTabl
 
       // --- work area ---
       case 'UseStatement': {
-        const target = node.target as AstNode | null;
-        if (!target) {
+        if (!node.target) {
           workArea(scope, 'close', null, 'USE', at);
           return;
         }
-        // An explicit ALIAS names the area; otherwise it takes the table's own name.
-        workArea(scope, 'open', node.alias ?? target, 'USE', at, node.inTarget != null);
+        // An explicit ALIAS names the area; otherwise it takes the name of the table.
+        const named = node.target.kind === 'TABLE' ? node.target.name : null;
+        workArea(scope, 'open', node.alias ?? named, 'USE', at, node.inTarget != null);
         visit(node.inTarget, scope);
         return;
       }
       case 'CreateStatement':
-        workArea(scope, 'open', node.name, ('CREATE ' + (str(node.kind) ?? '')).trim(), at);
+        workArea(scope, 'open', node.name, 'CREATE ' + node.kind, at);
         if (node.fromArray) reference(scope, node.fromArray, 'read', at);
         return;
       case 'SelectStatement': {
@@ -326,7 +325,7 @@ export function buildSymbolTable(ast: ProgramAst | null | undefined): SymbolTabl
           workArea(scope, 'select', switched, 'SELECT', at);
           return; // `SELECT myalias` names a work area, not a column
         }
-        const destination = node.destination as AstNode | undefined;
+        const destination = node.destination;
         if (destination?.kind === 'ARRAY') {
           reference(scope, destination.name, 'write', at);
         } else if (destination?.kind === 'CURSOR' || destination?.kind === 'TABLE' || destination?.kind === 'DBF') {
@@ -345,20 +344,17 @@ export function buildSymbolTable(ast: ProgramAst | null | undefined): SymbolTabl
       case 'Identifier':
         reference(scope, node.name, 'read', at);
         return;
-      case 'MemberExpression': {
-        const object = node.object as AstNode | undefined;
-        const property = node.property as AstNode | undefined;
+      case 'MemberExpression':
         // `m.nTotal` is the variable; `tbl.field` and `oObj.prop` are not.
-        if (object?.type === 'Identifier' && str(object.name)?.toUpperCase() === 'M') {
-          reference(scope, property?.name, 'read', at, true);
+        if (isMemvarPrefix(node.object)) {
+          reference(scope, node.property.name, 'read', at, true);
           return;
         }
-        visit(object, scope);
+        visit(node.object, scope);
         return;
-      }
       case 'CallExpression':
         // The callee of a bare call is a function name, not a variable read.
-        if ((node.callee as AstNode | undefined)?.type !== 'Identifier') visit(node.callee, scope);
+        if (node.callee.type !== 'Identifier') visit(node.callee, scope);
         visit(node.arguments, scope);
         return;
 
@@ -368,39 +364,30 @@ export function buildSymbolTable(ast: ProgramAst | null | undefined): SymbolTabl
     }
   }
 
-  function visitCalcTo(node: AstNode, scope: Scope, at: Loc | null) {
-    const to = node.to as AstNode | undefined;
-    if (!to) return;
-    if (to.kind === 'ARRAY') reference(scope, to.name, 'write', at);
-    else for (const name of asArray(to.vars)) reference(scope, name, 'write', at);
-  }
-
   function visitSql(node: AstNode, scope: Scope, skip: string[] = []) {
     sqlDepth++;
     visitChildren(node, scope, skip);
     sqlDepth--;
   }
 
+  // A generic walk over a union has to reach the properties reflectively.
   function visitChildren(node: AstNode, scope: Scope, skip: string[] = []) {
-    for (const key in node) {
+    for (const [key, child] of Object.entries(node as unknown as Record<string, unknown>)) {
       if (key === 'location' || skip.includes(key)) continue;
-      const child = node[key];
       if (child && typeof child === 'object') visit(child, scope);
     }
   }
 }
 
 /** `SELECT <alias>` and `SELECT <n>` switch work areas rather than querying. Returns the alias, null when it is `SELECT 0` or otherwise unknowable statically, or undefined when the statement is a real query. */
-function workAreaSwitch(node: AstNode): string | null | undefined {
-  const clauses = ['from', 'where', 'groupBy', 'having', 'orderBy', 'destination', 'top', 'quantifier'];
-  if (clauses.some(key => node[key] != null) || asArray(node.unions).length) return undefined;
-  const list = asArray(node.list);
-  if (list.length !== 1) return undefined;
-  const item = list[0] as AstNode | null;
-  if (item?.type !== 'SelectItem' || item.alias) return undefined;
-  const expr = item.expression as AstNode | undefined;
-  if (expr?.type === 'Identifier') return str(expr.name)?.toUpperCase() ?? null;
-  if (expr?.type === 'NumberLiteral') return null; // SELECT 0 takes the lowest free area
+function workAreaSwitch(node: SelectStatement): string | null | undefined {
+  const isQuery = node.from ?? node.where ?? node.groupBy ?? node.having ?? node.orderBy ?? node.destination ?? node.top ?? node.quantifier;
+  if (isQuery != null || node.unions.length) return undefined;
+  if (node.list.length !== 1) return undefined;
+  const item = node.list[0];
+  if (item.type !== 'SelectItem' || item.alias) return undefined;
+  if (item.expression.type === 'Identifier') return item.expression.name.toUpperCase();
+  if (item.expression.type === 'NumberLiteral') return null; // SELECT 0 takes the lowest free area
   return undefined;
 }
 
@@ -439,18 +426,23 @@ function parseName(raw: unknown): ParsedName | null {
   return { name: name.toUpperCase(), text: name, memvarPrefix: isMemvar, qualifier: isMemvar ? null : qualifier };
 }
 
+// `m.name` reaches the memory variable even when a field of an open table shares the name.
+function isMemvarPrefix(object: Expr): boolean {
+  return object.type === 'Identifier' && object.name.toUpperCase() === 'M';
+}
+
 // USE and SELECT INTO name their target as a string, a Path node, an Identifier or a QualifiedTable wrapper, depending on the clause.
 function aliasName(value: unknown): string | null {
   if (typeof value === 'string') return value.toUpperCase();
   if (!value || typeof value !== 'object') return null;
   const node = value as AstNode;
-  if (node.type === 'Path') return str(node.path)?.toUpperCase() ?? null;
-  if (node.type === 'Identifier' || node.type === 'StringLiteral') {
-    return str(node.name ?? node.value)?.toUpperCase() ?? null;
-  }
-  // { kind: 'TABLE', name: { database, table } } from UseTarget / QualifiedTable.
-  if (node.name) return aliasName(node.name);
-  if (node.table) return aliasName(node.table);
+  if (node.type === 'Path') return node.path.toUpperCase();
+  if (node.type === 'Identifier') return node.name.toUpperCase();
+  if (node.type === 'StringLiteral') return node.value.toUpperCase();
+  // A QualifiedTable wrapper: { database, table }.
+  const bag = value as { name?: unknown; table?: unknown };
+  if (bag.name) return aliasName(bag.name);
+  if (bag.table) return aliasName(bag.table);
   return null;
 }
 
@@ -458,6 +450,3 @@ function str(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}

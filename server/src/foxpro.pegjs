@@ -87,8 +87,8 @@ Statement "statement"
 // LOCAL [ ARRAY ] ArrayName1( nRows1 [, nColumns1 ] ) [ AS type [OF ClassLib ] ]
 //   [, ArrayName2( nRows2 [, nColumns2 ] ) [ AS type [ OF ClassLib ] ] ]
 LocalStatement
-  = "LOCAL"i _ "ARRAY"i _ arrs:ArrayDeclList { return arrs; }
-  / "LOCAL"i _ entries:LocalEntryList {  return entries; }
+  = "LOCAL"i WB _ "ARRAY"i _ arrs:ArrayDeclList { return arrs; }
+  / "LOCAL"i WB _ entries:LocalEntryList {  return entries; }
 
 // A comma-separated list of local entries (variables or arrays)
 LocalEntryList
@@ -115,7 +115,7 @@ ArrayDeclList
   = head:ArrayDecl tail:(_ "," _ ArrayDecl)* { return [head, ...tail.map(t => t[3])]; }
 
 PrivateStatement
-  = "PRIVATE"i _ (
+  = "PRIVATE"i WB _ (
       "ALL"i _ "LIKE"i _ p:(StringLiteral / Pattern) {
         const pat = (typeof p === 'string') ? p : (p && p.value ? p.value : p);
         return node("PrivateAllLike", { pattern: pat });
@@ -126,18 +126,18 @@ PrivateStatement
   )
 
 PublicStatement
-  = "PUBLIC"i _ vars:IdentifierList {
+  = "PUBLIC"i WB _ vars:IdentifierList {
       return vars.map(v => node("PublicDeclaration", { name: v }));
     }
 
 LParameters
-  = ("LPARAMETERS"i / "PARAMETERS"i) _ vars:ParameterList {
+  = ("LPARAMETERS"i / "PARAMETERS"i) WB _ vars:ParameterList {
       return node("ParametersDeclaration", { names: vars });
     }
 
 // DIMENSION ArrayName(nRows [, nColumns]) [AS cType] [, ArrayName2(...)] ...
 DimensionStatement
-  = "DIMENSION"i __ first:DimensionItem tail:(_ "," _ DimensionItem)* {
+  = "DIMENSION"i WB __ first:DimensionItem tail:(_ "," _ DimensionItem)* {
       const items = [first, ...tail.map(t => t[3])];
       return node("DimensionStatement", { items });
     }
@@ -204,14 +204,14 @@ AssignmentStatement
 
 // Shorthand print statement: ? <expression> or PRINT <expression>
 PrintStatement // todo: Wait window probably should be separate
-  = ("?" / "PRINT"i) _ args:ExpressionList {
+  = ("?" / ("PRINT"i WB)) _ args:ExpressionList {
       return node("PrintStatement", { arguments: args, argument: (args && args.length) ? args[0] : null });
     }
 
 // WAIT [cMessageText] [TO VarName] [WINDOW [AT nRow, nColumn]] [NOWAIT]
 //    [CLEAR | NOCLEAR] [TIMEOUT nSeconds]
 WaitWindowStatement
-  = "WAIT WINDOW"i _ opts:(_ ("NOWAIT"i / "NOCLEAR"i))* _ msg:Expression? {
+  = "WAIT WINDOW"i WB _ opts:(_ ("NOWAIT"i / "NOCLEAR"i))* _ msg:Expression? {
       const nowait = opts ? opts.some(o => (typeof o[1] === 'string' ? o[1].toUpperCase() : o[1]) === 'NOWAIT') : false;
       const noclear = opts ? opts.some(o => (typeof o[1] === 'string' ? o[1].toUpperCase() : o[1]) === 'NOCLEAR') : false;
       return node("WaitWindowStatement", { nowait, noclear, message: msg || null });
@@ -225,7 +225,7 @@ WaitWindowStatement
 //  [ALIAS cTableAlias] [EXCLUSIVE] [SHARED] [NOUPDATE] 
 //  [CONNSTRING cConnectionString | nStatementHandle ]
 UseStatement
-  = "USE "i _
+  = "USE"i WB _
     tgt:UseTarget? _
     parts:(UseOption _)*
     {
@@ -263,7 +263,6 @@ UseStatement
         connection: opts.connection
       });
     }
-  / "USE"i
 
 UseTarget
   = "?" { return { kind: 'PROMPT' }; }
@@ -319,7 +318,7 @@ PreprocessorStatement
 
 // ON KEY [ = expN] [command]
 OnKeyStatement
-  = "ON KEY"i _ eq:(_ "=" _ e:Expression { return e; })? _ cmd:Expression? _ LineTerminator? {
+  = "ON KEY"i WB _ eq:(_ "=" _ e:Expression { return e; })? _ cmd:Expression? _ LineTerminator? {
       return node('OnKeyStatement', { keyExpression: eq ? eq[1] : null, command: cmd || null });
     }
 
@@ -340,17 +339,19 @@ PreprocessorIfStatement
       return node("PreprocessorIfStatement", { raw: (start + rest + end).trim() });
     }
 
-// Example: DEFINE CLASS myhandler AS Session
+// DEFINE CLASS ClassName AS ParentClass [OF ClassLibrary] [OLEPUBLIC]
 DefineClass
-  = "DEFINE CLASS"i _ name:Identifier _ "AS"i _ base:Identifier __
+  = "DEFINE CLASS"i WB _ name:Identifier _ "AS"i _ base:Identifier
+    ofPart:(_ "OF"i WB _ lib:(StringLiteral / UnquotedPath) { return lib; })?
+    olePublic:(_ "OLEPUBLIC"i WB)? __
     statements:(Statement __)*
     "ENDDEFINE"i {
-      return node("DefineClass", { name, base: base || null, body: flatten(statements.map(s => s[0])) });
+      return node("DefineClass", { name, base: base || null, ofClass: ofPart || null, olePublic: !!olePublic, body: flatten(statements.map(s => s[0])) });
     }
 
 // DECLARE [cFunctionType] FunctionName IN LibraryName [AS AliasName] [cParamType1 [@] ParamName1, cParamType2 [@] ParamName2, ...]
 DeclareStatement
-  = "DECLARE"i _
+  = "DECLARE"i WB _
     cFunctionType:("SHORT"i / "LONG"i / "INTEGER"i / "SINGLE"i / "DOUBLE"i / "STRING"i / "OBJECT"i)? _
     functionName:Identifier _ 
     "IN"i _ 
@@ -501,14 +502,14 @@ PostfixExpression
 
 // Allow a bare expression (typically a call) as a top-level statement.
 ExpressionStatement "expression statement"
-  = expr:PostfixExpression { return node("ExpressionStatement", { expression: expr }); }
+  = expr:PostfixExpression !{ return expr.type === 'Identifier' || expr.type === 'ImplicitGlobal'; } { return node("ExpressionStatement", { expression: expr }); }
 
 // Leading equals can be used to evaluate/call an expression as a statement, e.g. "=func()"
 EvalStatement "equals-expression statement"
   = "=" _ expr:Expression { return node("ExpressionStatement", { expression: expr }); }
 
 IfStatement "if statement"
-  = "IF"i __ test:Expression __ 
+  = "IF"i WB __ test:Expression __ 
     consequent:(Statement __)*
     "ELSE"i __
     alternate:(Statement __)*
@@ -516,7 +517,7 @@ IfStatement "if statement"
     {
       return node("IfStatement", { test, consequent: node("BlockStatement", { body: flatten(consequent.map(s => s[0])) }), alternate: node("BlockStatement", { body: flatten(alternate.map(s => s[0])) }) });
     }
-    / "IF"i __ test:Expression __ 
+    / "IF"i WB __ test:Expression __ 
       consequent:(Statement __)* 
       "ENDIF"i __
     {
@@ -541,7 +542,7 @@ SelectStatement
     }
 
 SelectCore
-  = "SELECT"i WS0
+  = "SELECT"i WB WS0
     quant:("ALL"i / "DISTINCT"i)? WS0
     top:("TOP"i WS0 n:Expression WS0 percent:("PERCENT"i)? { return { count: n, percent: !!percent }; })? WS0
     list:(!("FROM"i ![a-zA-Z0-9_]
@@ -796,12 +797,12 @@ CopyStatement "copy/rename statement"
   = CopyFileStatement / CopyToStatement
 
 CopyFileStatement
-  = action:("COPY FILE"i / "RENAME"i) _ src:PathOrExpression _ "TO"i _ dst:PathOrExpression {
+  = action:("COPY FILE"i / "RENAME"i) WB _ src:PathOrExpression _ "TO"i _ dst:PathOrExpression {
       return node(action === 'COPY FILE' ? 'CopyFileStatement' : 'RenameStatement', { source: src, destination: dst });
     }
 
 CopyToStatement
-  = "COPY TO"i _
+  = "COPY TO"i WB _
     target:(PathOrExpression) _
     db:DatabaseClause? _
     fields:FieldsClause? _
@@ -820,14 +821,14 @@ CopyToStatement
         while: whileClause || null,
         index: idx || null,
         noOptimize: !!noopt,
-        type: t || null,
+        exportType: t || null,
         codepage: ascp || null
       });
     }
   
 // ERASE FileName | ? [RECYCLE]
 EraseStatement
-  = "ERASE"i _ target:(PathOrExpression / "?") _ recycle:(_ "RECYCLE"i)? {
+  = "ERASE"i WB _ target:(PathOrExpression / "?") _ recycle:(_ "RECYCLE"i)? {
       const tgt = (typeof target === 'string' && target === '?') ? { kind: 'PROMPT' } : target;
       return node('EraseStatement', { target: tgt, recycle: !!(recycle && recycle[1]) });
     }
@@ -850,7 +851,7 @@ WithIndexClause
 //    [COMPACT] [ASCENDING | DESCENDING] [UNIQUE | CANDIDATE] [ADDITIVE]
 // Options may appear in any order.
 IndexOnStatement "index on statement"
-  = "INDEX ON"i __ expr:Expression parts:(_ IndexOnPart)* {
+  = "INDEX ON"i WB __ expr:Expression parts:(_ IndexOnPart)* {
       // Aggregate options from arbitrary order
       let to = null, tag = null, binary = false, collate = null, of = null, forExpr = null,
           compact = false, direction = null, uniqueness = null, additive = false;
@@ -915,7 +916,7 @@ DelimitedOptions
 // -----------------------------
 
 GoToStatement "go/goto statement"
-  = cmd:("GO"i / "GOTO"i) _
+  = cmd:("GOTO"i / "GO"i) WB _
     part:(
       pos:("TOP"i / "BOTTOM"i) _ inC:InClause? { return { pos, rec: null, inTarget: inC || null }; }
       / reckw:("RECORD"i)? _ rec:Expression _ inC:InClause? { return { pos: null, rec, inTarget: inC || null }; }
@@ -933,7 +934,7 @@ InClause
 
 // SKIP [nRecords] [IN nWorkArea | cTableAlias]
 SkipStatement
-  = "SKIP"i _ n:Expression? _ 
+  = "SKIP"i WB _ n:Expression? _ 
   inPart:(_ "IN"i __ target:(NumberLiteral / PathOrExpression) { return target; })? 
   {
     return node('SkipStatement', { count: n || null, inTarget: inPart ? inPart[2] : null });
@@ -941,7 +942,7 @@ SkipStatement
 
 // UNLOCK [RECORD nRecordNumber] [IN nWorkArea | cTableAlias] [ALL]
 UnlockStatement
-  = "UNLOCK"i _
+  = "UNLOCK"i WB _
     rec:(_ "RECORD"i __ n:Expression { return n; })?
     _ inPart:(_ "IN"i __ target:(NumberLiteral / Identifier / StringLiteral) { return target; })?
     _ all:("ALL"i)? {
@@ -954,7 +955,7 @@ UnlockStatement
 // Opt 3: INSERT INTO dbf_name [(FieldName1 [, FieldName2, ...])]
 //    SELECT SELECTClauses [UNION UnionClause SELECT SELECTClauses ...]
 InsertStatement
-  = "INSERT"i __ "INTO"i __ target:PathOrExpression _
+  = "INSERT"i WB __ "INTO"i __ target:PathOrExpression _
     cols:("(" _ cl:IdentifierList _ ")")? __
     src:(
       "VALUES"i _ "(" _ vals:ExpressionList _ ")" { return { kind: 'values', values: vals }; }
@@ -978,7 +979,7 @@ InsertStatement
 //    WHERE FilterCondition1 [AND | OR FilterCondition2 ...]
 // Clauses may appear in any order
 UpdateStatement
-  = "UPDATE"i _ target:IdentifierOrString WS0
+  = "UPDATE"i WB _ target:IdentifierOrString WS0
     parts:(WSX UpdatePart)* {
       let set = null, from = null, where = null;
       for (const p of parts.map(t => t[1])) {
@@ -1007,7 +1008,7 @@ UpdateAssignment
 // OPT 2: DELETE [Scope] [FOR lExpression1] [WHILE lExpression2]
 //    [IN nWorkArea | cTableAlias] [NOOPTIMIZE]
 DeleteStatement
-  = "DELETE"i _ sel:(
+  = "DELETE"i WB _ sel:(
       from:FromClause { return { target: null, from }; }
       / target:IdentifierOrString _ from:FromClause { return { target, from }; }
     ) _
@@ -1022,7 +1023,7 @@ DeleteStatement
         where: where || null
       });
     }
-  / "DELETE"i _ 
+  / "DELETE"i WB _ 
       scope:IdentifierOrString? _
     forp:("FOR"i __ fexp:Expression { return fexp; })? _
     whilep:("WHILE"i __ wexp:Expression { return wexp; })? _
@@ -1043,14 +1044,14 @@ DeleteStatement
 
 // ZAP [IN nWorkArea | cTableAlias]
 ZapStatement
-  = "ZAP"i _ inPart:(_ "IN"i __ target:(NumberLiteral / Identifier / StringLiteral) { return target; })? {
+  = "ZAP"i WB _ inPart:(_ "IN"i __ target:(NumberLiteral / Identifier / StringLiteral) { return target; })? {
     return node('ZapStatement', { inTarget: inPart ? inPart[2] : null });
   }
 
 // RECALL [Scope] [FOR lExpression1] [WHILE lExpression2] [NOOPTIMIZE]
 //    [IN nWorkArea | cTableAlias]
 RecallStatement
-  = "RECALL"i _
+  = "RECALL"i WB _
     scope:(!("IN"i) IdentifierOrString)? _
     forp:(("FOR"i __ fexp:Expression { return fexp; }))? _
     whilep:(("WHILE"i __ wexp:Expression { return wexp; }))? _
@@ -1074,7 +1075,7 @@ IterationStatement
 
 // FOR VarName = nInitialValue TO nFinalValue [STEP nIncrement] Commands [EXIT] [LOOP] ENDFOR | NEXT
 ForLoop "for loop"
-  = "FOR"i _ 
+  = "FOR"i WB _ 
     varName:ParameterName _ "=" _ init:Expression _ "TO"i _ final:Expression _ 
     step:("STEP"i _ inc:Expression)? __
     // Avoid consuming ENDFOR/NEXT as part of the body when NEXT isn't reserved globally
@@ -1097,7 +1098,7 @@ ForLoop "for loop"
 // [LOOP]
 // ENDFOR | NEXT [Var]
 ForEachLoop "for-each loop"
-  = "FOR EACH"i _ varName:ParameterName _
+  = "FOR EACH"i WB _ varName:ParameterName _
     typePart:("AS"i _ type:Identifier _ ofPart:("OF"i _ clslib:Identifier _ { return { library: clslib }; })? {
       return { typing: type, of: ofPart || null };
     })?
@@ -1121,7 +1122,7 @@ ForEachLoop "for-each loop"
 
 // DO WHILE lExpression Commands [LOOP] [EXIT] ENDDO
 DoWhileLoop "do-while loop"
-  = "DO WHILE"i _ test:Expression __
+  = "DO WHILE"i WB _ test:Expression __
     body:(Statement __)*
     "ENDDO"i {
       return node("DoWhileStatement", {
@@ -1132,7 +1133,7 @@ DoWhileLoop "do-while loop"
 
 // DO CASE CASE lExpression1 [Commands] ... [OTHERWISE Commands] ENDCASE
 DoCaseStatement "do case statement"
-  = "DO CASE"i __
+  = "DO CASE"i WB __
   cases:(CaseClause)*
   otherwise:("OTHERWISE"i __ othBody:(Statement __)* { return node('BlockStatement', { body: flatten(othBody.map(s => s[0])) }); })?
   "ENDCASE"i {
@@ -1154,7 +1155,7 @@ CaseClause
 // DO FORM FormName | ? [NAME VarName [LINKED]] [WITH cParameterList]
 //  [TO VarName] [NOREAD] [NOSHOW]
 DoFormStatement "do form statement"
-  = "DO FORM"i _ target:(StringLiteral / Identifier / "?") _
+  = "DO FORM"i WB _ target:(StringLiteral / Identifier / "?") _
     namePart:("NAME"i _ nameIdent:ParameterName _ link:("LINKED"i)? )?
     withPart:("WITH"i _ params:ArgumentList maybeTo:(_ "TO"i _ v:ParameterName)? )?
     toPart:("TO"i _ v:ParameterName)?
@@ -1174,8 +1175,8 @@ DoFormStatement "do form statement"
     }
 
 DoStatement "do statement"
-  = "DO"i _ 
-    target:(!("FORM"i ![A-Za-z0-9_] / "CASE"i ![A-Za-z0-9_]) PathOrExpression) _
+  = "DO"i WB _ 
+    target:(!("FORM"i WB / "CASE"i WB / "WHILE"i WB) PathOrExpression) _
     // Allow IN and WITH in either order
     first:(
       ("WITH"i _ params:ArgumentList { return { kind: 'WITH', params }; })
@@ -1195,16 +1196,16 @@ DoStatement "do statement"
     }
 
 ExitStatement "exit"
-  = ("EXIT"i / "QUIT"i) { return node("ExitStatement", {}); }
+  = ("EXIT"i / "QUIT"i) WB { return node("ExitStatement", {}); }
 
 ContinueStatement "continue (LOOP)"
-  = "LOOP"i { return node("ContinueStatement", {}); }
+  = "LOOP"i WB { return node("ContinueStatement", {}); }
 
 // -----------------------------
 // CREATE TABLE/DBF/CURSOR
 // -----------------------------
 CreateStatement "create statement"
-  = "CREATE"i _ 
+  = "CREATE"i WB _ 
     kind:("TABLE"i / "DBF"i / "CURSOR"i) _ 
     name:CreateTarget _
     nameClause:("NAME"i __ longName:Identifier _ { return longName; })? _
@@ -1296,7 +1297,7 @@ TableConstraint
 
 // TRY [ tryCommands ] [ CATCH [ TO VarName ] [ WHEN lExpression ] [ catchCommands ] ] [ THROW [ eUserExpression ] ] [ EXIT ] [ FINALLY [ finallyCommands ] ] ENDTRY
 TryStatement "try-catch statement"
-  = "TRY"i __
+  = "TRY"i WB __
     tstmts:(Statement __)*
     cpart:(
       "CATCH"i 
@@ -1325,7 +1326,7 @@ TryStatement "try-catch statement"
 //    [.cStatements]
 // ENDWITH
 WithStatement
-  = "WITH"i _ target:(LValue / PostfixExpression)
+  = "WITH"i WB _ target:(LValue / PostfixExpression)
     asPart:(_ "AS"i __ t:Identifier _ ofPart:(_ "OF"i _ cl:Identifier { return cl; })? )? __
     body:(WithBodyEntry __)*
     "ENDWITH"i {
@@ -1367,6 +1368,7 @@ UnknownStatement
     / "ENDFUNC"i    ![A-Za-z0-9_]
     / "ENDCASE"i    ![A-Za-z0-9_]
     / "ENDWITH"i    ![A-Za-z0-9_]
+    / "ENDSCAN"i    ![A-Za-z0-9_]
     / "OTHERWISE"i  ![A-Za-z0-9_]
     / "CATCH"i      ![A-Za-z0-9_]
     / "FINALLY"i    ![A-Za-z0-9_]
@@ -1382,7 +1384,7 @@ SetStatement
 //   [OF CDXFileName] [IN nWorkArea | cTableAlias]
 //   [ASCENDING | DESCENDING]]
 SetOrderToStatement
-  = "SET ORDER TO"i _
+  = "SET ORDER TO"i WB _
     sel:(
       n:NumberLiteral { return { kind: 'NUMBER', value: n }; }
       / f:(IdentifierOrString / UnquotedPath) { return { kind: 'FILE', value: f }; }
@@ -1404,7 +1406,7 @@ SetOrderToStatement
   //   [, eExpression2 INTO nWorkArea2 | cTableAlias2 ...]
   //   [IN nWorkArea | cTableAlias] [ADDITIVE]
   SetRelationToStatement
-    = "SET RELATION TO"i _
+    = "SET RELATION TO"i WB _
       first:RelationPair? tail:(_ "," _ RelationPair)*
       inClause:(_ "IN"i __ target:(Identifier / StringLiteral / NumberLiteral) _)?
       additive:(_ "ADDITIVE"i)? {
@@ -1425,11 +1427,11 @@ SetOrderToStatement
 SetSettingStatement
   ="SET"i (Whitespace / LineContinuation)+ inner:(
     ("TO"i __ setting:Expression { return node("SetTo", { setting }); })
-    / (cmd:KeywordOrIdentifier toPart:(_ "TO"i __ setting:Expression)? argPart:(_ (StringLiteral / Identifier / NumberLiteral))? additive:(_ "ADDITIVE"i)? state:(_ ("ON"i / "OFF"i))? { const argument = toPart ? toPart[2] : (argPart ? argPart[1] : null); const st = state ? state[1] : null; return node("cSetCommand", { command: cmd, argument: argument, state: st ? st.toUpperCase() : null, additive: !!additive }); })
+    / (cmd:KeywordOrIdentifier toPart:(_ "TO"i __ setting:Expression)? argPart:(_ (StringLiteral / Identifier / NumberLiteral))? additive:(_ "ADDITIVE"i)? state:(_ ("ON"i / "OFF"i))? { const argument = toPart ? toPart[2] : (argPart ? argPart[1] : null); const st = state ? state[1] : null; return node("SetCommand", { command: cmd, argument: argument, state: st ? st.toUpperCase() : null, additive: !!additive }); })
   ) {
       // If TO form, inner is already a SetTo node and we return it directly.
       if (inner && inner.type === 'SetTo') return inner;
-      // Otherwise inner is a cSetCommand node; return it as the captured command node.
+      // Otherwise inner is a SetCommand node; return it as the captured command node.
       return inner;
     }
 
@@ -1438,7 +1440,7 @@ SetSettingStatement
 //     | DIF | FW2 | MOD | PDOX | RPD | SDF | SYLK | WK1 | WK3 | WKS | WR1 | WRK | CSV | XLS | XL5 [SHEET cSheetName] | XL8 [SHEET cSheetName]]]
 //   [AS nCodePage]
 AppendStatement
-  = "APPEND FROM"i _
+  = "APPEND FROM"i WB _
     src:("?" { return { kind: 'PROMPT' }; } / PathOrExpression) _
     parts:(AppendFromOption _)* {
       let fields = null;
@@ -1458,11 +1460,11 @@ AppendStatement
         source: src,
         fields: fields,
         for: forExpr,
-        type: type,
+        exportType: type,
         codepage: codepage
       });
     }
-  / "APPEND"i _
+  / "APPEND"i WB _
     blank:("BLANK"i _)?
     inPart:("IN"i _ tableAlias:(Identifier / StringLiteral / NumberLiteral) _)?
     nomenu:("NOMENU"i _)? {
@@ -1515,7 +1517,7 @@ AppendDelimitedOption
 //    [WHEN lExpression3] [WIDTH nFieldWidth] [WINDOW WindowName1]
 //    [IN [WINDOW] WindowName2 | IN SCREEN] [COLOR SCHEME nSchemeNumber]
 BrowseStatement "browse statement"
-  = "BROWSE"i _ parts:(BrowseOption _)* {
+  = "BROWSE"i WB _ parts:(BrowseOption _)* {
       let fields = null; let cond = null; let norm = false; let nowait = false;
       for (const p of parts.map(t => t[0])) {
         if (!p) continue;
@@ -1537,7 +1539,7 @@ BrowseOption
 
 // REPLACE [ALL | REST] FieldName1 WITH eExpression1 [ADDITIVE] [, FieldName2 WITH eExpression2 [ADDITIVE]] ... [Scope] [FOR lExpression1] [WHILE lExpression2] [IN nWorkArea | cTableAlias] [NOOPTIMIZE]
 ReplaceStatement
-  = "REPLACE"i _
+  = "REPLACE"i WB _
     scope: ( "ALL"i { return 'ALL'; } / "REST"i { return 'REST'; })? _
     fields:ReplaceFieldList
     forClause:(_ "FOR"i __ condition:Expression _)?
@@ -1556,7 +1558,7 @@ ReplaceStatement
 
 // LOCATE [FOR lExpression1] [IN nWorkArea | cTableAlias] [WHILE lExpression2] [NOOPTIMIZE]
 LocateStatement
-  = "LOCATE"i parts:(
+  = "LOCATE"i WB parts:(
       _ (
         ("FOR"i __ condition:Expression { return { kind: 'FOR', value: condition }; })
       / ("ALL"i { return { kind: 'SCOPE', value: 'ALL' }; })
@@ -1591,7 +1593,7 @@ LocateStatement
 //   [EXIT]
 // ENDSCAN
 ScanStatement
-  = "SCAN"i _
+  = "SCAN"i WB _
     noopt:("NOOPTIMIZE"i _)?
     scope:(
       ("ALL"i { return 'ALL'; })
@@ -1617,7 +1619,7 @@ ScanStatement
 // CALCULATE eExpressionList [Scope] [FOR lExpression1] [WHILE lExpression2]
 //    [TO VarList | TO ARRAY ArrayName] [NOOPTIMIZE] [IN nWorkArea | cTableAlias]
 CalculateStatement
-  = ("CALCULATE"i / "Calc"i) __ 
+  = ("CALCULATE"i / "Calc"i) WB __ 
     exprs:ExpressionList _
     parts:(CalcOption _)*
     {
@@ -1639,7 +1641,7 @@ CalculateStatement
 // SUM [eExpressionList]   [Scope] [FOR lExpression1] [WHILE lExpression2]
 //    [TO MemVarNameList | TO ARRAY ArrayName]   [NOOPTIMIZE]
 SumStatement
-  = ("SUM"i) __? parts:(
+  = ("SUM"i) WB __? parts:(
       _ (
         (exprs:ExpressionList { return { kind: 'EXPRS', value: exprs }; })
       / (p:CalcOption { return p; })
@@ -1687,7 +1689,7 @@ ReplaceField
 
 // STORE eExpression TO VarNameList | ArrayNameList-or-VarName | ArrayName = eExpression
 StoreStatement
-  = "STORE"i __ expr:Expression __ "TO"i __
+  = "STORE"i WB __ expr:Expression __ "TO"i __
     toPart:(
       vars:IdentifierList { return { type: 'VarList', vars }; }
       / arr:Identifier "[" _ indexList:ExpressionList _ "]" { return { type: 'ArrayIndexed', array: arr, indexes: indexList }; }
@@ -1703,7 +1705,7 @@ ExpressionList
 // 1) PROCEDURE Name [ LPARAMETERS p1, p2, ... ]   Commands [ RETURN expr ] [ ENDPROC ]
 // 2) PROCEDURE Name( [ p1 [ AS type ] [, p2 [ AS type ] ... ] ) [ AS returntype ]  Commands [ RETURN expr ] [ ENDPROC ]
 ProcedureStatement "procedure"
-  = cw:("PROCEDURE"i / "FUNCTION"i) __ name:Identifier _ proc:(
+  = cw:("PROCEDURE"i / "FUNCTION"i) WB __ name:Identifier _ proc:(
       // function-style parameter list with optional typed params and optional return type
       "(" _ params:ProcedureParamList? _ ")" _ retPart:(_ "AS"i __ rt:IdentifierOrString)? __ statements:(Statement __)* ret:(_ "RETURN"i __ expr:Expression _)? end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
         return node("ProcedureStatement", {
@@ -1731,7 +1733,7 @@ ProcedureStatement "procedure"
     ) { return proc; }
 
 ReturnStatement
-  = "RETURN"i _ expr:Expression? _ LineTerminator? { return node("ReturnStatement", { argument: expr === undefined ? null : expr }); }
+  = "RETURN"i WB _ expr:Expression? _ LineTerminator? { return node("ReturnStatement", { argument: expr === undefined ? null : expr }); }
 
 // -----------------------------
 // Lexical
@@ -1823,6 +1825,7 @@ Keyword "keyword"
   / ("ON KEY"i      ![a-zA-Z0-9_])
   / ("ZAP"i        ![a-zA-Z0-9_])
   / ("BROWSE"i     ![a-zA-Z0-9_])
+  / ("ENDSCAN"i    ![a-zA-Z0-9_])
 
 NumberLiteral "number"
   = "SELECT(0)"i { return node("NumberLiteral", { value: 0, raw: "SELECT(0)", currency: false });}
@@ -1885,6 +1888,11 @@ NullLiteral "null"
 
 // Whitespace/comments between SELECT clauses: allow both inline (&&) and full-line (*) comments
 // Light whitespace/comment set used near token-sensitive locations
+// A word boundary after a keyword literal, so a keyword cannot match the start of a longer identifier.
+// Without it "DO"i matches the DO in DoSomething(), "SELECT"i matches SELECTED, and "USE"i matches USEr.
+WB "word boundary"
+  = ![a-zA-Z0-9_]
+
 WS0
   = (Whitespace / LineContinuation / PartialLineComment / LineTerminatorSequence)*
 

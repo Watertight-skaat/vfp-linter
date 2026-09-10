@@ -2,8 +2,8 @@ This is a vscode Foxpro linter extension repository. The extension is available 
 
 Conventions:
 - Be as concise as you can in your code and comments
-- Comments should be on one line (modern IDEs have text wrap)
 - single-line JavaScript if/for statements don't need brackets
+- Don't split up long comments to multiple lines. Modern IDEs have text wrap, so just leave them on one line
 
 Notes:
 - If `bun run dev` is already running, the parser is rebuilt on save and you do not need to

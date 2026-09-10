@@ -1,35 +1,84 @@
+// Diffs every fixture's diagnostics against a recorded expectation, so a rule that is supposed to fire can be regression-tested and a severity change shows up in review.
+// A fixture with no `.expected` file must produce no diagnostics at all. Run `bun run test:update` to rewrite the expectations, then review the diff.
 const parser = require('../server/src/parser.js');
 const fs = require('fs');
 const { runLinterRules } = require('../server/src/linter.ts');
 
-// This harness is a grammar-coverage probe, so it asks for the strict reading: a statement the grammar cannot parse is an error here, even though users get it as advisory information.
+// This harness is also a grammar-coverage probe, so it asks for the strict reading: a statement the grammar cannot parse is an error here, even though users get it as advisory information.
 const strict = { unsupportedSyntaxSeverity: 'error' };
+const severityNames = { 1: 'error', 2: 'warning', 3: 'information', 4: 'hint' };
+const update = process.argv.includes('--update');
 
-// for each .prg in this directory, run the linter and output results
-const files = fs.readdirSync('./test-files').filter(f => f.endsWith('.prg'));
-let successes = 0;
-const failedTests = [];
-for (const file of files) {
-	const src = fs.readFileSync('./test-files/' + file, 'utf-8');
+// test-files/ is the corpus that must parse cleanly; test-files/diagnostics/ holds fixtures written to make a rule fire.
+const dirs = ['./test-files', './test-files/diagnostics'];
+const fixtures = dirs.flatMap(dir =>
+	fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith('.prg')).map(f => `${dir}/${f}`) : []
+);
+
+// One diagnostic per line: "line:character severity code message", positions 1-based as an editor shows them.
+function format(diagnostic) {
+	const { line, character } = diagnostic.range.start;
+	const severity = severityNames[diagnostic.severity] ?? diagnostic.severity;
+	const message = String(diagnostic.message).replace(/\s+/g, ' ').trim();
+	return `${line + 1}:${character + 1} ${severity} ${diagnostic.code ?? '(no code)'} ${message}`;
+}
+
+function diagnose(file) {
+	const src = fs.readFileSync(file, 'utf-8');
+	let ast;
 	try {
-		const ast = parser.parse(src, { grammarSource: file });
-		const diagnostics = runLinterRules(ast, strict);
-		const errors = diagnostics.filter(d => d.severity == 1 || d.severity === 'error');
-		if (errors.length > 0) {
-			const messages = errors.map(e =>`LINTER: ${e.message} (line ${e.range.start.line + 1})`);
-			failedTests.push([file, messages]);
-		} else {
-			successes++;
-		}
+		ast = parser.parse(src, { grammarSource: file });
 	} catch (e) {
-		failedTests.push([file, [`PARSE Error: ${e.message || e.toString()}`]]);
+		// A parse failure is recorded like any other diagnostic, so the syntax-error path can be tested too.
+		const start = e.location && e.location.start;
+		const at = start ? `${start.line}:${start.column}` : '1:1';
+		return [`${at} error syntax-error ${String(e.message).replace(/\s+/g, ' ').trim()}`];
 	}
-}
-for (const failure of failedTests) {
-	console.log(`==== ${failure[0]} (x${failure[1].length}) ====`);
-	for (const msg of failure[1])
-		console.log(msg);
+	return runLinterRules(ast, strict).map(format);
 }
 
-console.log(`\nSuccesses: ${successes}\nFailures: ${failedTests.length}`);
-process.exit(failedTests.length > 0 ? 1 : 0);
+const failures = [];
+let passed = 0;
+let recorded = 0;
+
+for (const file of fixtures) {
+	const expectedPath = `${file}.expected`;
+	const actual = diagnose(file);
+
+	if (update) {
+		if (actual.length) {
+			fs.writeFileSync(expectedPath, actual.join('\n') + '\n');
+			recorded += actual.length;
+		} else if (fs.existsSync(expectedPath)) {
+			fs.unlinkSync(expectedPath);
+		}
+		continue;
+	}
+
+	const expected = fs.existsSync(expectedPath)
+		? fs.readFileSync(expectedPath, 'utf-8').split('\n').map(l => l.trim()).filter(Boolean)
+		: [];
+
+	const diff = [];
+	for (let i = 0; i < Math.max(actual.length, expected.length); i++) {
+		if (actual[i] === expected[i]) continue;
+		if (expected[i] === undefined) diff.push(`  + ${actual[i]}`);
+		else if (actual[i] === undefined) diff.push(`  - ${expected[i]}`);
+		else diff.push(`  - ${expected[i]}\n  + ${actual[i]}`);
+	}
+	if (diff.length) failures.push([file, diff]);
+	else passed++;
+}
+
+if (update) {
+	console.log(`Recorded ${recorded} expected diagnostics across ${fixtures.length} fixtures.`);
+	process.exit(0);
+}
+
+for (const [file, diff] of failures) {
+	console.log(`==== ${file} ====`);
+	console.log(diff.join('\n'));
+}
+console.log(`\nFixtures: ${passed}/${fixtures.length} match their expected diagnostics`);
+if (failures.length) console.log('If the change is intended, run `bun run test:update` and review the diff.');
+process.exit(failures.length > 0 ? 1 : 0);

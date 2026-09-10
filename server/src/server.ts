@@ -3,6 +3,7 @@ import { createConnection, TextDocuments, Diagnostic, DiagnosticSeverity, Propos
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { parse } from './parser.js'; // Import our Peggy.js parser
 import { runLinterRules, type SeverityName } from './linter.js';
+import type { Program } from './ast.js';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
@@ -103,9 +104,8 @@ async function validateTextDocument(textDocument: TextDocument): Promise<Diagnos
 	const text = textDocument.getText();
 
 	try {
-		const ast = parse(text);
-		const linterRules = runLinterRules(ast, settings) as unknown[] as Diagnostic[];
-		diagnostics.push(...linterRules);
+		const ast = parse(text) as Program;
+		diagnostics.push(...runLinterRules(ast, settings));
 	} catch (error) {
 		const location = (error as { location?: { start: { line: number; column: number }; end: { line: number; column: number } } })?.location;
 		if (location) {

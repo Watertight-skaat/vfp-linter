@@ -3,16 +3,7 @@
 const fs = require('fs');
 const parser = require('../server/src/parser.js');
 const { buildSymbolTable, aliasInEffectAt } = require('../server/src/scope.ts');
-
-const failures = [];
-let checks = 0;
-
-function check(label, actual, expected) {
-	checks++;
-	const a = JSON.stringify(actual);
-	const e = JSON.stringify(expected);
-	if (a !== e) failures.push(`${label}\n    expected ${e}\n    actual   ${a}`);
-}
+const { check, report } = require('./check.js');
 
 const src = fs.readFileSync('./test-files/scope.prg', 'utf-8');
 const table = buildSymbolTable(parser.parse(src, { grammarSource: 'scope.prg' }));
@@ -102,6 +93,4 @@ check('alias after USE customer', aliasInEffectAt(scope('(main)'), 5), 'CUSTOMER
 check('SELECT 0 makes the alias unknowable', aliasInEffectAt(scope('(main)'), 6), undefined);
 check('USE ... IN leaves the current area alone', aliasInEffectAt(scope('(main)'), 7), undefined);
 
-for (const failure of failures) console.log(`FAIL: ${failure}`);
-console.log(`\nScope checks: ${checks - failures.length}/${checks} passed`);
-process.exit(failures.length > 0 ? 1 : 0);
+report('Scope checks');

@@ -37,8 +37,28 @@ nothing else would report it.
 | `bun run compile`   | Regenerates the parser, type-checks, and bundles client + server       |
 | `bun run dev`       | Watches the grammar, the bundles and both type-check projects          |
 | `bun run typecheck` | Type-checks only (esbuild does not type-check)                         |
-| `bun run test`      | Parses every `.prg` in `test-files/`, then asserts the symbol table    |
+| `bun run test`        | Runs the four suites below                                           |
+| `bun run test:update` | Re-records the expected diagnostics for every fixture                |
 | `bun run e2e`       | Launches VS Code and runs the end-to-end suite in `client/src/test`    |
+
+### Tests
+
+| Suite                     | What it asserts                                                                        |
+| ------------------------- | -------------------------------------------------------------------------------------- |
+| `run-all-tests.js`        | Each fixture's diagnostics match its recorded `.expected` file, exactly                 |
+| `run-ast-tests.js`        | `ast.ts` declares exactly the node types and properties the grammar emits               |
+| `run-scope-tests.js`      | The contents of the symbol table built from `test-files/scope.prg`                       |
+| `run-severity-tests.js`   | Unsupported syntax follows the severity setting; broken code ignores it                  |
+
+Fixtures live in two places. `test-files/*.prg` is the coverage corpus: the grammar is expected
+to read all of it, so a fixture there should have no `.expected` file at all. Anything recorded
+against one is a grammar gap, stated out loud instead of passing silently.
+`test-files/diagnostics/*.prg` is the opposite — fixtures written to make a rule fire, each paired
+with the diagnostics it must produce.
+
+A fixture with no `.expected` file must produce nothing. To accept a change, run
+`bun run test:update` and review the resulting diff: that diff is the point, because it makes a
+changed severity or message visible rather than silently absorbed.
 
 > Use `bun run test`, not `bun test`. `bun test` is Bun's own test runner and ignores the
 > `test` script -- it picks up the suites under `client/src/test`, which need a running
@@ -84,12 +104,27 @@ git history and re-add `eslint`, `@eslint/js`, `@stylistic/eslint-plugin`,
 ├── package.json // The extension manifest.
 └── server // Language Server
     └── src
-        ├── ast.ts // Shared node/location shapes for the Peggy AST
+        ├── ast.ts // Typed AST: a discriminated union over every node the grammar emits
         ├── foxpro.pegjs // The grammar
         ├── linter.ts // Rules; importable without a connection, so tests can run it
         ├── scope.ts // Per-routine symbol table the scope-dependent rules read
         └── server.ts // Language Server entry point
 ```
+
+### The typed AST
+
+`parse()` returns `any`, so `ast.ts` declares what it actually hands back: a discriminated union
+over all 85 node types, which lets a rule `switch (node.type)` and get a checked set of properties
+instead of indexing into an untyped bag.
+
+A hand-written union is only worth having while it is true, so `run-ast-tests.js` re-derives the
+node names and property names from `foxpro.pegjs` and fails if `ast.ts` disagrees — a missing node,
+an invented one, a renamed property, or a node left out of the `Statement`/`Expr` unions. The
+grammar is the source of truth; the union is checked against it on every test run.
+
+Properties are typed from the grammar wherever its shape is fixed. A handful of option bags whose
+shape depends on which clause matched are typed `unknown` on purpose: that forces a rule to narrow
+rather than trust a guess, which is the one thing `any` would not do.
 
 ### The symbol table
 
