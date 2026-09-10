@@ -3,3 +3,10 @@ node_modules
 client/server
 .vscode-test
 local-test-files/
+# local build artifacts
+*.vsix
+debug_ast.json
+*.tsbuildinfo
+
+# npm lockfiles are replaced by bun.lock
+package-lock.json

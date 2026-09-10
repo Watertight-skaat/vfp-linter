@@ -1,12 +1,11 @@
-/* global console process */
-import * as parser from '../server/src/parser.js';
-import * as fs from 'fs';
-import { runLinterRules } from '../server/out/linter.js';
+const parser = require('../server/out/parser.js');
+const fs = require('fs');
+const { runLinterRules } = require('../server/out/linter.js');
 
 // for each .prg in this directory, run the linter and output results
 const files = fs.readdirSync('./test-files').filter(f => f.endsWith('.prg'));
 let successes = 0;
-let failedTests = [];
+const failedTests = [];
 for (const file of files) {
 	const src = fs.readFileSync('./test-files/' + file, 'utf-8');
 	try {
@@ -30,4 +29,4 @@ for (const failure of failedTests) {
 }
 
 console.log(`\nSuccesses: ${successes}\nFailures: ${failedTests.length}`);
-process.exit(failedTests > 0 ? 1 : 0);
+process.exit(failedTests.length > 0 ? 1 : 0);

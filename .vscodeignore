@@ -10,6 +10,25 @@ client/node_modules/**
 !client/node_modules/vscode-jsonrpc/**
 !client/node_modules/vscode-languageclient/**
 !client/node_modules/vscode-languageserver-protocol/**
+!client/node_modules/vscode-languageserver-textdocument/**
 !client/node_modules/vscode-languageserver-types/**
 !client/node_modules/{minimatch,brace-expansion,concat-map,balanced-match}/**
 !client/node_modules/{semver,lru-cache,yallist}/**
+# Build artifacts and development-only assets -- never ship these.
+*.vsix
+debug_ast.json
+test-files/**
+scripts/**
+eslint.config.mjs
+**/*.pegjs
+**/*.tsbuildinfo
+CLAUDE.md
+.github/**
+client/src/**
+client/out/test/**
+server/src/**
+client/testFixture/**
+**/package-lock.json
+**/bun.lock
+**/bun.lockb
+**/node_modules/.bin/**

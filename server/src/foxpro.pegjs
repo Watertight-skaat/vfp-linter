@@ -17,8 +17,8 @@
 // Top Level
 // -----------------------------
 Start "start of program"
-  = __ statements:SourceElements __ 
-  { return node("Program", { body: statements.body }); }
+  = __ statements:SourceElements? __
+  { return node("Program", { body: statements ? statements.body : [] }); }
 
 SourceElements "statement list"
   = head:Statement tail:(__ Statement)* {
@@ -1077,14 +1077,16 @@ ForLoop "for loop"
   = "FOR"i _ 
     varName:ParameterName _ "=" _ init:Expression _ "TO"i _ final:Expression _ 
     step:("STEP"i _ inc:Expression)? __
-    body:(Statement __)*
-    ("ENDFOR"i / "NEXT"i) 
+    // Avoid consuming ENDFOR/NEXT as part of the body when NEXT isn't reserved globally
+    body:((!("ENDFOR"i / "NEXT"i) Statement) __)*
+    ("ENDFOR"i / "NEXT"i) _ endVar:ParameterName?
     {
       return node("ForStatement", {
         variable: varName,
         init,
         final,
         step: step ? step[2] : null,
+        endVariable: endVar || null,
         body: node("BlockStatement", { body: flatten(body.map(s => s[0])) })
       });
     }
@@ -1703,7 +1705,7 @@ ExpressionList
 ProcedureStatement "procedure"
   = cw:("PROCEDURE"i / "FUNCTION"i) __ name:Identifier _ (
       // function-style parameter list with optional typed params and optional return type
-      "(" _ params:ProcedureParamList? _ ")" _ retPart:(_ "AS"i __ rt:IdentifierOrString)? __ statements:(Statement __)* ret:(_ "RETURN"i __ expr:Expression _)? end:(_ "ENDPROC"i __)? {
+      "(" _ params:ProcedureParamList? _ ")" _ retPart:(_ "AS"i __ rt:IdentifierOrString)? __ statements:(Statement __)* ret:(_ "RETURN"i __ expr:Expression _)? end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
         return node("ProcedureStatement", {
           name,
           isFunction: (typeof cw === 'string') ? (cw.toUpperCase() === 'FUNCTION') : false,

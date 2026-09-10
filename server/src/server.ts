@@ -116,16 +116,12 @@ function validateTextDocument(textDocument: TextDocument): Diagnostic[] {
 	// const settings = await getDocumentSettings(textDocument.uri);
 	const diagnostics: Diagnostic[] = [];
 	const text = textDocument.getText();
-	console.log(`Validating document: ${textDocument.uri}`);
 
 	try {
 		const ast = parse(text);
-		console.log(ast.body);
 		const linterRules = runLinterRules(ast) as unknown[] as Diagnostic[];
 		diagnostics.push(...linterRules);
 	} catch (error: any) {
-		console.log(error);
-
 		if (error?.location) {
 			const diagnostic: Diagnostic = {
 				severity: DiagnosticSeverity.Error,

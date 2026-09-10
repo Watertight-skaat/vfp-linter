@@ -58,29 +58,28 @@
 		}
 	},
 	"scripts": {
-		"vscode:prepublish": "npm run compile",
-		"compile": "npm run build:parser && tsc -b && npm run copy-js",
-		"dev": "concurrently \"npm run watch:parser\" \"npm run watch:copy\" \"tsc -b -w\"",
-		"build:parser": "npx peggy -o server/src/parser.js server/src/foxpro.pegjs --format es --dts",
-		"watch:parser": "npx peggy -o server/src/parser.js server/src/foxpro.pegjs --format es --dts -w",
-		"watch:copy": "node ./scripts/copy-src-watch.js",
-		"copy-js": "node ./scripts/copy-src-js.js",
-		"lint": "eslint",
-		"postinstall": "cd client && npm install && cd ../server && npm install && cd ..",
+		"vscode:prepublish": "bun run compile",
+		"compile": "bun run build:parser && tsc -b && bun run copy-js",
+		"dev": "concurrently \"bun run watch:parser\" \"bun run watch:copy\" \"tsc -b -w\"",
+		"build:parser": "peggy -o server/src/parser.js server/src/foxpro.pegjs --format commonjs --dts",
+		"watch:parser": "peggy -o server/src/parser.js server/src/foxpro.pegjs --format commonjs --dts -w",
+		"watch:copy": "node ./scripts/copy-src-watch.mjs",
+		"copy-js": "node ./scripts/copy-src-js.mjs",
+		"lint": "eslint client/src server/src scripts test-files",
+		"postinstall": "cd client && bun install && cd ../server && bun install && cd ..",
 		"test": "node ./test-files/run-all-tests.js"
 	},
 	"devDependencies": {
-		"@eslint/js": "^9.13.0",
-		"@stylistic/eslint-plugin": "^2.9.0",
-		"@types/mocha": "^10.0.6",
-		"@types/node": "^22",
-		"concurrently": "^9.2.1",
-		"eslint": "^9.13.0",
-		"mocha": "^10.3.0",
-		"typescript": "^5.9.2",
-		"typescript-eslint": "^8.39.0"
-	},
-	"dependencies": {
-		"peggy": "^5.0.6"
+		"@eslint/js": "^10.0.1",
+		"@stylistic/eslint-plugin": "^5.10.0",
+		"@types/mocha": "^10.0.10",
+		"@types/node": "^22.20.2",
+		"concurrently": "^10.0.5",
+		"eslint": "^10.10.0",
+		"globals": "^17.12.0",
+		"mocha": "^12.0.0",
+		"peggy": "^5.1.0",
+		"typescript": "^5.9.3",
+		"typescript-eslint": "^8.70.0"
 	}
 }

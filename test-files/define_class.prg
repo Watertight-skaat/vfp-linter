@@ -1,0 +1,23 @@
+DEFINE CLASS MyThing AS Custom
+	cName = ""
+	nCount = 0
+
+	PROCEDURE Init
+		THIS.cName = "hello"
+	ENDPROC
+
+	FUNCTION GetName()
+		RETURN THIS.cName
+	ENDFUNC
+
+	FUNCTION SetName(tcName)
+		THIS.cName = tcName
+		RETURN .T.
+	ENDFUNC
+ENDDEFINE
+
+DEFINE CLASS Svc AS Session OLEPUBLIC
+	FUNCTION Ping()
+		RETURN .T.
+	ENDFUNC
+ENDDEFINE
