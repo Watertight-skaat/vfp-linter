@@ -2,7 +2,7 @@ import { createConnection, TextDocuments, Diagnostic, DiagnosticSeverity, Propos
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { parse } from './parser.js'; // Import our Peggy.js parser
-import { runLinterRules } from './linter.js';
+import { runLinterRules, type SeverityName } from './linter.js';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents = new TextDocuments(TextDocument);
@@ -44,9 +44,10 @@ connection.onInitialized(() => {
 
 interface FoxProSettings {
 	maxNumberOfProblems: number;
+	unsupportedSyntaxSeverity: SeverityName;
 }
 
-const defaultSettings: FoxProSettings = { maxNumberOfProblems: 100 };
+const defaultSettings: FoxProSettings = { maxNumberOfProblems: 100, unsupportedSyntaxSeverity: 'information' };
 let globalSettings: FoxProSettings = defaultSettings;
 
 // Cache the settings of all open documents.
@@ -103,7 +104,7 @@ async function validateTextDocument(textDocument: TextDocument): Promise<Diagnos
 
 	try {
 		const ast = parse(text);
-		const linterRules = runLinterRules(ast) as unknown[] as Diagnostic[];
+		const linterRules = runLinterRules(ast, settings) as unknown[] as Diagnostic[];
 		diagnostics.push(...linterRules);
 	} catch (error) {
 		const location = (error as { location?: { start: { line: number; column: number }; end: { line: number; column: number } } })?.location;

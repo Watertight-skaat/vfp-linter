@@ -53,6 +53,26 @@
 					"minimum": 0,
 					"description": "Maximum number of problems reported per file."
 				},
+				"foxpro.unsupportedSyntaxSeverity": {
+					"scope": "resource",
+					"type": "string",
+					"enum": [
+						"error",
+						"warning",
+						"information",
+						"hint",
+						"off"
+					],
+					"enumDescriptions": [
+						"Report as an error.",
+						"Report as a warning.",
+						"Report as information (default).",
+						"Report as a hint.",
+						"Do not report unsupported syntax at all."
+					],
+					"default": "information",
+					"markdownDescription": "How to report statements the linter cannot parse yet. These are usually valid FoxPro the grammar has not learned rather than mistakes in your code, so they are advisory by default. Genuine syntax errors are always reported as errors, whatever this is set to."
+				},
 				"foxpro.trace.server": {
 					"scope": "window",
 					"type": "string",
@@ -78,7 +98,7 @@
 		"watch:bundle": "node ./scripts/build.mjs --watch",
 		"typecheck": "tsc -p client/tsconfig.json && tsc -p server/tsconfig.json",
 		"postinstall": "cd client && bun install && cd ../server && bun install && cd ..",
-		"test": "bun ./test-files/run-all-tests.js",
+		"test": "bun ./test-files/run-all-tests.js && bun ./test-files/run-scope-tests.js",
 		"e2e": "bun run compile && node ./scripts/build.mjs --tests && node client/out/test/runTest.js"
 	},
 	"devDependencies": {

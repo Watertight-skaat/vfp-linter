@@ -1,5 +1,23 @@
 This probably doesn't cover ALL cases, especially as it gets to macro substitution. We support only the last month's worth of VSCode installs
 
+## Settings
+
+| Setting                              | Default         | What it does                                                   |
+| ------------------------------------ | --------------- | -------------------------------------------------------------- |
+| `foxpro.maxNumberOfProblems`         | `100`           | Caps the diagnostics reported per file                          |
+| `foxpro.unsupportedSyntaxSeverity`   | `information`   | How to report statements the grammar cannot parse yet           |
+
+`unsupportedSyntaxSeverity` exists because "the linter does not know this statement" is not the
+same claim as "this statement is wrong". The grammar does not cover all of FoxPro yet, so valid
+code can reach the catch-all rule, and reporting that as an error puts red squiggles under
+working programs. It is advisory by default and can be set to `error`, `warning`, `hint` or `off`.
+
+Two things are never downgraded with it, because both are genuinely wrong: a syntax error the
+parser throws on, and a block whose terminator is missing (`unterminated-block`). The second
+needs the special case because the grammar's catch-all swallows the opening line of an
+unterminated `IF`, `FOR`, `TRY`, `WITH` or `DEFINE CLASS` instead of failing the parse, so
+nothing else would report it.
+
 ## Developing the LSP
 
 - Install [Bun](https://bun.sh), then run `bun install` in this folder. This installs the dependencies for the root, client and server packages.
@@ -19,7 +37,7 @@ This probably doesn't cover ALL cases, especially as it gets to macro substituti
 | `bun run compile`   | Regenerates the parser, type-checks, and bundles client + server       |
 | `bun run dev`       | Watches the grammar, the bundles and both type-check projects          |
 | `bun run typecheck` | Type-checks only (esbuild does not type-check)                         |
-| `bun run test`      | Parses every `.prg` in `test-files/` and fails on any error diagnostic |
+| `bun run test`      | Parses every `.prg` in `test-files/`, then asserts the symbol table    |
 | `bun run e2e`       | Launches VS Code and runs the end-to-end suite in `client/src/test`    |
 
 > Use `bun run test`, not `bun test`. `bun test` is Bun's own test runner and ignores the
@@ -66,5 +84,28 @@ git history and re-add `eslint`, `@eslint/js`, `@stylistic/eslint-plugin`,
 ├── package.json // The extension manifest.
 └── server // Language Server
     └── src
+        ├── ast.ts // Shared node/location shapes for the Peggy AST
+        ├── foxpro.pegjs // The grammar
+        ├── linter.ts // Rules; importable without a connection, so tests can run it
+        ├── scope.ts // Per-routine symbol table the scope-dependent rules read
         └── server.ts // Language Server entry point
 ```
+
+### The symbol table
+
+`scope.ts` turns the AST into one scope per routine: `(main)` for file-level code, one per
+`PROCEDURE`/`FUNCTION`, one per `DEFINE CLASS` and one per method. Each scope records what it
+declares (`LOCAL`, `PUBLIC`, `PRIVATE`, `LPARAMETERS`/`PARAMETERS`, `DIMENSION`, class
+properties) with the declared type and site, every read and write of every name, and the
+work-area changes in source order so `aliasInEffectAt()` can say which alias is current.
+
+The rules that need it are not written yet -- unused `LOCAL`, the implicit `PRIVATE` created by
+an undeclared assignment, a missing `m.` prefix on a name that is also a field, and work-area
+handling all read this one structure. `test-files/run-scope-tests.js` asserts its contents
+against `test-files/scope.prg`.
+
+Two deliberate subtleties. A name that was never declared still gets an entry, with kind
+`implicit` and no declaration site -- that is exactly the implicit-`PRIVATE` case, and it keeps
+use-before-declare visible. And a bare name inside a SQL statement is marked `sqlContext`,
+because it may be a column rather than a variable; rules should read that as ambiguous, enough
+to call a local "used" but not enough to claim the variable was really touched.

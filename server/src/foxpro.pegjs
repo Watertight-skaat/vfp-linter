@@ -102,13 +102,13 @@ LocalEntry
 // Variable declaration: name [ AS type [ OF ClassLib ] ]
 VarDecl
   = name:ParameterName _ asPart:(_ "AS"i __ t:Identifier _ ofPart:(_ "OF"i _ cl:Identifier { return cl; })? { return { type: t, of: ofPart ? ofPart[2] : null }; })? {
-      return node("LocalDeclaration", { name, type: asPart ? asPart.type : null, ofClass: asPart ? asPart.of : null });
+      return node("LocalDeclaration", { name, asType: asPart ? asPart.type : null, ofClass: asPart ? asPart.of : null });
     }
 
 // Array declaration: ArrayName( nRows [, nColumns ] ) [ AS type [ OF ClassLib ] ]
 ArrayDecl
   = name:Identifier _ "(" _ rows:Expression _ cols:(_ "," _ Expression)? _ ")" _ asPart:(_ "AS"i __ t:Identifier _ ofPart:(_ "OF"i _ cl:Identifier { return cl; })? { return { type: t, of: ofPart ? ofPart[2] : null }; })? {
-      return node("LocalArrayDeclaration", { name, rows, columns: cols ? cols[2] : null, type: asPart ? asPart.type : null, ofClass: asPart ? asPart.of : null });
+      return node("LocalArrayDeclaration", { name, rows, columns: cols ? cols[2] : null, asType: asPart ? asPart.type : null, ofClass: asPart ? asPart.of : null });
     }
 
 ArrayDeclList
@@ -230,7 +230,7 @@ UseStatement
     parts:(UseOption _)*
     {
       const opts = { inTarget:null, online:false, admin:false, again:false, norequery:false, dataSession:null, nodata:false, index:null, alias:null, exclusive:false, shared:false, noUpdate:false, connection:null };
-      for (const p of parts) {
+      for (const p of parts.map(t => t[0])) {
         switch (p.kind) {
           case 'IN': opts.inTarget = p.value; break;
           case 'ONLINE': opts.online = true; break;
@@ -551,7 +551,7 @@ SelectCore
           / "HAVING"i ![a-zA-Z0-9_] 
           / "ORDER BY"i ![a-zA-Z0-9_] 
           / "INTO"i ![a-zA-Z0-9_] 
-          / "UNION"i ![a-zA-Z0-9_]) SelectList)?
+          / "UNION"i ![a-zA-Z0-9_]) l:SelectList { return l; })?
     parts:(ContSpace SelectTailPart)* {
       let from = null, withbuf = null, where = null, group = null, having = null, order = null, destination = null, pref = null, noconsol = false, plain = false, nowait = false;
       for (const t of parts) {
@@ -1622,7 +1622,7 @@ CalculateStatement
     parts:(CalcOption _)*
     {
       const opts = { scope: null, forCondition: null, whileCondition: null, to: null, noOptimize: false, inTarget: null };
-      for (const p of parts) {
+      for (const p of parts.map(t => t[0])) {
         if (!p) continue;
         switch (p.kind) {
           case 'SCOPE': opts.scope = p.value; break;
@@ -1670,7 +1670,7 @@ CalcOption
     / ("REST"i { return { kind: 'SCOPE', value: 'REST' }; })
     / ("FOR"i __ e:Expression { return { kind: 'FOR', value: e }; })
     / ("WHILE"i __ e:Expression { return { kind: 'WHILE', value: e }; })
-    / ("TO"i __ (vars:IdentifierList { return { kind: 'TO', value: { kind: 'VARS', vars } }; } / ("ARRAY"i __ arr:Identifier { return { kind: 'TO', value: { kind: 'ARRAY', name: arr } }; })))
+    / ("TO"i __ to:(vars:IdentifierList { return { kind: 'TO', value: { kind: 'VARS', vars } }; } / ("ARRAY"i __ arr:Identifier { return { kind: 'TO', value: { kind: 'ARRAY', name: arr } }; })) { return to; })
     / ("NOOPTIMIZE"i { return { kind: 'NOOPTIMIZE', value: true }; })
     / ("IN"i __ target:(NumberLiteral / Identifier / StringLiteral / SelectCore) { return { kind: 'IN', value: target }; })
   ) { return s; }
@@ -1703,7 +1703,7 @@ ExpressionList
 // 1) PROCEDURE Name [ LPARAMETERS p1, p2, ... ]   Commands [ RETURN expr ] [ ENDPROC ]
 // 2) PROCEDURE Name( [ p1 [ AS type ] [, p2 [ AS type ] ... ] ) [ AS returntype ]  Commands [ RETURN expr ] [ ENDPROC ]
 ProcedureStatement "procedure"
-  = cw:("PROCEDURE"i / "FUNCTION"i) __ name:Identifier _ (
+  = cw:("PROCEDURE"i / "FUNCTION"i) __ name:Identifier _ proc:(
       // function-style parameter list with optional typed params and optional return type
       "(" _ params:ProcedureParamList? _ ")" _ retPart:(_ "AS"i __ rt:IdentifierOrString)? __ statements:(Statement __)* ret:(_ "RETURN"i __ expr:Expression _)? end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
         return node("ProcedureStatement", {
@@ -1720,15 +1720,15 @@ ProcedureStatement "procedure"
     lparams:LParameters? __ statements:(Statement __)* ret:(_ "RETURN"i __ expr:Expression _)? end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
         return node("ProcedureStatement", {
           name,
-      isFunction: false,
-      parameters: lparams ? (lparams.names || []) : [],
+          isFunction: (typeof cw === 'string') ? (cw.toUpperCase() === 'FUNCTION') : false,
+          parameters: lparams ? (lparams.names || []) : [],
           returnType: null,
           body: node("BlockStatement", { body: flatten(statements.map(s => s[0])) }),
           returnExpression: ret ? ret[2] : null,
           lparameters: !!lparams
         });
       }
-    )
+    ) { return proc; }
 
 ReturnStatement
   = "RETURN"i _ expr:Expression? _ LineTerminator? { return node("ReturnStatement", { argument: expr === undefined ? null : expr }); }
