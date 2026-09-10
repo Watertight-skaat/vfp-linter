@@ -1,5 +1,5 @@
 const fs = require('fs');
-const parser = require('../server/out/parser.js');
+const parser = require('../server/src/parser.js');
 
 // Usage: node debug-parse.js [path/to/file.prg]
 const inputPath = process.argv[2] || './test-files/select.prg';

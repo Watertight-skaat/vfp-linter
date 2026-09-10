@@ -1,6 +1,6 @@
-const parser = require('../server/out/parser.js');
+const parser = require('../server/src/parser.js');
 const fs = require('fs');
-const { runLinterRules } = require('../server/out/linter.js');
+const { runLinterRules } = require('../server/src/linter.ts');
 
 // for each .prg in this directory, run the linter and output results
 const files = fs.readdirSync('./test-files').filter(f => f.endsWith('.prg'));

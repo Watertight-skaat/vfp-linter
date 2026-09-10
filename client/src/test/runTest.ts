@@ -16,10 +16,12 @@ async function main() {
 		// Passed to --extensionTestsPath
 		const extensionTestsPath = path.resolve(__dirname, './index');
 
-		// Download VS Code, unzip it and run the integration test
-		await runTests({ extensionDevelopmentPath, extensionTestsPath });
-	} catch {
-		console.error('Failed to run tests');
+		// Run against the oldest VS Code the extension claims to support, so the suite
+		// actually exercises the floor declared in `engines.vscode` rather than whatever
+		// `stable` happens to be today.
+		await runTests({ version: '1.101.0', extensionDevelopmentPath, extensionTestsPath });
+	} catch (err) {
+		console.error('Failed to run tests', err);
 		process.exit(1);
 	}
 }

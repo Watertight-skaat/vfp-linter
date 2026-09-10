@@ -5,10 +5,19 @@
 	"license": "MIT",
 	"version": "1.0.1",
 	"publisher": "Watertight",
-	"categories": [],
-	"keywords": [],
+	"categories": [
+		"Programming Languages",
+		"Linters"
+	],
+	"keywords": [
+		"foxpro",
+		"visual foxpro",
+		"vfp",
+		"prg",
+		"linter"
+	],
 	"engines": {
-		"vscode": "^1.100.0"
+		"vscode": "^1.101.0"
 	},
 	"repository": {
 		"type": "git",
@@ -35,15 +44,16 @@
 		],
 		"configuration": {
 			"type": "object",
-			"title": "Example configuration",
+			"title": "Visual FoxPro",
 			"properties": {
-				"languageServerExample.maxNumberOfProblems": {
+				"foxpro.maxNumberOfProblems": {
 					"scope": "resource",
 					"type": "number",
 					"default": 100,
-					"description": "Controls the maximum number of problems produced by the server."
+					"minimum": 0,
+					"description": "Maximum number of problems reported per file."
 				},
-				"languageServerExample.trace.server": {
+				"foxpro.trace.server": {
 					"scope": "window",
 					"type": "string",
 					"enum": [
@@ -52,34 +62,32 @@
 						"verbose"
 					],
 					"default": "off",
-					"description": "Traces the communication between VS Code and the language server."
+					"description": "Traces the communication between VS Code and the FoxPro language server."
 				}
 			}
 		}
 	},
 	"scripts": {
-		"vscode:prepublish": "bun run compile",
-		"compile": "bun run build:parser && tsc -b && bun run copy-js",
-		"dev": "concurrently \"bun run watch:parser\" \"bun run watch:copy\" \"tsc -b -w\"",
+		"vscode:prepublish": "bun run build:parser && bun run typecheck && bun run bundle:production",
+		"compile": "bun run build:parser && bun run typecheck && bun run bundle",
+		"dev": "concurrently -n parser,bundle,tsc-client,tsc-server \"bun run watch:parser\" \"bun run watch:bundle\" \"tsc -p client/tsconfig.json --watch --preserveWatchOutput\" \"tsc -p server/tsconfig.json --watch --preserveWatchOutput\"",
 		"build:parser": "peggy -o server/src/parser.js server/src/foxpro.pegjs --format commonjs --dts",
 		"watch:parser": "peggy -o server/src/parser.js server/src/foxpro.pegjs --format commonjs --dts -w",
-		"watch:copy": "node ./scripts/copy-src-watch.mjs",
-		"copy-js": "node ./scripts/copy-src-js.mjs",
-		"lint": "eslint client/src server/src scripts test-files",
+		"bundle": "node ./scripts/build.mjs",
+		"bundle:production": "node ./scripts/build.mjs --production",
+		"watch:bundle": "node ./scripts/build.mjs --watch",
+		"typecheck": "tsc -p client/tsconfig.json && tsc -p server/tsconfig.json",
 		"postinstall": "cd client && bun install && cd ../server && bun install && cd ..",
-		"test": "node ./test-files/run-all-tests.js"
+		"test": "bun ./test-files/run-all-tests.js",
+		"e2e": "bun run compile && node ./scripts/build.mjs --tests && node client/out/test/runTest.js"
 	},
 	"devDependencies": {
-		"@eslint/js": "^10.0.1",
-		"@stylistic/eslint-plugin": "^5.10.0",
 		"@types/mocha": "^10.0.10",
-		"@types/node": "^22.20.2",
+		"@types/node": "^22",
 		"concurrently": "^10.0.5",
-		"eslint": "^10.10.0",
-		"globals": "^17.12.0",
+		"esbuild": "^0.28.2",
 		"mocha": "^12.0.0",
 		"peggy": "^5.1.0",
-		"typescript": "^5.9.3",
-		"typescript-eslint": "^8.70.0"
+		"typescript": "^7.0.2"
 	}
 }

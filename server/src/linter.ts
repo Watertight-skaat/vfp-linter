@@ -54,7 +54,6 @@ export function runLinterRules(ast: ProgramAst) {
   return problems;
 }
 
-const badVariableNames = new Set(['NEXT', 'SET']); // todo: add more
 function getProblemsFromNode(node: AstNode) {
   const out = [];
   
@@ -88,7 +87,8 @@ function getProblemsFromNode(node: AstNode) {
     });
   } 
   // todo some day: warn about unused locals
-  // todo: warn about naming variables badly
+  // todo: warn about naming variables badly (VFP Hungarian prefixes: lc/ln/ll/ld/lo/la,
+  //       and flag a prefix that disagrees with what is assigned, e.g. lcCount = 0)
   return out;
 }
 

@@ -1,41 +1,25 @@
-/* --------------------------------------------------------------------------------------------
- * Copyright (c) Microsoft Corporation. All rights reserved.
- * Licensed under the MIT License. See License.txt in the project root for license information.
- * ------------------------------------------------------------------------------------------ */
-
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import { getDocUri, activate } from './helper';
 
 suite('Should get diagnostics', () => {
-	const docUri = getDocUri('diagnostics.txt');
+	const docUri = getDocUri('diagnostics.prg');
 
-	test('Diagnoses uppercase texts', async () => {
-		await testDiagnostics(docUri, [
-			{ message: 'ANY is all uppercase.', range: toRange(0, 0, 0, 3), severity: vscode.DiagnosticSeverity.Warning, source: 'ex' },
-			{ message: 'ANY is all uppercase.', range: toRange(0, 14, 0, 17), severity: vscode.DiagnosticSeverity.Warning, source: 'ex' },
-			{ message: 'OS is all uppercase.', range: toRange(0, 18, 0, 20), severity: vscode.DiagnosticSeverity.Warning, source: 'ex' }
-		]);
+	test('Reports an unsupported statement in a .prg file', async () => {
+		await activate(docUri);
+
+		const diagnostics = vscode.languages.getDiagnostics(docUri);
+
+		assert.strictEqual(diagnostics.length, 1, `expected 1 diagnostic, got ${diagnostics.length}`);
+		assert.match(diagnostics[0].source ?? '', /^VFP Linter/);
+		assert.strictEqual(diagnostics[0].severity, vscode.DiagnosticSeverity.Error);
+		assert.strictEqual(diagnostics[0].range.start.line, 5);
+	});
+
+	test('Reports nothing for a file that is entirely valid', async () => {
+		const cleanUri = getDocUri('clean.prg');
+		await activate(cleanUri);
+
+		assert.deepStrictEqual(vscode.languages.getDiagnostics(cleanUri), []);
 	});
 });
-
-function toRange(sLine: number, sChar: number, eLine: number, eChar: number) {
-	const start = new vscode.Position(sLine, sChar);
-	const end = new vscode.Position(eLine, eChar);
-	return new vscode.Range(start, end);
-}
-
-async function testDiagnostics(docUri: vscode.Uri, expectedDiagnostics: vscode.Diagnostic[]) {
-	await activate(docUri);
-
-	const actualDiagnostics = vscode.languages.getDiagnostics(docUri);
-
-	assert.equal(actualDiagnostics.length, expectedDiagnostics.length);
-
-	expectedDiagnostics.forEach((expectedDiagnostic, i) => {
-		const actualDiagnostic = actualDiagnostics[i];
-		assert.equal(actualDiagnostic.message, expectedDiagnostic.message);
-		assert.deepEqual(actualDiagnostic.range, expectedDiagnostic.range);
-		assert.equal(actualDiagnostic.severity, expectedDiagnostic.severity);
-	});
-}
