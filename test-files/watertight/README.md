@@ -54,5 +54,10 @@ gaps that need surrounding code to show what they cost get a fixture of their ow
 
 ## See also
 
-`SEE-ALSO.md` lists what reading the Watertight source turned up: suspected defects in that
-codebase, and the grammar gaps this corpus uncovered.
+`SEE-ALSO.md` lists what the Watertight source turned up: suspected defects in that codebase, and
+the grammar gaps this corpus uncovered. Its first half came from reading; its second half came from
+running the linter over all 1747 `.prg` files in that tree and sorting the 47 whole-file parse
+failures and 5525 unsupported statements that came back. The `gap-*.prg` fixtures in
+`diagnostics/` are that second pass: one per construct that costs a file its parse, each checked
+both ways -- it must fail, and the same code with only the named construct respelled must parse
+clean.

@@ -14,16 +14,38 @@
 
 ## Grammar coverage
 
-Reported as `unsupported-syntax`. `test-files/diagnostics/still-unsupported.prg` holds the list, and everything on it was found by probing the parser rather than by reading the grammar.
+Measured by running the linter over all 1747 `.prg` files in `W:\DevStaging`: 47 files fail to parse outright and 5525 statements report `unsupported-syntax`. Every item below is pinned by a fixture, so its expectation file changes the day it is fixed. The full findings are in `test-files/watertight/SEE-ALSO.md`.
 
-- **Transactions** — `BEGIN TRANSACTION`, `END TRANSACTION`, `ROLLBACK`. These wrap the table buffering commands that are already read, so a rule about a write that is never committed has nothing to hang off until they are; that rule is the reason to do them.
-- **The database container's other half** — `CREATE DATABASE`, `OPEN DATABASE`, `CREATE CONNECTION`, `FREE TABLE`, `REMOVE TABLE`. `CREATE TRIGGER` and `VALIDATE DATABASE` are read; what holds them is not.
-- **`DELETE DATABASE` / `DELETE VIEW` / `DELETE CONNECTION`** — partial, all three the shape `DELETE TRIGGER` had: `DELETE` parses and the name is what is lost. Adding them is the same one-rule-above-`DeleteStatement` move that fixed the trigger.
-- **`INPUT` and `ACCEPT`** — both put what the user typed in a variable, so what is lost is a write the symbol table never sees, the shape `MENU TO` had.
-- **The old `READ` screen** — `READ CYCLE` and `SHOW GETS`, which `@ ... GET` fills and these two drive.
-- **Moving data in and out, and the print job** — `IMPORT`, `EXPORT`, `TYPE`, `EJECT`, `PRINTJOB` / `ENDPRINTJOB`, `EDIT`. Line count, not depth: none of them reaches a variable.
-- **`REGIONAL`** — declares a variable local to the routine and to any macro it expands, so it is a declaration the symbol table never sees. Worth more than the others here for that reason.
-- **`SAVE MACROS` / `RESTORE MACROS`** — the keyboard macro set.
+### Costs the whole file
+
+These are worth an order of magnitude more than anything under them: a file that does not parse is a file where no rule runs at all, and the reported error is never on the offending line — PEG rejects a block wholesale when anything inside it fails, so the error surfaces on an orphaned `ELSE` or `ENDIF` far below. Thirteen constructs account for 43 of the 47 failures; they are listed in section 5 of SEE-ALSO with a fixture each in `test-files/watertight/diagnostics/gap-*.prg`. In rough order of what they cost:
+
+- **A leading-dot member reference inside an expression** — `IF .ChartsCount > 1`, `CASE .Mode = 1`. On its own it causes more whole-file failures than everything else put together. The dot is already read where a statement *starts* with it; this is the same reference one level in.
+- **`PARAMETERS()` the function**, which the declaration keyword currently wins. The only way the legacy code defaults an optional argument.
+- **`SELECT()` the function**, same shape and about as expensive: saving and restoring the current work area around a lookup is the most repeated idiom in the source. `STORE SELECT(0) TO m.nArea` does parse, which is what makes the gap hard to see by reading.
+- **`PROTECTED` / `HIDDEN` before `PROCEDURE` or `FUNCTION`**, which costs the whole `DEFINE CLASS`.
+- **A second `CATCH`** in one `TRY`, which is the shape of every retry loop.
+- Then `WITH .Member`, `LOOP`/`CLASS` as plain names, `DO CASE <expr>`, a second `OTHERWISE`, nested `#IF`, `DEFINE CLASS` with no `AS`, and `COPY TO ... NEXT n`.
+- **A `#IF` fence that does not nest with the block structure around it** is the odd one out: it does not fail the parse, it reports `unterminated-block` at error severity against an `IF` that is terminated. A false error on correct code is worse than a gap that admits it.
+
+### Silently costs a rule rather than a statement
+
+- **A `WITH` member assignment inside a nested block** — `.Width = 400` under an `IF` inside a `WITH`. Reported as unsupported rather than misparsed, but form code conditions most of its property writes, so the symbol table sees a fraction of what a `WITH` block writes.
+- **`BROWSE NORMAL` reads as `NORM` plus a leftover `AL`** — `"NORM"i` has no word boundary. The same class of bug `run-keyword-tests.js` exists to catch, one level in, and a check for it now lives there recording today's behaviour.
+- **`CAST(x AS C(<expr>))`** costs the whole `SELECT` its parse, so the query's destination, joins and WHERE go unchecked.
+- **`DO FORM <a-b>`** reads the name as far as the hyphen, so the statement looks read and names the wrong form.
+
+### Announces itself, and is only worth the volume
+
+Ordered by measured uses. `WAIT CLEAR` alone is 426 uses across 185 files, which makes it the most common unparsed statement in the source by a wide margin; `@ <row>,<col>` with no clause is 147. After those come the console commands (`ACTIVATE SCREEN`, `EJECT`, `READ EVENTS`, `RETRY`, `CANCEL`, `SHOW GETS`), `AS <type>` on `PRIVATE`/`PUBLIC`/a method return, `DELETE RECORD n`, `ADD OBJECT` in a class, `MD (<expr>)`, the clauses whose operand is an expression (`FLUSH IN`, `SET RELATION OFF INTO`, `SET ORDER TO <expr>`), `IF ... THEN`, and `DIMEN`. All are one-liners in `test-files/diagnostics/still-unsupported.prg`.
+
+### Older items, still open
+
+- **UNIQUE / FOREIGN KEY after the column list in `CREATE TABLE`** — column-level `UNIQUE`, `CHECK` and `REFERENCES` are read; a constraint written after the column list is not, and it costs the whole `CREATE TABLE` its parse. A second `ADD COLUMN` on `ALTER TABLE` is the same shape, 91 uses.
+- **Pre-SQL data commands** — `TOTAL`, `JOIN WITH`, `UPDATE ON`, `COPY STRUCTURE`, `DELETE TAG`, `BLANK`. Each names a table or a variable, so they carry operands a rule would want.
+- **`STORE 0 TO a[1], b[2]`** — multiple targets where one is subscripted. Currently announces itself rather than silently dropping the subscript, which is what it used to do.
+- **Memory-variable and debugging commands** — `SAVE TO` / `RESTORE FROM`, `PRIVATE ALL EXCEPT`, `ASSERT`, `PLAY MACRO`.
+- **Screen and menu commands** — `DEFINE WINDOW` / `BAR` / `MENU`, `ACTIVATE WINDOW`, `ON SELECTION`. A 30-year-old application carries a lot of them, but not one touches data or a variable, so no rule loses anything. Lowest value here.
 
 Two found by a sweep that are defects in rules that already exist rather than missing ones:
 
@@ -39,4 +61,5 @@ Two found by a sweep that are defects in rules that already exist rather than mi
 - Count a rule's hits over the corpus before writing it. The `=` rule: 42 hits, ~2 real. `unused-local`: six for six.
 - Verify a grammar change by asking the parser what it returns, not by reading the grammar. Find the shape with a script, parse a sample, print the field, compare, then leave the comparison behind in `run-parse-tests.js`. Reading finds only what you're already looking for — a sweep verified by reading missed fifteen misparses, four in constructs a careful reader had signed off.
 - Show each new test a broken version of what it guards and confirm it fails. The keyword-boundary probe passed against a grammar with the boundary deliberately removed.
-- A fixture that passes can still be misparsing. `startup-settings.prg` passed the whole time its line 5 was wrong; the e2e suite was red for two releases with nothing running it. Coverage that nothing executes is a claim, not a check.
+- The line a parse error is reported on is never the line at fault. PEG rejects a block wholesale when anything inside it fails, so the opener falls through to the unsupported fallback and the error surfaces on an orphaned `ELSE` or `ENDIF` that can be hundreds of lines below. Find the culprit by building the block tree textually and descending to the smallest block that fails on its own, then confirm the construct in isolation. Bisecting on "does the prefix parse" does not work: the predicate is not monotonic, because every prefix ending mid-block fails too.
+- A new gap fixture needs the control as well as the case: the fixture must fail, *and* the same code with only the named construct respelled must parse clean. Two of the gaps recorded in SEE-ALSO were found by the control half rather than the case half.

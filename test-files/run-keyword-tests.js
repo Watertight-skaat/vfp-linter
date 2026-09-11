@@ -45,4 +45,14 @@ check('the command words themselves still parse', [
 	'NoDefaultStatement', 'ReindexStatement', 'DirectoryStatement'
 ]);
 
+// The boundary has to hold inside a command too, not just at its start. VFP lets most keywords be abbreviated to four letters, so an option written as its abbreviation and an option written in full are the same option -- but a rule that matches only the abbreviation and has no boundary takes the four letters and leaves the rest of the word behind as a statement of its own. `BROWSE NORMAL` found this: "NORM"i matched, "AL" fell through to the unsupported fallback, and the BROWSE still looked read.
+const statementCount = src => {
+	try { return parser.parse(src).body.flat().filter(s => s && s.type).length; } catch (e) { return 'syntax-error'; }
+};
+// Recorded as it behaves today, not as it should: the abbreviation is 1 and the full spelling is 2, and the 2s become 1s the day "NORM"i grows a boundary. Stated here rather than left failing, the same way the unsupported ledger states its gaps.
+check('BROWSE NORM is one statement; BROWSE NORMAL is still two (gap)', [
+	statementCount('BROWSE NORM'), statementCount('BROWSE NORMAL'),
+	statementCount('BROWSE NORMAL NOWAIT NOMODIFY')
+], [1, 2, 2]);
+
 report('Keyword boundary checks');

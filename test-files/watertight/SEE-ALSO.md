@@ -162,3 +162,103 @@ field was structurally always null.
 
 19. `duplicate-case` fires on every repeated `CASE .f.`. Given that repeating it is the local way to
     comment out a branch, it may be worth skipping conditions that are constant `.F.`.
+
+---
+
+# Second pass — the whole source parsed, 2026-09-11
+
+The first pass above was a reading pass. This one ran the linter over every `.prg` in `W:\DevStaging`
+— 1747 files across `moscode`, `wt`, `wt275` and `mosapi` — and sorted what came back. The headline
+numbers: **47 files fail to parse outright** and **5525 statements report `unsupported-syntax`**.
+
+The two numbers want different treatment. An unsupported statement costs one statement. A parse
+failure costs the file, and it is never the reported line's fault: PEG rejects a block wholesale when
+anything inside it fails, so the opener is swallowed by the unsupported fallback and the error lands
+on an orphaned `ELSE` or `ENDIF` hundreds of lines below. Every root cause below was found by
+descending the block tree to the smallest block that fails on its own, then confirming the construct
+in isolation and confirming that the same code without it parses clean.
+
+## 5. What breaks whole files
+
+Thirteen constructs account for 43 of the 47 failures. Of the remaining four, three are files that
+cannot ever have compiled and one is still unattributed -- see section 8.
+
+| # | Construct | Why it costs the file | Fixture |
+| --- | --- | --- | --- |
+| 20 | A leading-dot member reference **inside an expression** — `IF .ChartsCount > 1`, `CASE .Mode = 1` | The dot is read where a statement starts with it, not where one appears in a condition. The condition fails, so the whole `IF` or `DO CASE` is rejected. Biggest single cause by a wide margin | `diagnostics/gap-member-in-expression.prg` |
+| 21 | `PARAMETERS()` the function | The declaration keyword wins, so `IF PARAMETERS() < 4` reads as a `PARAMETERS` statement and the `IF` is rejected. The only way the legacy code defaults an optional argument | `diagnostics/gap-parameters-as-function.prg` |
+| 21b | `SELECT()` the function | The same shape and about as expensive: `SELECT` is also the command that switches work areas, and the command wins, so `IF SELECT("tickler") > 0` is rejected. Saving and restoring the current work area around a lookup is the most repeated idiom in this source. `STORE SELECT(0) TO m.nArea` *does* parse, because STORE reaches the expression another way -- which is what makes the gap hard to see by reading | `diagnostics/gap-select-as-function.prg` |
+| 22 | `PROTECTED` / `HIDDEN` before `PROCEDURE` or `FUNCTION` in `DEFINE CLASS` | The method is rejected and the class with it. The framework classes mark nearly every internal method this way | `diagnostics/gap-scoped-class-members.prg` |
+| 23 | A second `CATCH` in one `TRY` | One `CATCH` parses, and one with a `WHEN` parses; a second is not read at all. This is the shape of every retry loop | `diagnostics/gap-multiple-catch.prg` |
+| 24 | `WITH .Member` — a nested `WITH` on a member of the enclosing one | The target is an expression and an expression may not begin with a dot | `diagnostics/gap-nested-with-member-target.prg` |
+| 25 | A command word used as a plain name — `LOOP`, `CLASS` | Both are column names in the metadata tables and flag variables in the 1990s code | `diagnostics/gap-keyword-as-variable.prg` |
+| 26 | `DO CASE <expression>` | VFP ignores the trailing expression; the grammar requires `DO CASE` to stand alone | `diagnostics/gap-do-case-trailing-expression.prg` |
+| 27 | Two `OTHERWISE` branches | VFP takes the first and the second is dead. Reading it costs nothing; refusing it costs the file | `diagnostics/gap-second-otherwise.prg` |
+| 28 | `#IF` nested inside another `#IF` branch | The dual-era code fences a routine and then fences statements inside it again | `diagnostics/gap-nested-preprocessor.prg` |
+| 29 | `DEFINE CLASS X` with no `AS` | VFP defaults the parent to `Custom`; the grammar requires the clause | `diagnostics/gap-define-class-no-parent.prg` |
+| 30 | `COPY TO <file> NEXT <n>` | The scope clause is unread, and because `NEXT` is also a loop terminator the leftover cannot even be absorbed as an unsupported statement | `diagnostics/gap-copy-to-next.prg` |
+| 31 | A `#IF` fence that does not nest with the block structure around it | Does **not** fail the parse — it reports `unterminated-block` at error severity against an `IF` that is terminated. A false error on correct code, which is worse than a gap that admits it | `diagnostics/gap-preprocessor-crosses-block.prg` |
+
+## 6. Gaps that report themselves, in order of how often
+
+Counted over the whole source. The one-line ledger is in `../diagnostics/still-unsupported.prg`; only
+the two that need surrounding code to show the cost have a fixture here.
+
+| Construct | Uses | Note |
+| --- | --- | --- |
+| `WAIT CLEAR` | 426 in 185 files | The most common unparsed statement there is: every routine that puts a status message up takes it down again. `WAIT "" TIMEOUT n` and `WAIT <msg> WINDOW` are the same family |
+| `@ <row>, <col>` with no clause | 147 | Moves the print head. `@ ... EDIT` is the other unread form |
+| `ADD COLUMN`, second clause onward on `ALTER TABLE` | 91 | The first is read and the rest of the list is not |
+| `ACTIVATE SCREEN`, `EJECT`, `READ EVENTS`, `RETRY`, `CANCEL`, `SHOW GETS` | ~220 | The console and full-screen commands |
+| `AS <type>` on `PRIVATE` / `PUBLIC`, and on a method return | ~120 | `LOCAL` takes a type and the others do not, so the name is read and the type falls off. `... OF <file>.prg` is unread on all of them |
+| `DELETE RECORD <n> [IN <alias>]` | 59 | A record number as a scope clause |
+| `ADD OBJECT <name> AS <class>` in `DEFINE CLASS` | 59 | How a class declares a contained object rather than assigning one in `Init` |
+| `BROWSE NORMAL` | 46 | **A keyword-boundary bug, not a missing feature** — see item 33 |
+| `MD (<expression>)` | 35 | The operand is an expression, not a name |
+| `FLUSH IN (<expr>) FORCE`, `SET RELATION OFF INTO`, `SET ORDER TO <expr>` | ~55 | Same shape: a clause whose operand is an expression |
+| `IF <cond> THEN` | 20 | The `IF` is read, so the cost is a stray statement — but one the symbol table books as a read of a variable named `THEN` |
+| `DIMEN` (the abbreviation of `DIMENSION`) | 16 | |
+| `CAST(x AS C(<expr>))` — a computed width | 15 | Costs the **whole SELECT**, so its destination, joins and WHERE are invisible to every rule |
+| `ON("error")`, bare `?`, `MODIFY COMMAND (<expr>)`, `DO FORM <a-b>` | ~40 | The last of these does not announce the whole gap: the form name is read as far as the hyphen, so the statement looks read and names the wrong form |
+
+## 7. Two more found by the control tests
+
+Each fixture above was checked both ways: it must fail, and the same code with only the named
+construct respelled must parse clean. Two gaps turned up in the second half of that check.
+
+32. **A `WITH` member assignment inside a nested block.** `.Width = 400` is read as a direct child of
+    `WITH`, and not once an `IF`, `SCAN` or `DO CASE` sits between them. It does not fail the parse,
+    which is what makes it expensive: form code conditions most of its property writes, so the rules
+    reading the symbol table see a fraction of what a `WITH` block actually writes, and
+    `implicit-private` cannot tell a missed property from a variable it never saw.
+    `diagnostics/gap-with-member-inside-block.prg`.
+33. **`BROWSE NORMAL` is read as `NORM` plus a leftover `AL`.** `BrowseOption` matches `"NORM"i` with
+    no word boundary, so the four-letter abbreviation wins and the rest of the word falls through to
+    the unsupported fallback — while the `BROWSE` itself still looks read. This is exactly the class
+    `run-keyword-tests.js` exists to catch, one level in: that harness probes keywords at the *start*
+    of a statement, and this one is an option *inside* a command. A check for it is now in that file,
+    recording today's behaviour so the fix shows as a diff.
+
+## 8. Further suspected defects in Watertight
+
+Nothing here has been changed. The first three are scratch files in the `wt\` root rather than in
+`AAprg`, and none of them can ever have compiled, so the likely reading is that they were abandoned
+mid-edit — worth deleting rather than fixing.
+
+- **`wt\convertDocToDocx.PRG:5`** — `FOR m.cnt=to ALEN(flist,1)` has no start value. Line 7 then
+  passes `FileFormat:=wdFormatXML`, which is VBA named-argument syntax and not FoxPro at all; it was
+  presumably pasted from a Word macro.
+- **`wt\multifix.PRG:63`** — an `ENDIF` with no `IF`. The `IF` at 23 is closed at 49, and the `FOR` at
+  54 belongs to a `REPLACE ... FOR` continuation rather than a loop.
+- **`wt\testWebview2.PRG:1`** — `DEFINE wwind as container` is missing the `CLASS` keyword.
+- **`wt\AAprg\WTMOBILES_GETDATA.prg:492`** — an `ENDPROC` closing the file-level code, with no
+  `PROCEDURE` above it anywhere; the first one in the file is at 497. This is production code and it
+  evidently compiles, so VFP tolerates it, but the linter does not and it is worth deleting either way.
+- **`wt\AAprg\PIPEMESSENGER.prg:92-96`** — two `OTHERWISE` branches in one `DO CASE`. This one *is* in
+  production code. VFP runs the first, so the behaviour is right and the second branch is empty; it
+  is dead code rather than a bug, but anything added under it would never run.
+
+One of the 47 is still unattributed: **`wt\AAprg\WTMOBILEPROCESS.prg`**, which fails on the
+`ENDIF` at 3403 inside `SaveInfoFields`. The procedure balances on a keyword count, none of the
+thirteen constructs appears in it, and every individual expression in it parses on its own. Left
+open rather than guessed at.

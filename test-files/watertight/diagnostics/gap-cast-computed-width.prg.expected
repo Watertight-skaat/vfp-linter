@@ -1,0 +1,5 @@
+7:9 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '(custinfo.bfname AS C(m.nFnameLen)) AS fname ;'
+8:3 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: ', CAST(custinfo.blname AS C(m.nLnameLen)) AS lname ;'
+9:2 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'FROM custinfo ;'
+10:2 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'WHERE !EMPTY(custinfo.bemail) ;'
+11:2 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'INTO CURSOR curNewContacts READWRITE'

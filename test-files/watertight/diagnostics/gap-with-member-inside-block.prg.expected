@@ -1,0 +1,5 @@
+9:3 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '.Width = 400'
+10:3 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '.AutoSize = .f.'
+12:3 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '.Visible = .f.'
+17:4 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '.FontSize = 10'
+19:4 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '.FontSize = 8'

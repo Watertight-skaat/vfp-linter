@@ -28,26 +28,68 @@ ACCEPT 'Name: ' TO lcName
 READ CYCLE
 SHOW GETS
 
-* Moving data in and out of the session, and the print job that wraps a report.
-IMPORT FROM sales.xls TYPE XLS
-EXPORT TO sales TYPE XLS
-TYPE readme.txt
+* Debugging and macro playback.
+ASSERT lOk MESSAGE "no"
+PLAY MACRO mMac
+
+* The full-screen and console commands. Measured over the Watertight source, WAIT CLEAR alone is the most common unparsed statement there is -- 426 uses across 185 files -- because every routine that puts a status message up takes it down again.
+WAIT CLEAR
+WAIT "" TIMEOUT 1
+WAIT "NOT ON CASH ACCOUNTING" WINDOW
+ACTIVATE SCREEN
 EJECT
-PRINTJOB
-ENDPRINTJOB
-EDIT
+READ EVENTS
+RETRY
+CANCEL
+SHOW GETS
+SHOW GET m.answer DISABLE
 
-* REGIONAL declares a variable local to the routine and to any macro it expands, so it is a declaration the symbol table never sees.
-REGIONAL lcTemp
+* @ with no clause after the coordinates, which just moves the print head, and the @ ... EDIT control.
+@ PROW()+1, 1
+@ 3, 2 EDIT m.cUsed SIZE 17, 75 NOEDIT
 
-* The keyboard macro set.
-SAVE MACROS TO mykeys.fky
-RESTORE MACROS FROM mykeys.fky
+* AS on a declaration other than LOCAL. LOCAL takes a type and PRIVATE and PUBLIC do not, so the name is read and the type falls off; the OF clause naming the file a type is defined in is unread on all three.
+PRIVATE cHeaderHTML as String
+PUBLIC pnMailAccountID as Integer
+LOCAL loSecurityAttributes as SECURITY_ATTRIBUTES OF oplocks.prg
 
-* TOTAL's documented argument order. The reverse -- TOTAL ON key TO file -- is read, so this is a gap in a rule that already exists rather than a missing one.
-TOTAL TO totals ON custid
+* Data commands whose operand is an expression rather than a name, and the scope clause that names a record number.
+DELETE RECORD RECNO("rec2inv") IN rec2inv
+FLUSH IN (m.inWorkArea) FORCE
+SET ORDER TO IIF(TYPE("m.cOrder") = "U", "servsnum", m.cOrder)
+SET RELATION OFF INTO custinfo
+MD (ADDBS(m.m_tpath) + "temp")
+MODIFY COMMAND (m.cFile) NOWAIT
+DIMEN invarr(1, 16)
 
-* Three SETs whose argument runs past what the setting reader claims, each leaving the tail behind. (partial)
-SET TOPIC ID TO 5
-SET NOTIFY CURSOR OFF
-SET WINDOW OF MEMO notes TO myform
+* A second ADD COLUMN clause on ALTER TABLE. The first is read and the rest of the list is not, so the statement reports a gap that is really about everything after it.
+ALTER TABLE items ADD COLUMN billcode c(6) ;
+                  ADD COLUMN ledacct c(8)
+
+* ADD OBJECT inside DEFINE CLASS, which is how a class declares a contained object rather than assigning one in Init.
+DEFINE CLASS X12_Message AS Custom
+	ADD OBJECT Segments as Collection
+ENDDEFINE
+
+* The optional THEN on IF, which the 2000s code writes and the rest does not. The IF itself is read, so the cost is a stray statement -- but it is a stray statement the symbol table books as a read of a variable named THEN.
+IF m.stat = 3 THEN
+ENDIF
+
+* ON() reporting the current handler, in a file where ON is also a command word.
+m.oError = ON("error")
+
+* Bare ? with nothing to print, which emits a blank line.
+?
+
+* A form name containing a hyphen. This one does not announce the whole gap: DO FORM reads the name as far as the hyphen and only the remainder is reported, so the statement looks read and names the wrong form.
+DO FORM start-up_code_mod
+
+* Whitespace between an alias and its dotted field. VFP allows it and the old report code uses it to line columns up, but it has to be told apart from the dot operators: `mastinfo .creditcard .or. mastinfo .ach` is two field reads and one operator.
+m.lFlags = IIF(mastinfo .creditcard .or. mastinfo .ach, ",0", "")
+
+* A declared return type on a method. The AS clause is read on a parameter and on a LOCAL, and not here.
+DEFINE CLASS Crypto AS Session
+	FUNCTION Release AS Logical
+		RETURN .t.
+	ENDFUNC
+ENDDEFINE
