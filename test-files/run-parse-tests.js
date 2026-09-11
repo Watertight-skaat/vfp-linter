@@ -149,4 +149,37 @@ check('DELIMITERS TO is a clause, not two settings',
 check('the state beside it still reads', first('SET TEXTMERGE ON DELIMITERS TO "<<", ">>"').state, 'ON');
 check('an ordinary argument is still an expression', first('SET CENTURY TO 19').arguments[0].type, 'NumberLiteral');
 
+// --- the screen buffer, SET MARK OF, and an index file with its extension -----------
+// The last three lines of the unsupported ledger. Each is asserted on the field that was lost, not on the statement parsing at all: SAVE SCREEN read as nothing, SET MARK OF dropped its TO clause, and INDEX ON ... OF stopped at the dot.
+check('SAVE SCREEN names the variable', first('SAVE SCREEN TO lcScreen'), { type: 'SaveScreenStatement', to: 'lcScreen' });
+check('and stands on its own', first('SAVE SCREEN').to, null);
+check('RESTORE SCREEN is the other half', first('RESTORE SCREEN FROM lcScreen'), { type: 'RestoreScreenStatement', from: 'lcScreen' });
+check('SAVE TO is untouched by it', first('SAVE TO config.mem').type, 'SaveToStatement');
+check('so is SAVE WINDOW', first('SAVE WINDOW wOut TO win.win').type, 'SaveWindowStatement');
+check('SET MARK OF keeps its TO clause',
+	(({ what, target, of, mark }) => ({ what, target, of, mark: mark.value }))(first('SET MARK OF BAR 1 OF pFileMenu TO .T.')),
+	{ what: 'BAR', target: { type: 'NumberLiteral', value: 1, raw: '1', currency: false }, of: 'pFileMenu', mark: true });
+check('a PAD is marked with a character', first('SET MARK OF PAD pFile OF mMain TO "*"').mark, { type: 'StringLiteral', value: '*' });
+check('SET MARK TO is still the date delimiter', first('SET MARK TO "/"').type, 'SetCommand');
+check('an index file keeps its extension', first('INDEX ON custid TAG custid OF cust.cdx ADDITIVE').of, { type: 'Path', path: 'cust.cdx' });
+check('the option after it is no longer lost', first('INDEX ON custid TAG custid OF cust.cdx ADDITIVE').additive, true);
+check('INDEX ON ... TO reads the same way', first('INDEX ON custid TO cust.idx').to, { type: 'Path', path: 'cust.idx' });
+check('a quoted name is still a string', first('INDEX ON custid TAG custid OF "cust.cdx"').of, { type: 'StringLiteral', value: 'cust.cdx' });
+check('a bare name is still an identifier', first('INDEX ON custid TAG custid OF cust').of, 'cust');
+check('a drive and directory read as one path', first('INDEX ON custid TAG custid OF c:\\data\\cust.cdx').of, { type: 'Path', path: 'c:\\data\\cust.cdx' });
+// The same pair sat behind every index file name, not just this one.
+check('USE ... INDEX reads a list of them', first('USE customer INDEX cust.idx, ord.idx').index.files, [{ type: 'Path', path: 'cust.idx' }, { type: 'Path', path: 'ord.idx' }]);
+check('SET ORDER TO TAG ... OF too', first('SET ORDER TO TAG custid OF cust.cdx').selection.of, { type: 'Path', path: 'cust.cdx' });
+check('SET ORDER TO a bare tag is unchanged', first('SET ORDER TO custid').selection, { kind: 'FILE', value: 'custid' });
+check('COPY INDEXES names both ends', (({ files, to }) => [files[0].path, to.path])(first('COPY INDEXES cust.idx TO cust.cdx')), ['cust.idx', 'cust.cdx']);
+
+// --- FIELDS LIKE and FIELDS EXCEPT ------------------------------------------------
+// The skeleton forms were written into the grammar below the field list, which matches LIKE as a field name of its own: neither alternative could ever be reached, and every FIELDS LIKE in a file silently read as one field called LIKE with the skeleton left behind.
+check('FIELDS LIKE is a skeleton', first('COPY TO x FIELDS LIKE c*').fields, { kind: 'like', pattern: 'c*' });
+check('FIELDS EXCEPT too', first('COPY TO x FIELDS EXCEPT c*').fields, { kind: 'except', pattern: 'c*' });
+check('SCATTER reads it as well, and keeps the clause after it',
+	(({ fields, destination }) => [fields, destination])(first('SCATTER FIELDS LIKE c* MEMVAR')), [{ kind: 'like', pattern: 'c*' }, 'MEMVAR']);
+check('a plain field list is unchanged', first('COPY TO x FIELDS a, b').fields, { kind: 'list', fields: ['a', 'b'] });
+check('and a field whose name starts with one', first('COPY TO x FIELDS likely, extra').fields, { kind: 'list', fields: ['likely', 'extra'] });
+
 report('Parse checks');

@@ -1018,6 +1018,18 @@ export interface RestoreWindowStatement extends NodeBase {
   source: MemoryStore;
 }
 
+/** SAVE SCREEN [TO]. The screen image goes to a memory variable rather than to a file; with no clause it goes to VFP's own single slot. */
+export interface SaveScreenStatement extends NodeBase {
+  type: 'SaveScreenStatement';
+  to: string | null;
+}
+
+/** RESTORE SCREEN [FROM], the other half of SAVE SCREEN. */
+export interface RestoreScreenStatement extends NodeBase {
+  type: 'RestoreScreenStatement';
+  from: string | null;
+}
+
 /** FIND cText. The text is written unquoted and unparsed, so it is kept as written. */
 export interface FindStatement extends NodeBase {
   type: 'FindStatement';
@@ -1069,6 +1081,16 @@ export interface SetSkipOfStatement extends NodeBase {
   target: string | NumberLiteral;
   of: string | null;
   condition: Expr;
+}
+
+/** SET MARK OF puts a tick beside a menu item, the other half of SET SKIP OF. Not to be confused with SET MARK TO, which sets the date delimiter. */
+export interface SetMarkOfStatement extends NodeBase {
+  type: 'SetMarkOfStatement';
+  what: 'MENU' | 'PAD' | 'POPUP' | 'BAR';
+  target: string | NumberLiteral;
+  of: string | null;
+  /** The mark character, or a logical turning the default one on and off. */
+  mark: Expr;
 }
 
 export interface OnSelectionStatement extends NodeBase {
@@ -1555,6 +1577,8 @@ export type Statement =
   | RestoreFromStatement
   | SaveWindowStatement
   | RestoreWindowStatement
+  | SaveScreenStatement
+  | RestoreScreenStatement
   | FindStatement
   | DebugOutStatement
   | AssertStatement
@@ -1562,6 +1586,7 @@ export type Statement =
   | DefineScreenStatement
   | ScreenCommandStatement
   | SetSkipOfStatement
+  | SetMarkOfStatement
   | OnSelectionStatement
   | OnMenuOpenStatement
   | SortStatement

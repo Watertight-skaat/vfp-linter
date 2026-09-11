@@ -1,5 +1,5 @@
 * The Xbase housekeeping and record commands, each here to prove it still parses. This is a top-level fixture, so an `.expected` file appearing beside it means one of them regressed into the catch-all and is no longer being checked by any rule.
-LOCAL lnRows, lnAvg, lnOverdue, loRecord, lcAlias, lcPath, lcReport
+LOCAL lnRows, lnAvg, lnOverdue, loRecord, lcAlias, lcPath, lcReport, lcScreen
 LOCAL ARRAY laRow(2)
 lcAlias	= "invinfo"
 lcPath	= "custinfo"
@@ -75,6 +75,10 @@ SAVE TO config.mem ALL LIKE m_*
 SAVE TO MEMO notes
 RESTORE FROM config.mem ADDITIVE
 RESTORE FROM MEMO notes
+SAVE SCREEN TO lcScreen
+RESTORE SCREEN FROM lcScreen
+SAVE SCREEN
+RESTORE SCREEN
 ASSERT m.lnRows > 0 MESSAGE "no rows"
 ASSERT (m.lnRows > 0)
 PLAY MACRO F5 TIMES 3

@@ -141,6 +141,8 @@ Statement "statement"
   / ModifyStatement
   / SaveWindowStatement
   / RestoreWindowStatement
+  / SaveScreenStatement
+  / RestoreScreenStatement
   / SaveToStatement
   / RestoreFromStatement
   / FindStatement
@@ -400,7 +402,7 @@ UseIndexPart
   / "?" _ ord:OrderSpec? { return { mode: 'PROMPT', order: ord || null }; }
 
 IndexFileList
-  = head:(IdentifierOrString / UnquotedPath) tail:(_ "," _ (IdentifierOrString / UnquotedPath))* {
+  = head:FileNameOrIdentifier tail:(_ "," _ FileNameOrIdentifier)* {
       return [head, ...tail.map(t => t[3])];
     }
 
@@ -408,13 +410,13 @@ OrderSpec
   = "ORDER"i __ sel:(
       &("TAG"i WB) tag:TagSpec { return { kind: 'TAG', ...tag }; }
       / n:Expression { return { kind: 'NUMBER', value: n }; }
-      / f:(IdentifierOrString / UnquotedPath) { return { kind: 'FILE', value: f }; }
+      / f:FileNameOrIdentifier { return { kind: 'FILE', value: f }; }
       / tag:TagSpec { return { kind: 'TAG', ...tag }; }
     ) { return sel; }
 
 TagSpec
   = ("TAG"i _)? t:Identifier _ 
-    ofPart:("OF"i __ cdx:(IdentifierOrString / UnquotedPath))? _ 
+    ofPart:("OF"i __ cdx:FileNameOrIdentifier)? _ 
     dir:("ASCENDING"i / "DESCENDING"i / "ASC"i / "DESC"i)? {
       return { tag: t, of: ofPart ? ofPart[2] : null, direction: dir ? (typeof dir === 'string' ? dir.toUpperCase() : dir) : null };
     }
@@ -1020,7 +1022,7 @@ CopyMemoStatement
 // COPY INDEXES IDXFileList | ALL [TO CDXFileName], which folds standalone .idx files into a compound index.
 CopyIndexesStatement
   = "COPY"i WB _ "INDEXES"i WB _ files:("ALL"i WB { return 'ALL'; } / IndexFileList) _
-    to:("TO"i WB __ f:(IdentifierOrString / UnquotedPath) { return f; })? {
+    to:("TO"i WB __ f:FileNameOrIdentifier { return f; })? {
       return node('CopyIndexesStatement', { files, to: to || null });
     }
 
@@ -1064,11 +1066,12 @@ EraseStatement
 DatabaseClause
   = "DATABASE"i __ db:IdentifierOrString _ name:("NAME"i __ ln:IdentifierOrString { return ln; })? { return { database: db, longName: name || null }; }
 
+// LIKE and EXCEPT are ahead of the list because both are also legal field names: read in the other order the list alternative took the keyword for the one field and left the skeleton behind, so neither of these two could ever match and every FIELDS LIKE in a file lost its skeleton.
 FieldsClause
   = "FIELDS"i __ spec:(
-      list:IdentifierList { return { kind: 'list', fields: list }; }
-      / "LIKE"i __ sk:Pattern { return { kind: 'like', pattern: sk }; }
-      / "EXCEPT"i __ sk:Pattern { return { kind: 'except', pattern: sk }; }
+      "LIKE"i WB __ sk:Pattern { return { kind: 'like', pattern: sk }; }
+      / "EXCEPT"i WB __ sk:Pattern { return { kind: 'except', pattern: sk }; }
+      / list:IdentifierList { return { kind: 'list', fields: list }; }
     ) { return spec; }
 
 WithIndexClause
@@ -1113,11 +1116,11 @@ IndexOnStatement "index on statement"
     }
 
 IndexOnPart
-  = "TO"i _ tgt:(IdentifierOrString / UnquotedPath) { return { kind: 'TO', value: tgt }; }
+  = "TO"i _ tgt:FileNameOrIdentifier { return { kind: 'TO', value: tgt }; }
   / "TAG"i _ tag:Identifier { return { kind: 'TAG', value: tag }; }
   / "BINARY"i { return { kind: 'BINARY' }; }
   / "COLLATE"i __ cs:IdentifierOrString { return { kind: 'COLLATE', value: cs }; }
-  / "OF"i __ cdx:(IdentifierOrString / UnquotedPath) { return { kind: 'OF', value: cdx }; }
+  / "OF"i __ cdx:FileNameOrIdentifier { return { kind: 'OF', value: cdx }; }
   / "FOR"i __ fexp:Expression { return { kind: 'FOR', value: fexp }; }
   / "COMPACT"i { return { kind: 'COMPACT' }; }
   / dir:("ASCENDING"i / "DESCENDING"i) { return { kind: 'DIR', value: dir }; }
@@ -1755,6 +1758,18 @@ RestoreWindowStatement
       return node('RestoreWindowStatement', { windows: names, source: src });
     }
 
+// SAVE SCREEN [TO MemVarName] / RESTORE SCREEN [FROM MemVarName]
+// The screen image goes to a memory variable rather than to a file, which is what separates these from SAVE TO and RESTORE FROM; with the clause omitted VFP uses a single slot of its own.
+SaveScreenStatement
+  = "SAVE"i WB _ "SCREEN"i WB _ to:("TO"i WB _ v:ParameterName { return v; })? {
+      return node('SaveScreenStatement', { to: to || null });
+    }
+
+RestoreScreenStatement
+  = "RESTORE"i WB _ "SCREEN"i WB _ from:("FROM"i WB _ v:ParameterName { return v; })? {
+      return node('RestoreScreenStatement', { from: from || null });
+    }
+
 // ALL is the whole set rather than a window of that name, so it is kept as the word.
 WindowNameList
   = "ALL"i WB { return 'ALL'; }
@@ -1822,6 +1837,12 @@ SetSkipOfStatement
       return node('SetSkipOfStatement', { what: what.toUpperCase(), target, of: of || null, condition });
     }
 
+// SET MARK OF MENU | PAD | POPUP | BAR ... TO puts a tick beside a menu item. It is the same menu furniture as SET SKIP OF and needs claiming ahead of SetSettingStatement for the same reason; the TO is required, which is what keeps SET MARK TO "/" the date delimiter it has always been.
+SetMarkOfStatement
+  = "SET"i WB _ "MARK"i WB _ "OF"i WB _ what:("MENU"i / "PAD"i / "POPUP"i / "BAR"i) WB _ target:(NumberLiteral / Identifier) _ of:OfParentClause? _ "TO"i WB _ mark:Expression {
+      return node('SetMarkOfStatement', { what: what.toUpperCase(), target, of: of || null, mark });
+    }
+
 // ON SELECTION BAR nBar OF Popup | MENU MenuName | PAD PadName OF MenuName | POPUP PopupName [Command]
 // The command it installs is real code, so it is parsed as a statement rather than kept as text.
 OnSelectionStatement
@@ -1872,7 +1893,7 @@ UnknownStatement
     }
 
 SetStatement
-  = SetOrderToStatement / SetRelationToStatement / SetSkipOfStatement / SetSettingStatement
+  = SetOrderToStatement / SetRelationToStatement / SetSkipOfStatement / SetMarkOfStatement / SetSettingStatement
 
 // SET ORDER TO [nIndexNumber | IDXIndexFileName | [TAG] TagName 
 //   [OF CDXFileName] [IN nWorkArea | cTableAlias]
@@ -1884,7 +1905,7 @@ SetOrderToStatement
       / "(" _ e:Expression _ ")" { return { kind: 'EXPR', value: e }; }
       // An explicit TAG has to be claimed before the file alternative, which would otherwise read the word TAG itself as the index file and leave the tag name to the catch-all. OrderSpec guards it the same way.
       / &("TAG"i WB) t:TagSpec { return { kind: 'TAG', tag: t.tag, of: t.of, direction: t.direction }; }
-      / f:(IdentifierOrString / UnquotedPath) { return { kind: 'FILE', value: f }; }
+      / f:FileNameOrIdentifier { return { kind: 'FILE', value: f }; }
       / t:TagSpec { return { kind: 'TAG', tag: t.tag, of: t.of, direction: t.direction }; }
     )?
     _ first:( _ ("IN"i __ target:AliasRef { return { kind: 'IN', value: target }; } 
@@ -2666,6 +2687,12 @@ DateTimeLiteral "datetime"
 // example: `s:\code\mosapi\3_3\aalib\mosapi.h` or `libs\system.app`
 UnquotedPath
   = p:$([^ \t\f\v\r\n,;()+]+) { return node("Path", { path: p }); }
+
+// A file named with its extension, or with a drive or a directory. The identifier alternative stops at the first dot or slash, which loses the file and leaves `.cdx` behind to be read as a statement of its own, so a name carrying one is claimed as a path first. A quoted name is still a string and a bare name is still an identifier.
+FileNameOrIdentifier
+  = &([A-Za-z0-9_]* [.:\\/]) p:UnquotedPath { return p; }
+  / IdentifierOrString
+  / UnquotedPath
 
 // If the upcoming token (up to a line terminator or , or ;) contains a plus or any spacing characters, prefer parsing an Expression instead of treating it as a path.
 PathOrExpression

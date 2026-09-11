@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.4
+## 1.3.0
 
 ### `DEFINE CLASS` member declarations
 
@@ -29,9 +29,30 @@ clause. `SetCommand` now carries `file` and `delimiters`, and a bare Windows pat
 take a quoted name -- `LOCAL loX AS Poster OF "poster.vcx"` -- and `CANCEL` joins `RETURN`, `EXIT` and
 `LOOP` as a statement nothing below it in the block can run after.
 
-The ledger fixture that recorded these is now four lines long, each one measured by probing the
-parser rather than read out of the grammar: `SAVE SCREEN` / `RESTORE SCREEN`, the `TO` clause of
-`SET MARK OF`, and an index file named with its extension in an `OF` clause.
+### The last three lines of the ledger
+
+`SAVE SCREEN` / `RESTORE SCREEN`, the pair between `SAVE TO` and `SAVE WINDOW`, which were read as
+nothing at all; the `TO` clause of `SET MARK OF`, which puts the tick beside a menu item and was
+dropped while the rest of the line parsed; and an index file named with its extension --
+`INDEX ON custid TAG custid OF cust.cdx` -- where the name was read as an identifier that stopped at
+the dot, losing the file and leaving `.cdx ADDITIVE` to be read as a statement of its own.
+
+The last of those sat behind every index file name, not only this one: `USE ... INDEX cust.idx`,
+`SET ORDER TO TAG x OF cust.cdx` and `COPY INDEXES` lost their files the same way. All of them now go
+through one rule that claims a name with a dot, a drive or a directory in it as a path first.
+
+### `FIELDS LIKE` and `FIELDS EXCEPT`
+
+Both were written into the grammar below the plain field list, which matches `LIKE` as a field name of
+its own, so neither alternative could ever be reached: `COPY TO x FIELDS LIKE c*` read as one field
+called `LIKE` and left the skeleton behind. Found while probing for what else the ledger should hold.
+
+### The ledger fixture
+
+Refilled, with nine constructs the same probe turned up and nobody had recorded: `CREATE TRIGGER` /
+`DELETE TRIGGER`, `VALIDATE DATABASE`, `RENAME TABLE` / `RENAME CLASS`, `SHUTDOWN`, the Foxbase
+`MENU BAR` / `MENU TO` / `READ MENU TO`, and `RELEASE MENU` / `RELEASE POPUP`, which reads as far as
+the word and then takes `MENU` for the name of a variable to release.
 
 ## 1.2.3
 

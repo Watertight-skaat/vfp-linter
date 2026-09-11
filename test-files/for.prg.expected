@@ -1,4 +1,4 @@
-1:1 warning implicit-private 'cnt' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything this file calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.
-5:1 warning implicit-private 'oButton' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything this file calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.
-10:1 warning implicit-private 'i' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything this file calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.
-30:2 warning implicit-private 'j' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything this file calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.
+1:1 warning implicit-private 'cnt' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
+5:1 warning implicit-private 'oButton' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
+10:1 warning implicit-private 'i' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
+30:2 warning implicit-private 'j' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE

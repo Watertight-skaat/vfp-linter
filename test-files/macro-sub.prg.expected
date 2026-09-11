@@ -1,15 +1,15 @@
-1:1 warning implicit-private 'a' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything this file calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.
-5:1 warning implicit-private 'b' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything this file calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.
-11:1 warning implicit-private 'c' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything this file calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.
-12:1 warning implicit-private 'd' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything this file calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.
-13:1 warning implicit-private 'TotalCount' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything this file calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.
-21:1 warning implicit-private 'GroupCondition' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything this file calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.
+1:1 warning implicit-private 'a' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
+5:1 warning implicit-private 'b' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
+11:1 warning implicit-private 'c' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
+12:1 warning implicit-private 'd' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
+13:1 warning implicit-private 'TotalCount' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
+21:1 warning implicit-private 'GroupCondition' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
 22:1 warning select-without-into This query has nowhere to put its result, so VFP sends the whole result set to a Browse window at run time. Add INTO CURSOR, INTO TABLE, INTO ARRAY, or TO FILE.
 25:1 warning select-without-into This query has nowhere to put its result, so VFP sends the whole result set to a Browse window at run time. Add INTO CURSOR, INTO TABLE, INTO ARRAY, or TO FILE.
-30:1 warning implicit-private 'my_macro' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything this file calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.
+30:1 warning implicit-private 'my_macro' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
 31:1 warning select-without-into This query has nowhere to put its result, so VFP sends the whole result set to a Browse window at run time. Add INTO CURSOR, INTO TABLE, INTO ARRAY, or TO FILE.
 39:1 warning select-without-into This query has nowhere to put its result, so VFP sends the whole result set to a Browse window at run time. Add INTO CURSOR, INTO TABLE, INTO ARRAY, or TO FILE.
-43:1 warning implicit-private 'macroB' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything this file calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.
+43:1 warning implicit-private 'macroB' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
 44:1 warning select-without-into This query has nowhere to put its result, so VFP sends the whole result set to a Browse window at run time. Add INTO CURSOR, INTO TABLE, INTO ARRAY, or TO FILE.
 48:1 warning select-without-into This query has nowhere to put its result, so VFP sends the whole result set to a Browse window at run time. Add INTO CURSOR, INTO TABLE, INTO ARRAY, or TO FILE.
 49:1 warning select-without-into This query has nowhere to put its result, so VFP sends the whole result set to a Browse window at run time. Add INTO CURSOR, INTO TABLE, INTO ARRAY, or TO FILE.

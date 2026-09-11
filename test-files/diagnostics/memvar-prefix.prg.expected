@@ -1,2 +1,2 @@
-6:2 warning missing-memvar-prefix 'cust_id' is declared as a variable and is also used as a field name in this file. A bare name resolves to the field while CUSTOMER is open, so write 'm.cust_id' to be sure of reaching the variable.
-14:2 warning missing-memvar-prefix 'total' is declared as a variable and is also used as a field name in this file. A bare name resolves to the field while ORDERS is open, so write 'm.total' to be sure of reaching the variable.
+6:2 warning missing-memvar-prefix 'cust_id' is both a variable and a column name. prefer 'm.cust_id' to avoid accidentally updating the column
+14:2 warning missing-memvar-prefix 'total' is both a variable and a column name. prefer 'm.total' to avoid accidentally updating the column

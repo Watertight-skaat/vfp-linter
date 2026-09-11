@@ -94,7 +94,7 @@ export const unlinkedTables = onNode({
     if (groups.size < 2) return;
 
     const described = [...groups.values()].map(g => g.join(' + ')).join(', ');
-    ctx.report(node.location, `Nothing relates these tables to each other: ${described}. VFP will build the Cartesian product -- every row of each against every row of the others -- which on real table sizes reads as a hang rather than an error.`);
+    ctx.report(node.location, `Nothing relates these tables to each other: ${described}. Results in a Cartesian product -- every row of each against every row of the others.`);
   }
 });
 

@@ -330,6 +330,13 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
         reference(scope, node.to, 'write', at);
         visitChildren(node, scope);
         return;
+      case 'SaveScreenStatement':
+        // SAVE SCREEN TO puts the screen image in the variable, so it creates the name like any other write; RESTORE SCREEN FROM reads it back.
+        reference(scope, node.to, 'write', at);
+        return;
+      case 'RestoreScreenStatement':
+        reference(scope, node.from, 'read', at);
+        return;
       case 'DoFormStatement':
         // NAME creates the form object and TO receives what the form returns. Both create the name.
         reference(scope, node.name, 'write', at);

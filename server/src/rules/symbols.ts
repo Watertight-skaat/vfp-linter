@@ -2,9 +2,9 @@
 
 import type { AstNode, Loc } from '../ast.js';
 import { onFile, Severity, walk, type Fix, type RuleContext } from '../rule.js';
-import { aliasInEffectAt, type Scope, type SymbolEntry, type SymbolRef } from '../scope.js';
+import { type Scope, type SymbolEntry, type SymbolRef } from '../scope.js';
 
-// VFP has no declaration requirement: assigning to a name nothing declared creates a PRIVATE at run time, which every routine called from here can see and assign. So a mistyped name silently becomes a new variable, and state leaks downstream instead of staying where it was written. Reported once per name, at the first write -- the missing declaration is the finding, not each use of it.
+
 export const implicitPrivate = onFile({
   code: 'implicit-private',
   severity: Severity.Warning,
@@ -16,16 +16,14 @@ export const implicitPrivate = onFile({
         const first = symbol.writes.find(w => !w.sqlContext && w.location?.start);
         if (!first?.location) continue;
         ctx.report(first.location,
-          `'${symbol.declaredAs}' is assigned but never declared, so FoxPro creates it as a PRIVATE: ` +
-          `it stays visible to everything ${scopeLabel(scope)} calls, and a mistyped name becomes a new variable rather than an error. ` +
-          `Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.`,
+          `'${symbol.declaredAs}' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE`,
           declareLocal(scope, symbol, ctx));
       }
     }
   }
 });
 
-// The other half of the pair: implicit-private reports an entry with no declaration, this one a declaration with no reference. LOCAL only -- PUBLIC and PRIVATE exist to be seen by the routines this one calls, so silence here says nothing about them, and an unused parameter is usually a signature the caller still passes. A reference inside SQL counts: a bare name there may be a column rather than the variable, which is not enough to claim the variable was touched but is enough to stop calling it unused.
+
 export const unusedLocal = onFile({
   code: 'unused-local',
   severity: Severity.Warning,
@@ -35,9 +33,7 @@ export const unusedLocal = onFile({
         if (symbol.kind !== 'local' || !symbol.declaredAt?.start) continue;
         if (symbol.reads.length || symbol.writes.length) continue;
         ctx.report(symbol.declaredAt,
-          `'${symbol.declaredAs}' is declared LOCAL in ${scopeLabel(scope)} and then never read or written. ` +
-          `Either it is left over and can go, or the name it was meant to be used under is misspelled somewhere below ` +
-          `-- in which case that spelling is creating a PRIVATE of its own.`,
+          `'${symbol.declaredAs}' is declared in ${scopeLabel(scope)}, but never used.`,
           removeLocal(symbol, ctx));
       }
     }
@@ -68,8 +64,7 @@ export const missingMemvarPrefix = onFile({
           // An m. prefix is already correct, and inside SQL a bare name is expected to be a column.
           if (ref.memvarPrefix || ref.sqlContext || !ref.location?.start) continue;
           ctx.report(ref.location,
-            `'${symbol.declaredAs}' is declared as a variable and is also used as a field name in this file. ` +
-            `A bare name resolves to the field${openTableSuffix(scope, ref.location.start.line)}, so write 'm.${symbol.declaredAs}' to be sure of reaching the variable.`,
+            `'${symbol.declaredAs}' is both a variable and a column name. prefer 'm.${symbol.declaredAs}' to avoid accidentally updating the column`,
             prefixMemvar(symbol, ref, ctx));
         }
       }
@@ -82,10 +77,10 @@ function scopeLabel(scope: Scope) {
 }
 
 // Work areas are shared across routines, so a table opened elsewhere still shadows a name here. The alias is only named when this routine is the one that selected it.
-function openTableSuffix(scope: Scope, line: number) {
-  const alias = aliasInEffectAt(scope, line);
-  return alias ? ` while ${alias} is open` : '';
-}
+// function openTableSuffix(scope: Scope, line: number) {
+//   const alias = aliasInEffectAt(scope, line);
+//   return alias ? ` while ${alias} is open` : '';
+// }
 
 function collectFieldNames(ast: AstNode, aliases: Set<string>): Set<string> {
   const fields = new Set<string>();

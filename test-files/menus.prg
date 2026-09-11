@@ -19,6 +19,13 @@ SET SKIP OF BAR 2 OF pFileMenu m.llLocked
 SET SKIP OF PAD pFile OF mMain m.llLocked
 SET SKIP OF POPUP pFileMenu .F.
 
+SET MARK OF BAR 1 OF pFileMenu TO .T.
+SET MARK OF PAD pFile OF mMain TO m.llLocked
+SET MARK OF MENU mMain TO .F.
+SET MARK OF POPUP pFileMenu TO .T.
+* The other SET MARK, which sets the date delimiter and has nothing to do with menus.
+SET MARK TO "/"
+
 ACTIVATE SCREEN
 ACTIVATE WINDOW wOutput
 ACTIVATE MENU mMain

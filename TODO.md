@@ -14,11 +14,18 @@
 
 ## Grammar coverage
 
-Reported as `unsupported-syntax`. `test-files/diagnostics/still-unsupported.prg` holds a list.
+Reported as `unsupported-syntax`. `test-files/diagnostics/still-unsupported.prg` holds the list, and everything on it was found by probing the parser rather than by reading the grammar.
 
-- **`SAVE SCREEN` / `RESTORE SCREEN`** — the screen buffer saved to and restored from a variable. `SAVE TO` and `RESTORE FROM` do the same for memory variables and are read, as are `SAVE WINDOW` and `RESTORE WINDOW`; these two are the pair in between.
-- **The `TO` clause of `SET MARK OF`** — which puts a tick beside a menu item. The `OF` form reads as far as the item, so only the clause is lost. `SET SKIP OF`, which greys one out, is read in full.
-- **An index file named with its extension in an `OF` clause** — `INDEX ON custid TAG custid OF cust.cdx`. The tag is already known and only the file is lost: the expression reader meets `cust.cdx` and takes it for member access. Same shape as `SET HELP TO x.hlp`, which parses but reads as member access rather than a file.
+- **`CREATE TRIGGER` / `DELETE TRIGGER`, and `VALIDATE DATABASE`** — the referential-integrity side of the database container. `DELETE TRIGGER` is partial: `DELETE` parses and `ON customer FOR INSERT` is what is lost.
+- **`RENAME TABLE` and `RENAME CLASS`** — the container forms. The file form, `RENAME old.dbf TO new.dbf`, is read; these rename an object inside the container instead, and `TABLE` is the one that appears in real code.
+- **`SHUTDOWN`** — ends the session, running `ON SHUTDOWN` first. `QUIT`, which does not, is read.
+- **The Foxbase menu system** — `MENU BAR`, `MENU TO` and `READ MENU TO`, which predate `DEFINE POPUP` and still turn up in the oldest files. `MENU TO` puts the chosen bar number in a variable, so what is lost is a write the symbol table never sees.
+- **`RELEASE MENU` / `RELEASE POPUP`** — partial, and the worst shape of the five: `RELEASE` reads as far as the word, then takes `MENU` for the name of a variable to release and leaves the real name behind. It is the only one here that misparses rather than reporting, so fixing it is worth more than the line count suggests.
+
+Two things a sweep found that are not gaps but misparses, so nothing reports them:
+
+- **`USE customer ORDER TAG custid`** — `OrderSpec` is only reachable through `USE ... ?`, so every word of the `ORDER` clause falls to `UseConnPart` and is read as a connection handle, the last one winning. The clause itself is already written; it needs adding to `UseOption` above the handle alternative.
+- **`SET HELP TO x.hlp`** — parses, but reads the file as member access on a variable called `x`, which books a read of a name that does not exist. Same shape as the index-file fix, one level up in `SetCommand`'s argument list.
 
 ## Cleanup
 

@@ -1,2 +1,2 @@
-56:4 warning implicit-private 'M_LASTSUB' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything ASSOC calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.
-64:3 warning implicit-private 'M_FIRSTIME' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything ASSOC calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.
+56:4 warning implicit-private 'M_LASTSUB' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
+64:3 warning implicit-private 'M_FIRSTIME' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
