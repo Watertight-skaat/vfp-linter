@@ -43,6 +43,7 @@ USE IN (m.lcAlias)
 USE (m.lcPath) AGAIN ALIAS (m.lcAlias) IN 0
 SET RELATION TO stnum + acctnum INTO (m.lcAlias)
 SET ORDER TO (m.lcAlias) DESCENDING IN (m.lcAlias)
+SET ORDER TO TAG stnum OF custinfo DESCENDING IN (m.lcAlias)
 GO TOP IN (m.lcAlias)
 
 * ADDITIVE anywhere in the option list, not only next to the variable.
@@ -58,6 +59,30 @@ ENDSCAN
 ? m.lnRows + m.lnAvg + m.lnOverdue
 ? m.lcReport
 ? laRow(1)
+
+* The pre-SQL data commands. Each names a table, a field or a variable, so each carries operands a rule would want.
+TOTAL ON stnum TO summary FIELDS invbal FOR invbal > 0
+JOIN WITH (m.lcAlias) TO joined FOR custinfo.stnum = invinfo.stnum FIELDS custinfo.stnum, invinfo.invbal
+UPDATE ON stnum FROM (m.lcAlias) REPLACE invbal WITH invinfo.invbal, invnum WITH invinfo.invnum RANDOM
+COPY STRUCTURE TO newtbl FIELDS stnum, invbal WITH CDX
+COPY STRUCTURE EXTENDED TO structtbl
+DELETE TAG stnum, acctnum
+DELETE TAG ALL OF custinfo
+BLANK FIELDS invbal NEXT 1 IN (m.lcAlias)
+
+* Memory-variable files, the remaining PRIVATE form, and the debugging commands.
+SAVE TO config.mem ALL LIKE m_*
+SAVE TO MEMO notes
+RESTORE FROM config.mem ADDITIVE
+RESTORE FROM MEMO notes
+ASSERT m.lnRows > 0 MESSAGE "no rows"
+ASSERT (m.lnRows > 0)
+PLAY MACRO F5 TIMES 3
+
+PROCEDURE Hidden
+	PRIVATE ALL EXCEPT m_*
+	? "hidden"
+ENDPROC
 
 PROCEDURE OldStyleParams
 	PARAM MNM, ARR, FLD

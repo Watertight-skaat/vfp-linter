@@ -105,12 +105,13 @@ check('a field in a scoped condition is not a declared variable', shape('Filteri
 // The ARRAY keyword used to be read as the first variable name on all three of these, a parenthesised subscript split an assignment into a call plus a stray literal, and STORE matched the bare name and dropped the subscript. All four parsed, so no diagnostic could have caught any of them; a symbol with the wrong kind, or a missing write, is the only visible trace. The scope names alone are the assertion for the first three -- a variable named ARRAY would appear here instead.
 check('Subscripts declares only the three arrays', names('Subscripts'),
 	['LABRACKETS', 'LAPRIVATE', 'LAPUBLIC']);
+// Each array is written twice by a subscript of its own and once more by the three-target STORE on the last line, so a count of 2 anywhere here means the list form dropped everything after its first target -- which is what it used to do, silently, reading the remainder as a fresh statement.
 check('LOCAL ARRAY with brackets, written through both subscript forms', shape('Subscripts', 'LABRACKETS'),
-	{ kind: 'local', type: null, array: true, declared: true, reads: 0, writes: 2 });
+	{ kind: 'local', type: null, array: true, declared: true, reads: 0, writes: 3 });
 check('PUBLIC ARRAY, written by STORE to an element', shape('Subscripts', 'LAPUBLIC'),
-	{ kind: 'public', type: null, array: true, declared: true, reads: 0, writes: 1 });
+	{ kind: 'public', type: null, array: true, declared: true, reads: 0, writes: 2 });
 check('PRIVATE ARRAY, two-dimensional', shape('Subscripts', 'LAPRIVATE'),
-	{ kind: 'private', type: null, array: true, declared: true, reads: 0, writes: 1 });
+	{ kind: 'private', type: null, array: true, declared: true, reads: 0, writes: 2 });
 
 // Inside WITH, the leading dot is the only thing separating a property from a memory variable, and the grammar used to drop it. The names list is the assertion: CAPTION, COLUMNS and WIDTH appearing here would mean every property assignment in every WITH block is being booked as an implicit PRIVATE.
 check('WITH properties are not variables', names('Styling'), ['LCHEADING', 'TNCOLUMN', 'TOGRID']);

@@ -47,7 +47,7 @@ Syntax errors and unterminated blocks are never quieted by that setting, because
 
 ## What it does not read yet
 
-Still unread, and reported as `unsupported-syntax`: the screen and menu commands (`DEFINE WINDOW`, `DEFINE BAR`, `ACTIVATE WINDOW`, `ON SELECTION BAR`), the pre-SQL data commands (`TOTAL`, `JOIN WITH`, `UPDATE ON`, `COPY STRUCTURE`, `DELETE TAG`, `BLANK`), `SAVE TO`/`RESTORE FROM`, `PRIVATE ALL EXCEPT`, `ASSERT`, `PLAY MACRO`, table-level constraints in `CREATE TABLE`, and a multi-target `STORE` with a subscripted target.
+Still unread, and reported as `unsupported-syntax`: `SET` commands whose argument is a list or carries a clause of its own (`SET SKIP TO ... INTO`, `SET RELATION OFF INTO`, `SET PROCEDURE TO a, b`, `SET CLASSLIB TO ... IN ... ALIAS`), `BROWSE` options past the first, `SAVE WINDOW`/`RESTORE WINDOW`, `INSERT BEFORE`, `FIND`, `COPY INDEXES`, `CREATE VIEW`, `DECLARE` of an array, `WAIT ... TO`, and `DEBUGOUT`. Most of those leave the statement itself parsed and lose only the tail.
 
 Macro substitution is parsed where it appears, and `&lcCmd` counts as a read of `lcCmd`, but a macro's contents are only known at run time, so checks that depend on reading a condition skip it.
 

@@ -261,6 +261,7 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
       case 'PrivateDeclaration': declare(scope, node.name, 'private', at, null, node.isArray); return;
       case 'PrivateAll':
       case 'PrivateAllLike':
+      case 'PrivateAllExcept':
         scope.privateAll = true;
         return;
       case 'ParametersDeclaration':
@@ -280,15 +281,16 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
         visit(node.expression, scope);
         return;
       case 'StoreStatement': {
-        const target = node.target;
-        if (target.type === 'VarList') {
-          for (const name of target.vars) reference(scope, name, 'write', at);
-        } else if (target.type === 'ArrayIndexed') {
-          reference(scope, target.array, 'write', at);
-          visit(target.indexes, scope);
-        } else {
-          reference(scope, target.target, 'write', at);
-          visit(target.expression, scope);
+        for (const target of node.targets) {
+          if (target.type === 'Var') {
+            reference(scope, target.name, 'write', at);
+          } else if (target.type === 'ArrayIndexed') {
+            reference(scope, target.array, 'write', at);
+            visit(target.indexes, scope);
+          } else {
+            reference(scope, target.target, 'write', at);
+            visit(target.expression, scope);
+          }
         }
         visit(node.expression, scope);
         return;

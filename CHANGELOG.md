@@ -1,5 +1,49 @@
 # Changelog
 
+## Unreleased
+
+Grammar coverage: the five gaps the roadmap had measured are closed, and one silent misparse found
+while verifying them is fixed.
+
+### Table-level constraints in `CREATE TABLE`
+
+`UNIQUE`, `PRIMARY KEY`, `FOREIGN KEY` and `CHECK` written after the column list now parse into
+`constraints`. This was the only gap that cost more than its own statement: a constraint opens with
+words a column definition also swallows — `UNIQUE stnum TAG stnum` reads as a column named `UNIQUE` of
+type `stnum` — and the column then stopped mid-clause, taking the whole `CREATE TABLE` with it.
+Requiring a column definition to end at the next comma or the closing paren is what tells the two
+apart, so a column genuinely named `check_flag` or `unique_id` is still read as a column.
+
+### The pre-SQL data commands
+
+`TOTAL`, `JOIN WITH`, `UPDATE ON`, `COPY STRUCTURE`, `DELETE TAG` and `BLANK`. Each names a table, a
+field or a variable, so each keeps its operands rather than being recognised and discarded. `DELETE
+TAG` had been the worse kind of gap: it parsed as an xbase `DELETE` with a scope of `TAG` and left the
+tag name to the catch-all.
+
+### A multi-target `STORE` where a target is subscripted
+
+`STORE 0 TO a[1], b[2]`. The list used to be read as names first and the subscript only when it was
+the whole tail, so `STORE 0 TO lnX, laY[3]` booked `laY` as a plain write and read `[3]` on as a
+bracket string literal on a statement of its own — a misparse, silently. Each member of the list is
+now a target in its own right, and `StoreStatement` carries `targets` rather than a single `target`.
+
+### Memory variables, debugging, screen and menu
+
+`SAVE TO`, `RESTORE FROM`, `PRIVATE ALL EXCEPT`, `ASSERT` and `PLAY MACRO`. `PRIVATE ALL EXCEPT` hides
+the caller's variables like the other `PRIVATE ALL` forms, so it now sets the same flag on the scope.
+
+`DEFINE WINDOW`/`MENU`/`PAD`/`POPUP`/`BAR`, `ACTIVATE`/`DEACTIVATE`/`SHOW`/`HIDE`/`MOVE`/`SIZE`/`ZOOM`
+of a window, menu, popup or the screen, `ON SELECTION`, and `SET SKIP OF`. None of these reaches a
+table or a variable, so each keeps its name and leaves the option tail as source — except the handler
+after `ON SELECTION`, which is real code and is parsed as a statement.
+
+### `SET ORDER TO TAG`
+
+Fixed: `TAG` was read as the index file name and the tag name was left to the catch-all, which made
+the statement look parsed while the selection was wrong. `USE ... ORDER` already guarded this; the
+`SET` form now guards it the same way.
+
 ## 1.2.1
 
 Packaging only — no change to the grammar or the rules. The extension now ships an icon, so it has a

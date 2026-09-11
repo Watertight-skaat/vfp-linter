@@ -85,6 +85,7 @@ PROCEDURE Subscripts
 	laBrackets[2] = 20
 	STORE 0 TO laPublic[1]
 	STORE 0 TO laPrivate(1, 2)
+	STORE 0 TO laBrackets[1], laPublic[2], laPrivate[1, 3]
 ENDPROC
 
 * A dotted reference inside WITH names a property of the WITH target, not a memory variable. The

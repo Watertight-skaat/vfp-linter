@@ -91,11 +91,34 @@ export type UseTargetRef =
   | { kind: 'TABLE'; name: QualifiedTable }
   | { kind: 'EXPR'; value: Expr };
 
-/** STORE ... TO, in its three forms. `type` here is not a node type. */
+/** One member of a STORE ... TO list, in its three forms. `type` here is not a node type. */
 export type StoreTarget =
-  | { type: 'VarList'; vars: string[] }
+  | { type: 'Var'; name: string }
   | { type: 'ArrayIndexed'; array: string; indexes: Expr[] }
   | { type: 'ArrayAssign'; target: string; expression: Expr };
+
+/** One REPLACE pair of the pre-SQL UPDATE ON. */
+export interface UpdateOnReplacement {
+  field: string;
+  expression: Expr;
+}
+
+/** One tag named by DELETE TAG, with the compound index file it lives in when that is given. */
+export interface DeleteTagItem {
+  name: string;
+  of: Expr | Path | null;
+}
+
+/** SAVE TO and RESTORE FROM name either a file or a memo field. */
+export type MemoryStore =
+  | { kind: 'MEMO'; name: string }
+  | { kind: 'FILE'; name: Expr | Path };
+
+/** The ALL LIKE / ALL EXCEPT skeleton that narrows what SAVE writes out. */
+export interface MemvarSkeleton {
+  mode: 'LIKE' | 'EXCEPT';
+  pattern: string;
+}
 
 /** The TO clause of CALCULATE and SUM. */
 export type CalcTarget = { kind: 'VARS'; vars: string[] } | { kind: 'ARRAY'; name: string };
@@ -166,7 +189,7 @@ export type InsertSource =
   | { kind: 'select'; select: SelectStatement };
 
 export interface UpdateAssignment {
-  target: string;
+  field: string;
   expression: Expr;
 }
 
@@ -434,6 +457,11 @@ export interface PrivateAllLike extends NodeBase {
   pattern: string;
 }
 
+export interface PrivateAllExcept extends NodeBase {
+  type: 'PrivateAllExcept';
+  pattern: string;
+}
+
 /** A bare PRIVATE with no names, which declares nothing. */
 export interface PrivateDirective extends NodeBase {
   type: 'PrivateDirective';
@@ -571,7 +599,7 @@ export interface Assignment extends NodeBase {
 export interface StoreStatement extends NodeBase {
   type: 'StoreStatement';
   expression: Expr;
-  target: StoreTarget;
+  targets: StoreTarget[];
 }
 
 export interface ExpressionStatement extends NodeBase {
@@ -842,6 +870,132 @@ export interface RunStatement extends NodeBase {
   type: 'RunStatement';
   /** The shell command line, which is not FoxPro. */
   command: string;
+}
+
+// --- Pre-SQL data commands -------------------------------------------------
+// The xbase commands SQL replaced. Each names a table, a field or a variable, so the operands are kept.
+
+export interface TotalStatement extends NodeBase {
+  type: 'TotalStatement';
+  target: Expr | Path;
+  /** The key the records are grouped on. */
+  key: Expr;
+  fields: FieldsSelection | null;
+  scope: RecordScope | null;
+  for: Expr | null;
+  while: Expr | null;
+  noOptimize: boolean;
+}
+
+/** The pre-SQL JOIN, which writes its result to a table rather than returning it. */
+export interface JoinWithStatement extends NodeBase {
+  type: 'JoinWithStatement';
+  source: Expr | string;
+  target: Expr | Path;
+  condition: Expr;
+  fields: FieldsSelection | null;
+}
+
+/** The pre-SQL UPDATE, which merges another work area into the current table. It shares only the word with SQL UPDATE. */
+export interface UpdateOnStatement extends NodeBase {
+  type: 'UpdateOnStatement';
+  key: string;
+  source: Expr | string;
+  replacements: UpdateOnReplacement[];
+  random: boolean;
+}
+
+export interface CopyStructureStatement extends NodeBase {
+  type: 'CopyStructureStatement';
+  target: Expr | Path;
+  /** COPY STRUCTURE EXTENDED writes the field definitions as records instead. */
+  extended: boolean;
+  fields: FieldsSelection | null;
+  index: 'CDX' | 'PRODUCTION' | null;
+  database: DatabaseClause | null;
+}
+
+export interface DeleteTagStatement extends NodeBase {
+  type: 'DeleteTagStatement';
+  all: boolean;
+  tags: DeleteTagItem[];
+  /** The OF clause of the ALL form; in the list form each tag carries its own. */
+  of: Expr | Path | null;
+}
+
+/** BLANK empties the current record's fields rather than deleting the record. */
+export interface BlankStatement extends NodeBase {
+  type: 'BlankStatement';
+  fields: FieldsSelection | null;
+  scope: RecordScope | null;
+  for: Expr | null;
+  while: Expr | null;
+  noOptimize: boolean;
+  inTarget: Expr | string | null;
+}
+
+// --- Memory variables and debugging ----------------------------------------
+
+export interface SaveToStatement extends NodeBase {
+  type: 'SaveToStatement';
+  destination: MemoryStore;
+  filter: MemvarSkeleton | null;
+}
+
+export interface RestoreFromStatement extends NodeBase {
+  type: 'RestoreFromStatement';
+  source: MemoryStore;
+  additive: boolean;
+}
+
+export interface AssertStatement extends NodeBase {
+  type: 'AssertStatement';
+  condition: Expr;
+  message: Expr | null;
+}
+
+export interface PlayMacroStatement extends NodeBase {
+  type: 'PlayMacroStatement';
+  /** The key label, or ALL. */
+  macro: string;
+  times: Expr | null;
+}
+
+// --- Screen and menu -------------------------------------------------------
+// None of these reaches a table or a variable, so the name is what is kept and the option tail stays source.
+
+export interface DefineScreenStatement extends NodeBase {
+  type: 'DefineScreenStatement';
+  what: 'WINDOW' | 'MENU' | 'PAD' | 'POPUP' | 'BAR';
+  /** A bar is numbered; everything else is named. */
+  name: string | NumberLiteral;
+  of: string | null;
+  options: string | null;
+}
+
+export interface ScreenCommandStatement extends NodeBase {
+  type: 'ScreenCommandStatement';
+  command: 'ACTIVATE' | 'DEACTIVATE' | 'SHOW' | 'HIDE' | 'MOVE' | 'SIZE' | 'ZOOM';
+  what: 'WINDOW' | 'MENU' | 'POPUP' | 'SCREEN';
+  options: string | null;
+}
+
+/** SET SKIP OF greys a menu item out. It is menu furniture rather than a setting. */
+export interface SetSkipOfStatement extends NodeBase {
+  type: 'SetSkipOfStatement';
+  what: 'MENU' | 'PAD' | 'POPUP' | 'BAR';
+  target: string | NumberLiteral;
+  of: string | null;
+  condition: Expr;
+}
+
+export interface OnSelectionStatement extends NodeBase {
+  type: 'OnSelectionStatement';
+  what: 'BAR' | 'MENU' | 'PAD' | 'POPUP';
+  target: string | NumberLiteral;
+  of: string | null;
+  /** The handler, parsed as a statement. Null when the selection is being cleared. */
+  command: Statement | null;
 }
 
 export interface SkipStatement extends NodeBase {
@@ -1154,11 +1308,13 @@ export type Statement =
   | ColumnDefinition
   | ContinueStatement
   | CopyToStatement
+  | CopyStructureStatement
   | CreateStatement
   | DeclareStatement
   | DefineClass
   | DefineStatement
   | DeleteStatement
+  | DeleteTagStatement
   | DimensionStatement
   | DoCaseStatement
   | DoFormStatement
@@ -1186,6 +1342,7 @@ export type Statement =
   | PrintStatement
   | PrivateAll
   | PrivateAllLike
+  | PrivateAllExcept
   | PrivateDeclaration
   | PrivateDirective
   | ProcedureStatement
@@ -1218,6 +1375,17 @@ export type Statement =
   | ModifyStatement
   | AlterTableStatement
   | RunStatement
+  | TotalStatement
+  | JoinWithStatement
+  | BlankStatement
+  | SaveToStatement
+  | RestoreFromStatement
+  | AssertStatement
+  | PlayMacroStatement
+  | DefineScreenStatement
+  | ScreenCommandStatement
+  | SetSkipOfStatement
+  | OnSelectionStatement
   | SortStatement
   | StoreStatement
   | AggregateStatement
@@ -1229,6 +1397,7 @@ export type Statement =
   | UnknownStatement
   | UnlockStatement
   | UpdateStatement
+  | UpdateOnStatement
   | UseStatement
   | WaitWindowStatement
   | WithStatement

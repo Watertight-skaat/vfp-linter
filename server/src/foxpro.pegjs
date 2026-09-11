@@ -4,6 +4,21 @@
   function node(type, props) {
     return Object.assign({ type, location: location() }, props);
   }
+  // TOTAL and BLANK take the same order-free option set as SCAN, plus FIELDS and IN.
+  function collectRecordOptions(parts) {
+    const o = { fields: null, scope: null, forCondition: null, whileCondition: null, noOptimize: false, inTarget: null };
+    for (const part of parts) {
+      switch (part.kind) {
+        case 'FIELDS': if (!o.fields) o.fields = part.value; break;
+        case 'IN': if (!o.inTarget) o.inTarget = part.value; break;
+        case 'SCOPE': if (!o.scope) o.scope = part.value; break;
+        case 'FOR': if (!o.forCondition) o.forCondition = part.value; break;
+        case 'WHILE': if (!o.whileCondition) o.whileCondition = part.value; break;
+        case 'NOOPTIMIZE': o.noOptimize = true; break;
+      }
+    }
+    return o;
+  }
   function flatten(list) {
     const out = [];
     for (const item of list) {
@@ -35,6 +50,8 @@ Statement "statement"
   / DeclareStatement
   / TryStatement
   / DefineClass
+  / DefineScreenStatement
+  / ScreenCommandStatement
   / LParameters
   / PrintStatement
   / WaitWindowStatement
@@ -43,8 +60,12 @@ Statement "statement"
   / CalculateStatement
   / AggregateStatement
   / CopyStatement
+  / TotalStatement
+  / JoinWithStatement
+  / BlankStatement
   / EraseStatement
   / SetStatement
+  / OnSelectionStatement
   / OnStatement
   / TextBlockStatement
   / ThrowStatement
@@ -57,7 +78,9 @@ Statement "statement"
   / IndexOnStatement
   / InsertStatement
   / SelectStatement
+  / UpdateOnStatement
   / UpdateStatement
+  / DeleteTagStatement
   / DeleteStatement
   / ZapStatement
   / GoToStatement
@@ -99,6 +122,10 @@ Statement "statement"
   / PushPopStatement
   / ExternalStatement
   / ModifyStatement
+  / SaveToStatement
+  / RestoreFromStatement
+  / AssertStatement
+  / PlayMacroStatement
   / AlterTableStatement
   / RunStatement
   / ExpressionStatement
@@ -149,6 +176,10 @@ PrivateStatement
       "ALL"i _ "LIKE"i _ p:(StringLiteral / Pattern) {
         const pat = (typeof p === 'string') ? p : (p && p.value ? p.value : p);
         return node("PrivateAllLike", { pattern: pat });
+      }
+      / "ALL"i WB _ "EXCEPT"i WB _ p:(StringLiteral / Pattern) {
+        const pat = (typeof p === 'string') ? p : (p && p.value ? p.value : p);
+        return node("PrivateAllExcept", { pattern: pat });
       }
       / "ALL"i { return node("PrivateAll", {}); }
       / "ARRAY"i WB _ arrs:ArrayDeclList { return arrs.map(a => node("PrivateDeclaration", { name: a.name, isArray: true })); }
@@ -942,7 +973,7 @@ NowaitFlag
 // COPY/RENAME
 // -----------------------------
 CopyStatement "copy/rename statement"
-  = CopyFileStatement / CopyToStatement
+  = CopyFileStatement / CopyStructureStatement / CopyToStatement
 
 CopyFileStatement
   = action:("COPY FILE"i / "RENAME"i) WB _ src:PathOrExpression _ "TO"i _ dst:PathOrExpression {
@@ -1406,8 +1437,9 @@ CreateDefItems
       return [head, ...rest];
     }
 
+// A table-level constraint opens with words a column definition will also swallow -- `UNIQUE custid TAG custid` reads as a column named UNIQUE of type custid -- and the column then stops mid-clause, which used to cost the whole CREATE TABLE its parse. Requiring the item to end at the next comma or the closing paren is what tells the two apart, and it leaves a column genuinely named CHECK or UNIQUE still readable as a column.
 CreateDefItem
-  = c:ColumnDefinition { return { kind: 'column', node: c }; }
+  = c:ColumnDefinition &(_ ("," / ")" / PartialLineComment / LineTerminator / EOF)) { return { kind: 'column', node: c }; }
   / t:TableConstraint  { return { kind: 'constraint', node: t }; }
 
 IdentifierOrString
@@ -1569,6 +1601,146 @@ RunStatement
     }
 
 // -----------------------------
+// Pre-SQL data commands
+// -----------------------------
+// The xbase commands SQL replaced. A 30-year-old application still runs on them, and each names a table, a field or a variable, so the operands are kept and only the option tail is dropped.
+
+// TOTAL ON eExpression TO TableName [FIELDS FieldList] [Scope] [FOR lExpression] [WHILE lExpression] [NOOPTIMIZE]
+TotalStatement
+  = "TOTAL"i WB _ "ON"i WB __ key:Expression _ "TO"i WB _ target:PathOrExpression opts:(_ FieldOrRecordOption)* {
+      const o = collectRecordOptions(opts.map(t => t[1]));
+      return node('TotalStatement', { target, key, fields: o.fields, scope: o.scope, for: o.forCondition, while: o.whileCondition, noOptimize: o.noOptimize });
+    }
+
+// JOIN WITH WorkArea | TableAlias TO TableName FOR lExpression [FIELDS FieldList]
+JoinWithStatement
+  = "JOIN"i WB _ "WITH"i WB _ source:AliasRef _ "TO"i WB _ target:PathOrExpression _ "FOR"i WB __ condition:Expression _ fields:FieldsClause? {
+      return node('JoinWithStatement', { source, target, condition, fields: fields || null });
+    }
+
+// UPDATE ON KeyField FROM WorkArea | TableAlias REPLACE Field WITH eExpression [, Field2 WITH eExpression2 ...] [RANDOM]
+// Shares only the word with SQL UPDATE: this one merges another work area into the current table.
+UpdateOnStatement
+  = "UPDATE"i WB _ "ON"i WB __ key:ParameterName _ "FROM"i WB __ source:AliasRef _ "REPLACE"i WB __ replacements:UpdateOnReplaceList _ random:("RANDOM"i WB)? {
+      return node('UpdateOnStatement', { key, source, replacements, random: !!random });
+    }
+
+UpdateOnReplaceList
+  = head:UpdateOnReplace tail:(_ "," _ UpdateOnReplace)* { return [head, ...tail.map(t => t[3])]; }
+
+UpdateOnReplace
+  = field:ParameterName __ "WITH"i WB __ expr:Expression { return { field, expression: expr }; }
+
+// COPY STRUCTURE [EXTENDED] TO TableName [FIELDS FieldList] [[WITH] CDX | PRODUCTION] [DATABASE cDatabaseName [NAME LongTableName]]
+CopyStructureStatement
+  = "COPY"i WB _ "STRUCTURE"i WB _ ext:("EXTENDED"i WB _)? "TO"i WB _ target:PathOrExpression _
+    fields:FieldsClause? _ idx:WithIndexClause? _ db:DatabaseClause? {
+      return node('CopyStructureStatement', { target, extended: !!ext, fields: fields || null, index: idx || null, database: db || null });
+    }
+
+// DELETE TAG TagName1 [OF CDXFileName1] [, TagName2 [OF CDXFileName2]] ... | DELETE TAG ALL [OF CDXFileName]
+// ALL first: it is also a legal identifier, so the tag-list form would otherwise read it as a tag named ALL.
+DeleteTagStatement
+  = "DELETE"i WB _ "TAG"i WB _ "ALL"i WB _ of:TagOfClause? {
+      return node('DeleteTagStatement', { all: true, tags: [], of: of || null });
+    }
+  / "DELETE"i WB _ "TAG"i WB _ head:DeleteTagItem tail:(_ "," _ DeleteTagItem)* {
+      return node('DeleteTagStatement', { all: false, tags: [head, ...tail.map(t => t[3])], of: null });
+    }
+
+DeleteTagItem
+  = name:Identifier _ of:TagOfClause? { return { name, of: of || null }; }
+
+TagOfClause
+  = "OF"i WB _ file:PathOrExpression { return file; }
+
+// BLANK [FIELDS FieldList] [Scope] [FOR lExpression] [WHILE lExpression] [NOOPTIMIZE] [IN nWorkArea | cTableAlias]
+// Empties the current record's fields rather than deleting the record. Not a reserved word, so a variable of the same name has to be let through.
+BlankStatement
+  = "BLANK"i WB NotCallOrAssign opts:(_ FieldOrRecordOption)* {
+      const o = collectRecordOptions(opts.map(t => t[1]));
+      return node('BlankStatement', { fields: o.fields, scope: o.scope, for: o.forCondition, while: o.whileCondition, noOptimize: o.noOptimize, inTarget: o.inTarget });
+    }
+
+FieldOrRecordOption
+  = f:FieldsClause { return { kind: 'FIELDS', value: f }; }
+  / t:InClause { return { kind: 'IN', value: t }; }
+  / RecordOption
+
+// -----------------------------
+// Memory variables and debugging
+// -----------------------------
+
+// SAVE TO MemFileName | TO MEMO MemoFieldName [ALL LIKE Skeleton | ALL EXCEPT Skeleton]
+SaveToStatement
+  = "SAVE"i WB _ "TO"i WB _ dest:MemoryStore _ filter:MemvarSkeleton? {
+      return node('SaveToStatement', { destination: dest, filter: filter || null });
+    }
+
+// RESTORE FROM MemoFileName | FROM MEMO MemoFieldName [ADDITIVE]
+RestoreFromStatement
+  = "RESTORE"i WB _ "FROM"i WB _ src:MemoryStore _ additive:("ADDITIVE"i WB)? {
+      return node('RestoreFromStatement', { source: src, additive: !!additive });
+    }
+
+// MEMO first: the file form is a bare path, so it would otherwise read the word MEMO as the filename.
+MemoryStore
+  = "MEMO"i WB _ field:ParameterName { return { kind: 'MEMO', name: field }; }
+  / file:PathOrExpression { return { kind: 'FILE', name: file }; }
+
+MemvarSkeleton
+  = "ALL"i WB _ mode:("LIKE"i / "EXCEPT"i) WB _ p:(StringLiteral / Pattern) {
+      return { mode: mode.toUpperCase(), pattern: (typeof p === 'string') ? p : p.value };
+    }
+
+// ASSERT lExpression [MESSAGE cMessageText]
+// The whitespace is required so `Assert(x)` stays a call to a routine of that name.
+AssertStatement
+  = "ASSERT"i WB Whitespace _ condition:Expression _ msg:("MESSAGE"i WB __ m:Expression { return m; })? {
+      return node('AssertStatement', { condition, message: msg || null });
+    }
+
+// PLAY MACRO KeyLabelName | ALL [TIMES nTimes]
+PlayMacroStatement
+  = "PLAY"i WB _ "MACRO"i WB _ name:$([A-Za-z0-9_+]+) _ times:("TIMES"i WB __ n:Expression { return n; })? {
+      return node('PlayMacroStatement', { macro: name.toUpperCase(), times: times || null });
+    }
+
+// -----------------------------
+// Screen and menu
+// -----------------------------
+// Screen furniture. None of it reaches a table or a variable, so the name is what is kept and the option tail stays raw source.
+
+// DEFINE WINDOW | MENU | PAD | POPUP | BAR Name [OF ParentName] ...
+DefineScreenStatement
+  = "DEFINE"i WB _ what:("WINDOW"i / "MENU"i / "PAD"i / "POPUP"i / "BAR"i) WB _ name:(NumberLiteral / Identifier) _ of:OfParentClause? opts:RawOptions {
+      return node('DefineScreenStatement', { what: what.toUpperCase(), name, of: of || null, options: opts });
+    }
+
+OfParentClause
+  = "OF"i WB _ parent:Identifier { return parent; }
+
+// ACTIVATE | DEACTIVATE | SHOW | HIDE | MOVE | SIZE | ZOOM WINDOW | MENU | POPUP | SCREEN ...
+// The sub-keyword is required, which is what keeps `Activate = .T.` an assignment.
+ScreenCommandStatement
+  = cmd:("ACTIVATE"i / "DEACTIVATE"i / "SHOW"i / "HIDE"i / "MOVE"i / "SIZE"i / "ZOOM"i) WB _ what:("WINDOW"i / "MENU"i / "POPUP"i / "SCREEN"i) WB opts:RawOptions {
+      return node('ScreenCommandStatement', { command: cmd.toUpperCase(), what: what.toUpperCase(), options: opts });
+    }
+
+// SET SKIP OF MENU | PAD | POPUP | BAR ... lExpression greys a menu item out. It is menu furniture rather than a setting, so SetSettingStatement -- which would read OF as the argument and leave the rest of the line to the catch-all -- has to be given it first.
+SetSkipOfStatement
+  = "SET"i WB _ "SKIP"i WB _ "OF"i WB _ what:("MENU"i / "PAD"i / "POPUP"i / "BAR"i) WB _ target:(NumberLiteral / Identifier) _ of:OfParentClause? _ condition:Expression {
+      return node('SetSkipOfStatement', { what: what.toUpperCase(), target, of: of || null, condition });
+    }
+
+// ON SELECTION BAR nBar OF Popup | MENU MenuName | PAD PadName OF MenuName | POPUP PopupName [Command]
+// The command it installs is real code, so it is parsed as a statement rather than kept as text.
+OnSelectionStatement
+  = "ON"i WB _ "SELECTION"i WB _ what:("BAR"i / "MENU"i / "PAD"i / "POPUP"i) WB _ target:(NumberLiteral / Identifier) _ of:OfParentClause? _ cmd:Statement? {
+      return node('OnSelectionStatement', { what: what.toUpperCase(), target, of: of || null, command: cmd || null });
+    }
+
+// -----------------------------
 // Unknown/catch-all statement
 // -----------------------------
 // Captures a single logical line (respecting semicolon continuations) that didn't match any known statement. Protects block delimiters so structured constructs (IF/DO WHILE/FOR/TRY/DEFINE/WITH) can still recognize their endings.
@@ -1595,7 +1767,7 @@ UnknownStatement
     }
 
 SetStatement
-  = SetOrderToStatement / SetRelationToStatement / SetSettingStatement
+  = SetOrderToStatement / SetRelationToStatement / SetSkipOfStatement / SetSettingStatement
 
 // SET ORDER TO [nIndexNumber | IDXIndexFileName | [TAG] TagName 
 //   [OF CDXFileName] [IN nWorkArea | cTableAlias]
@@ -1605,6 +1777,8 @@ SetOrderToStatement
     sel:(
       n:NumberLiteral { return { kind: 'NUMBER', value: n }; }
       / "(" _ e:Expression _ ")" { return { kind: 'EXPR', value: e }; }
+      // An explicit TAG has to be claimed before the file alternative, which would otherwise read the word TAG itself as the index file and leave the tag name to the catch-all. OrderSpec guards it the same way.
+      / &("TAG"i WB) t:TagSpec { return { kind: 'TAG', tag: t.tag, of: t.of, direction: t.direction }; }
       / f:(IdentifierOrString / UnquotedPath) { return { kind: 'FILE', value: f }; }
       / t:TagSpec { return { kind: 'TAG', tag: t.tag, of: t.of, direction: t.direction }; }
     )?
@@ -1867,7 +2041,7 @@ LocateStatement
 // ENDSCAN
 // The clauses are order-free in VFP, and the app writes WHILE before FOR because the WHILE bounds the walk and the FOR is the extra filter. Reading them in a fixed order left `FOR ...` to the catch-all, which then reported a missing ENDFOR for a block that was never opened -- a false positive at error severity. `_` keeps the option list on the logical line, so the body below is never mistaken for one.
 ScanStatement
-  = "SCAN"i WB opts:(_ ScanOption)* __
+  = "SCAN"i WB opts:(_ RecordOption)* __
     body:(Statement __)*
     ("ENDSCAN"i / ("LOOP"i / "EXIT"i) _? "ENDSCAN"i)? {
       const o = { noOptimize: false, scope: null, forCondition: null, whileCondition: null };
@@ -1888,7 +2062,8 @@ ScanStatement
       });
     }
 
-ScanOption
+// The scope, filter and optimiser clauses the xbase record commands share. VFP takes them in any order, so every caller reads them as a set rather than a sequence.
+RecordOption
   = "NOOPTIMIZE"i WB { return { kind: 'NOOPTIMIZE' }; }
   / "ALL"i WB { return { kind: 'SCOPE', value: 'ALL' }; }
   / "NEXT"i WB _ n:NumberLiteral { return { kind: 'SCOPE', value: { type: 'NEXT', count: n } }; }
@@ -1972,16 +2147,20 @@ ReplaceField
     }
 
 // STORE eExpression TO VarNameList | ArrayNameList-or-VarName | ArrayName = eExpression
+// STORE takes a list, and any member of it may be subscripted: `STORE 0 TO a[1], b[2]`. Reading the list as names first and the subscript only when it was the whole tail dropped `laY[3]` in `STORE 0 TO lnX, laY[3]` -- the name was booked as a write and `[3]` read on as a bracket string literal on a statement of its own. One target rule per member is what keeps the subscript attached to the name it belongs to.
 StoreStatement
-  = "STORE"i WB __ expr:Expression __ "TO"i __
-    toPart:(
-      arr:Identifier _ "[" _ indexList:ExpressionList _ "]" { return { type: 'ArrayIndexed', array: arr, indexes: indexList }; }
-      / arr:Identifier _ "(" _ indexList:ExpressionList _ ")" { return { type: 'ArrayIndexed', array: arr, indexes: indexList }; }
-      / arrAssign:Identifier _ "=" _ rhs:Expression { return { type: 'ArrayAssign', target: arrAssign, expression: rhs }; }
-      / vars:IdentifierList { return { type: 'VarList', vars }; }
-    ) {
-    return node('StoreStatement', { expression: expr, target: toPart });
-  }
+  = "STORE"i WB __ expr:Expression __ "TO"i __ targets:StoreTargetList {
+      return node('StoreStatement', { expression: expr, targets });
+    }
+
+StoreTargetList
+  = head:StoreTarget tail:(_ "," _ StoreTarget)* { return [head, ...tail.map(t => t[3])]; }
+
+StoreTarget
+  = arr:Identifier _ "[" _ indexList:ExpressionList _ "]" { return { type: 'ArrayIndexed', array: arr, indexes: indexList }; }
+  / arr:Identifier _ "(" _ indexList:ExpressionList _ ")" { return { type: 'ArrayIndexed', array: arr, indexes: indexList }; }
+  / arrAssign:Identifier _ "=" _ rhs:Expression { return { type: 'ArrayAssign', target: arrAssign, expression: rhs }; }
+  / name:ParameterName { return { type: 'Var', name }; }
 
 ExpressionList
   = head:Expression tail:(_ "," _ Expression)* { return [head, ...tail.map(t => t[3])]; }

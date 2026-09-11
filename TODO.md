@@ -10,13 +10,12 @@
 
 ## Grammar coverage
 
-These announce themselves as `unsupported-syntax` rather than producing a wrong tree, so none of them block a rule.
+These announce themselves as `unsupported-syntax` rather than producing a wrong tree, so none of them block a rule. Measured by probing the parser, not by reading the grammar; `test-files/diagnostics/still-unsupported.prg` holds the same list as a fixture, so implementing one makes the ledger shorter.
 
-- **UNIQUE / FOREIGN KEY after the column list in `CREATE TABLE`** — column-level `UNIQUE`, `CHECK` and `REFERENCES` are read; a constraint written after the column list is not, and it costs the whole `CREATE TABLE` its parse rather than one clause. The only gap that costs more than its own statement.
-- **Pre-SQL data commands** — `TOTAL`, `JOIN WITH`, `UPDATE ON`, `COPY STRUCTURE`, `DELETE TAG`, `BLANK`. Each names a table or a variable, so they carry operands a rule would want.
-- **`STORE 0 TO a[1], b[2]`** — multiple targets where one is subscripted. Currently announces itself rather than silently dropping the subscript, which is what it used to do.
-- **Memory-variable and debugging commands** — `SAVE TO` / `RESTORE FROM`, `PRIVATE ALL EXCEPT`, `ASSERT`, `PLAY MACRO`.
-- **Screen and menu commands** — `DEFINE WINDOW` / `BAR` / `MENU`, `ACTIVATE WINDOW`, `ON SELECTION`. A 30-year-old application carries a lot of them, but not one touches data or a variable, so no rule loses anything. Lowest value here.
+- **`SET` commands whose argument is a list or has a clause of its own** — `SET SKIP TO x INTO y`, `SET RELATION OFF INTO y`, `SET PROCEDURE TO a, b ADDITIVE`, `SET CLASSLIB TO x IN y ALIAS z`. The bare `SET x TO y` form reads them, so each leaves a `SetCommand` behind and only the tail is lost. The largest group left, and the one most likely to hold something a rule wants.
+- **`BROWSE` options past the first** — the statement is recognised, so the work area is known; the field list is not.
+- **`SAVE WINDOW` / `RESTORE WINDOW`** — window definitions written to and read back from a file. The screen commands proper are read now; these two sit beside `SAVE TO` and `RESTORE FROM` and are not.
+- **The remainder, each costing only its own statement** — `INSERT BEFORE`, `FIND`, `COPY INDEXES`, `CREATE VIEW`, `DECLARE laArr[3]`, `WAIT ... TO`, `DEBUGOUT`. `DECLARE` of an array is the one of these that names a variable.
 
 ## Project
 
