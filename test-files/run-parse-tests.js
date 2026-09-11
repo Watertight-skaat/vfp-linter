@@ -265,4 +265,78 @@ check('the clause after the file still reads', first('SET ALTERNATE TO out.txt A
 check('a SET outside the file list keeps the expression reader',
 	first('SET FILTER TO customer.state = "NY"').arguments[0].left.type, 'MemberExpression');
 
+// --- the thirteen constructs that cost a whole file --------------------------------
+// Each of these failed a block rather than a statement, so the error surfaced on an orphaned terminator far below and no rule ran on the file at all. A diagnostics fixture can only say the file is clean now; these say it is read correctly.
+
+// A leading-dot member reference inside an expression, which was the largest single cause. The dot was read only where a statement started with it.
+check('a member reference in a condition is the WITH target, not a name',
+	first('IF .ChartsCount > 1\nx=1\nENDIF').test.left,
+	{ type: 'WithMemberExpression', expression: { type: 'Identifier', name: 'ChartsCount' } });
+check('the whole chain after the dot belongs to it',
+	first('DO CASE\nCASE .Scale.Format = "@$"\nx=1\nENDCASE').cases[0].test.left.expression.type, 'MemberExpression');
+check('a nested WITH may name a member of the enclosing one',
+	first('WITH .Fields(1)\n.a = 1\nENDWITH').target.type, 'WithMemberExpression');
+// The dangerous half: read as an expression, `.Width = 400` is the reference followed by `= 400`, which EvalStatement takes as a statement of its own -- two statements and no write recorded.
+check('a member assignment under a nested block is one assignment, not two statements',
+	first('WITH m.o\nIF m.b\n.Width = 400\nENDIF\nENDWITH').body.body[0].consequent.body,
+	[{ type: 'Assignment', target: { type: 'WithMemberExpression', expression: { type: 'Identifier', name: 'Width' } }, expression: { type: 'NumberLiteral', value: 400, raw: '400', currency: false } }]);
+check('.T. is still a boolean beside it', first('x = .T.').expression.type, 'BooleanLiteral');
+check('.5 is still a number', first('x = .5').expression.type, 'NumberLiteral');
+check('and .and. is still an operator', first('x = a .and. b').expression.operator, 'AND');
+// A property on its own is no more a statement than a name on its own is, or the `.prg` left over from a clause the grammar stopped short of stops announcing itself.
+check('a bare member reference is not a statement', types('.prg'), ['UnknownStatement']);
+
+// PARAMETERS() the function, which the declaration keyword won.
+check('PARAMETERS() is a call', first('IF PARAMETERS() < 3\nx=1\nENDIF').test.left.callee, { type: 'Identifier', name: 'PARAMETERS' });
+check('the declaration is untouched beside it', first('PARAMETERS cPath, nKey'), { type: 'ParametersDeclaration', names: ['cPath', 'nKey'] });
+
+// PROTECTED / HIDDEN methods were already read; the return type they carry without a parameter list was not, and `AS Logical` was left behind as a statement.
+check('a method declares its return type without a parameter list',
+	(({ name, access, isFunction, returnType }) => ({ name, access, isFunction, returnType }))(first('DEFINE CLASS X AS Session\nHIDDEN FUNCTION Rel AS Logical\nRETURN .t.\nENDFUNC\nENDDEFINE').body[0]),
+	{ name: 'Rel', access: 'HIDDEN', isFunction: true, returnType: 'Logical' });
+
+// A second CATCH, which is the shape of every retry loop.
+check('every CATCH is read, with its own WHEN and body',
+	first('TRY\nx=1\nCATCH TO m.e WHEN m.e.ErrorNo = 1707\ny=1\nCATCH TO m.e\nz=1\nENDTRY').catchClauses.map(c => [c.to, c.when ? c.when.type : null, c.body.body.length]),
+	[['m.e', 'BinaryExpression', 1], ['m.e', null, 1]]);
+check('a TRY with none still says so', first('TRY\nx=1\nENDTRY').catchClauses, []);
+
+// LOOP and CLASS as plain names. Neither is reserved in VFP, and both are metadata column names here.
+check('LOOP is a variable where one is meant', first('DO WHILE loop\nx=1\nENDDO').test, { type: 'Identifier', name: 'loop' });
+check('and an assignment to it is an assignment, not the loop-control word',
+	first('DO WHILE .t.\nloop = .f.\nENDDO').body.body.map(s => s.type), ['Assignment']);
+check('LOOP on its own is still the loop-control word', first('DO WHILE .t.\nLOOP\nENDDO').body.body[0].type, 'ContinueStatement');
+check('CLASS is a field name where one is meant', first('IF class == "frame"\nx=1\nENDIF').test.left, { type: 'Identifier', name: 'class' });
+check('DEFINE CLASS is untouched beside it', first('DEFINE CLASS X AS Session\nENDDEFINE').base, 'Session');
+
+// DO CASE with a trailing expression, which VFP ignores and the old code writes as documentation.
+check('the expression after DO CASE is kept, so the read still reaches the symbol table',
+	(({ subject, cases }) => [subject, cases.length])(first('do case m_emu\ncase m_emu = 1\nx=1\nendcase')),
+	[{ type: 'Identifier', name: 'm_emu' }, 1]);
+check('a bare DO CASE leaves it null', first('DO CASE\nCASE x = 1\ny=1\nENDCASE').subject, null);
+
+// A second OTHERWISE. VFP runs the first; the rest are dead, and are kept apart from it rather than merged into it.
+check('the first OTHERWISE is the branch and the rest are dead',
+	(({ otherwise, deadOtherwise }) => [otherwise.body.length, deadOtherwise.map(o => o.body.length)])(first('DO CASE\nCASE x=1\na=1\nOTHERWISE\nb=1\nOTHERWISE\nc=1\nENDCASE')),
+	[1, [1]]);
+check('one OTHERWISE leaves the dead list empty', first('DO CASE\nCASE x=1\na=1\nOTHERWISE\nb=1\nENDCASE').deadOtherwise, []);
+
+// DEFINE CLASS with no AS: VFP defaults the parent to Custom.
+check('a class with no parent still reads its body',
+	(({ name, base, body }) => [name, base, body.map(s => s.type)])(first('DEFINE CLASS X\nPROCEDURE Run\nENDPROC\nENDDEFINE')),
+	['X', null, ['ProcedureStatement']]);
+
+// COPY TO ... NEXT n. NEXT is also a loop terminator, so the leftover closed the enclosing DO WHILE.
+check('the record count is read, and as an expression because the chunking loops write one',
+	first('COPY TO (m.cDir) NEXT (m.nChunk)').scope,
+	{ type: 'NEXT', count: { type: 'MemberExpression', object: { type: 'Identifier', name: 'm' }, property: { type: 'Identifier', name: 'nChunk' } } });
+check('a COPY TO without one leaves it null', first('COPY TO out.dbf FIELDS a, b FOR x = 1').scope, null);
+check('and the clauses after it still read', first('COPY TO out.dbf NEXT 5 FOR x = 1').for.type, 'BinaryExpression');
+
+// A #IF fence that does not nest with the block structure around it. The preprocessor is a text pass, so VFP allows it; a block node cannot represent it, and the code's own blocks matter more than the fence.
+check('the code blocks nest and the directives stand alone',
+	body('IF m.n > 0\nx=1\n#IF R\ny=1\nENDIF\n#ENDIF').map(s => s.type === 'IfStatement' ? ['IfStatement', s.consequent.body.map(c => c.type)] : [s.type, s.directive]),
+	[['IfStatement', ['Assignment', 'PreprocessorDirective', 'Assignment']], ['PreprocessorDirective', 'ENDIF']]);
+check('a fence that does nest is still one block', first('#IF A\nx=1\n#ELSE\n#IF B\ny=1\n#ENDIF\n#ENDIF').alternate.body.map(s => s.type), ['PreprocessorIfStatement']);
+
 report('Parse checks');

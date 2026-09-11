@@ -49,10 +49,9 @@ check('the command words themselves still parse', [
 const statementCount = src => {
 	try { return parser.parse(src).body.flat().filter(s => s && s.type).length; } catch (e) { return 'syntax-error'; }
 };
-// Recorded as it behaves today, not as it should: the abbreviation is 1 and the full spelling is 2, and the 2s become 1s the day "NORM"i grows a boundary. Stated here rather than left failing, the same way the unsupported ledger states its gaps.
-check('BROWSE NORM is one statement; BROWSE NORMAL is still two (gap)', [
+check('the abbreviation and the full spelling are both one statement', [
 	statementCount('BROWSE NORM'), statementCount('BROWSE NORMAL'),
 	statementCount('BROWSE NORMAL NOWAIT NOMODIFY')
-], [1, 2, 2]);
+], [1, 1, 1]);
 
 report('Keyword boundary checks');

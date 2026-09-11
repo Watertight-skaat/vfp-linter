@@ -178,12 +178,18 @@ on an orphaned `ELSE` or `ENDIF` hundreds of lines below. Every root cause below
 descending the block tree to the smallest block that fails on its own, then confirming the construct
 in isolation and confirming that the same code without it parses clean.
 
-## 5. What breaks whole files
+## 5. What breaks whole files -- all fixed
 
-Thirteen constructs account for 43 of the 47 failures. Of the remaining four, three are files that
+Thirteen constructs accounted for 43 of the 47 failures. Of the remaining four, three are files that
 cannot ever have compiled and one is still unattributed -- see section 8.
 
-| # | Construct | Why it costs the file | Fixture |
+All thirteen are read now. Each fixture below parses clean and has lost its `.expected` file, so it
+guards the fix the way the rest of the corpus does; the tree each one produces is asserted in
+`run-parse-tests.js`, because a fixture can only say a file is clean and a misparse satisfies that
+just as well as a correct parse. The corpus itself has not been re-run since, so the 47 and the 5525
+above are still the pre-fix numbers.
+
+| # | Construct | Why it cost the file | Fixture |
 | --- | --- | --- | --- |
 | 20 | A leading-dot member reference **inside an expression** — `IF .ChartsCount > 1`, `CASE .Mode = 1` | The dot is read where a statement starts with it, not where one appears in a condition. The condition fails, so the whole `IF` or `DO CASE` is rejected. Biggest single cause by a wide margin | `diagnostics/gap-member-in-expression.prg` |
 | 21 | `PARAMETERS()` the function | The declaration keyword wins, so `IF PARAMETERS() < 4` reads as a `PARAMETERS` statement and the `IF` is rejected. The only way the legacy code defaults an optional argument | `diagnostics/gap-parameters-as-function.prg` |
@@ -226,18 +232,20 @@ the two that need surrounding code to show the cost have a fixture here.
 Each fixture above was checked both ways: it must fail, and the same code with only the named
 construct respelled must parse clean. Two gaps turned up in the second half of that check.
 
-32. **A `WITH` member assignment inside a nested block.** `.Width = 400` is read as a direct child of
-    `WITH`, and not once an `IF`, `SCAN` or `DO CASE` sits between them. It does not fail the parse,
-    which is what makes it expensive: form code conditions most of its property writes, so the rules
-    reading the symbol table see a fraction of what a `WITH` block actually writes, and
-    `implicit-private` cannot tell a missed property from a variable it never saw.
-    `diagnostics/gap-with-member-inside-block.prg`.
-33. **`BROWSE NORMAL` is read as `NORM` plus a leftover `AL`.** `BrowseOption` matches `"NORM"i` with
-    no word boundary, so the four-letter abbreviation wins and the rest of the word falls through to
-    the unsupported fallback — while the `BROWSE` itself still looks read. This is exactly the class
-    `run-keyword-tests.js` exists to catch, one level in: that harness probes keywords at the *start*
-    of a statement, and this one is an option *inside* a command. A check for it is now in that file,
-    recording today's behaviour so the fix shows as a diff.
+32. **A `WITH` member assignment inside a nested block -- fixed.** `.Width = 400` was read as a direct
+    child of `WITH`, and not once an `IF`, `SCAN` or `DO CASE` sat between them. It did not fail the
+    parse, which is what made it expensive: form code conditions most of its property writes, so the
+    rules reading the symbol table saw a fraction of what a `WITH` block actually writes, and
+    `implicit-private` could not tell a missed property from a variable it never saw. The same change
+    as item 20 fixed it: the leading dot is read in `LValue` and in `PostfixExpression` rather than in
+    the `WITH` body, so a property write under a condition now reaches the symbol table by the path a
+    direct one already did. `diagnostics/gap-with-member-inside-block.prg`.
+33. **`BROWSE NORMAL` is read as `NORM` plus a leftover `AL` -- fixed.** `BrowseOption` matched
+    `"NORM"i` with no word boundary, so the four-letter abbreviation won and the rest of the word fell
+    through to the unsupported fallback while the `BROWSE` itself still looked read. This is exactly
+    the class `run-keyword-tests.js` exists to catch, one level in: that harness probes keywords at
+    the *start* of a statement, and this one is an option *inside* a command. The check in that file
+    now asserts that both spellings are one statement.
 
 ## 8. Further suspected defects in Watertight
 

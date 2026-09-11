@@ -1,5 +1,67 @@
 # Changelog
 
+## 1.3.3
+
+### The thirteen constructs that cost a whole file
+
+Running the linter over all 1747 `.prg` files in the Watertight source found 47 that failed to parse
+outright, and thirteen constructs accounted for 43 of them. A file that does not parse is a file where
+no rule runs at all, and the error it reports is never on the line at fault: PEG rejects a block
+wholesale when anything inside it fails, so the opener falls to the unsupported catch-all and the error
+surfaces on an orphaned `ELSE` or `ENDIF` hundreds of lines below. All thirteen are read now.
+
+**A leading-dot member reference inside an expression** was the largest of them on its own -- more
+whole-file failures than the rest put together. The dot was read only where a statement *started* with
+it, so `IF .ChartsCount > 1` and `CASE .Mode = 1` failed their condition and took the whole `IF` or
+`DO CASE` with them. It is now read in `PostfixExpression`, which also gives `WITH .Fields(n)` a target
+it can name; `.T.`, `.NULL.` and `.5` still read as literals, which is what the member name is checked
+for. `LValue` reads it too, and that fixed a second gap in the same place: `.Width = 400` under an `IF`
+inside a `WITH` used to report as unsupported, so form code -- which conditions most of its property
+writes -- showed the symbol table a fraction of what a `WITH` block actually writes.
+
+**`PARAMETERS()`**, the function that returns how many arguments the caller passed, lost to the
+declaration keyword of the same name. It is the only way the legacy code defaults an optional argument,
+so `IF PARAMETERS() < 3` cost the file. The opening parenthesis tells the two apart, the same way it
+already did for `SELECT()`.
+
+**A second `CATCH` in one `TRY`** is the shape of every retry loop here -- the first narrowed by `WHEN`
+to the error it can recover from, the second taking everything else -- and only one was read. `TRY` now
+carries every clause in source order.
+
+**A method's return type without a parameter list** (`HIDDEN FUNCTION Release AS Logical`) left
+`AS Logical` behind as a statement of its own. The `PROTECTED`/`HIDDEN` prefix itself was already read.
+
+**`DO CASE <expression>`**, which VFP ignores and the old code writes as documentation of what is being
+switched on, is kept rather than discarded, so the read still reaches the symbol table. **A second
+`OTHERWISE`** is read as well: VFP runs the first and the rest are dead, so refusing them cost the file
+for nothing. They are kept apart from the live branch rather than merged into it.
+
+**`LOOP` and `CLASS` as ordinary names.** Neither is reserved in VFP, and both are column names in the
+metadata tables and flag variables in the 1990s code. `LOOP`'s own statement rule now refuses every
+shape a variable of that name takes, so `loop = .f.` is an assignment and a bare `LOOP` is still the
+loop-control word.
+
+**`DEFINE CLASS X` with no `AS`** defaults the parent to `Custom` in VFP; the clause was required here.
+**`COPY TO <file> NEXT <n>`** was unread, and because `NEXT` also terminates a `FOR` the leftover could
+not even fall through to the catch-all -- it closed the enclosing `DO WHILE`. The record count reads as
+an expression, because the chunking loops write `NEXT (m.nChunk)`.
+
+**A `#IF` fence that does not nest with the block structure around it** was the odd one out: the
+preprocessor is a text pass that runs before the compiler, so `IF` outside a fence and its `ENDIF`
+inside one is legal, and a block node cannot represent it. A directive that cannot nest now stands
+alone, which leaves the code's own blocks nesting correctly and stops the catch-all reporting a
+statement it had in fact read.
+
+Each of the thirteen had a fixture recording the gap; all thirteen now parse clean, and the tree each
+one produces is asserted in `run-parse-tests.js` -- a clean fixture cannot tell a correct parse from a
+misparse, which is the failure mode that matters most here.
+
+### Two records that had gone stale
+
+`SELECT()` the function and a `#IF` nested inside another `#IF` were both already fixed, and both were
+recorded as still broken. So was `BROWSE NORMAL`, whose check in `run-keyword-tests.js` asserted the
+old two-statement misparse. The corpus expectations are regenerated, which is what turned all three up.
+
 ## 1.3.2
 
 ### The last four lines of the unsupported ledger

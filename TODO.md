@@ -14,25 +14,11 @@
 
 ## Grammar coverage
 
-Measured by running the linter over all 1747 `.prg` files in `W:\DevStaging`: 47 files fail to parse outright and 5525 statements report `unsupported-syntax`. Every item below is pinned by a fixture, so its expectation file changes the day it is fixed. The full findings are in `test-files/watertight/SEE-ALSO.md`.
-
-### Costs the whole file
-
-These are worth an order of magnitude more than anything under them: a file that does not parse is a file where no rule runs at all, and the reported error is never on the offending line — PEG rejects a block wholesale when anything inside it fails, so the error surfaces on an orphaned `ELSE` or `ENDIF` far below. Thirteen constructs account for 43 of the 47 failures; they are listed in section 5 of SEE-ALSO with a fixture each in `test-files/watertight/diagnostics/gap-*.prg`. In rough order of what they cost:
-
-- **A leading-dot member reference inside an expression** — `IF .ChartsCount > 1`, `CASE .Mode = 1`. On its own it causes more whole-file failures than everything else put together. The dot is already read where a statement *starts* with it; this is the same reference one level in.
-- **`PARAMETERS()` the function**, which the declaration keyword currently wins. The only way the legacy code defaults an optional argument.
-- **`SELECT()` the function**, same shape and about as expensive: saving and restoring the current work area around a lookup is the most repeated idiom in the source. `STORE SELECT(0) TO m.nArea` does parse, which is what makes the gap hard to see by reading.
-- **`PROTECTED` / `HIDDEN` before `PROCEDURE` or `FUNCTION`**, which costs the whole `DEFINE CLASS`.
-- **A second `CATCH`** in one `TRY`, which is the shape of every retry loop.
-- Then `WITH .Member`, `LOOP`/`CLASS` as plain names, `DO CASE <expr>`, a second `OTHERWISE`, nested `#IF`, `DEFINE CLASS` with no `AS`, and `COPY TO ... NEXT n`.
-- **A `#IF` fence that does not nest with the block structure around it** is the odd one out: it does not fail the parse, it reports `unterminated-block` at error severity against an `IF` that is terminated. A false error on correct code is worse than a gap that admits it.
+Measured by running the linter over Watertight's codebase
 
 ### Silently costs a rule rather than a statement
 
-- **A `WITH` member assignment inside a nested block** — `.Width = 400` under an `IF` inside a `WITH`. Reported as unsupported rather than misparsed, but form code conditions most of its property writes, so the symbol table sees a fraction of what a `WITH` block writes.
-- **`BROWSE NORMAL` reads as `NORM` plus a leftover `AL`** — `"NORM"i` has no word boundary. The same class of bug `run-keyword-tests.js` exists to catch, one level in, and a check for it now lives there recording today's behaviour.
-- **`CAST(x AS C(<expr>))`** costs the whole `SELECT` its parse, so the query's destination, joins and WHERE go unchecked.
+- **`CAST(x AS C(<expr>))`** costs the whole `SELECT` its parse, so the query's destination, joins and WHERE go unchecked. The only whole-file-scale gap left: `TypeSpec` reads the width as a `NumberLiteral`, and the widths come from the schema at runtime.
 - **`DO FORM <a-b>`** reads the name as far as the hyphen, so the statement looks read and names the wrong form.
 
 ### Announces itself, and is only worth the volume

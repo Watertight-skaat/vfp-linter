@@ -124,7 +124,8 @@ export interface MemvarSkeleton {
 export type CalcTarget = { kind: 'VARS'; vars: string[] } | { kind: 'ARRAY'; name: string };
 
 /** A scope clause: ALL, REST, NEXT n or RECORD n. */
-export type RecordScope = 'ALL' | 'REST' | { type: 'NEXT'; count: NumberLiteral } | { type: 'RECORD'; number: NumberLiteral };
+/** The record count is an expression rather than a literal: the chunking loops write `NEXT (m.nChunk)`. */
+export type RecordScope = 'ALL' | 'REST' | { type: 'NEXT'; count: Expr } | { type: 'RECORD'; number: Expr };
 
 export interface DimensionItem {
   name: string;
@@ -524,8 +525,12 @@ export interface IfStatement extends NodeBase {
 
 export interface DoCaseStatement extends NodeBase {
   type: 'DoCaseStatement';
+  /** The expression after DO CASE, which VFP ignores. The old code writes there the variable it is switching on, so the names in it are still real reads. */
+  subject: Expr | null;
   cases: CaseClause[];
   otherwise: BlockStatement | null;
+  /** OTHERWISE branches after the first. VFP runs the first and these can never be reached, so they are kept apart from it rather than merged into it. */
+  deadOtherwise: BlockStatement[];
 }
 
 export interface CaseClause extends NodeBase {
@@ -574,7 +579,8 @@ export interface ScanStatement extends NodeBase {
 export interface TryStatement extends NodeBase {
   type: 'TryStatement';
   tryBlock: BlockStatement;
-  catchClause: CatchClause | null;
+  /** Every CATCH in source order. A retry loop narrows the first with WHEN and lets a second take the rest, so there can be more than one. */
+  catchClauses: CatchClause[];
   thrown: Expr | null;
   didExit: boolean;
   finallyBlock: BlockStatement | null;
@@ -1260,6 +1266,7 @@ export interface CopyToStatement extends NodeBase {
   target: Expr | Path;
   database: DatabaseClause | null;
   fields: FieldsSelection | null;
+  scope: RecordScope | null;
   for: Expr | null;
   while: Expr | null;
   index: 'CDX' | 'PRODUCTION' | null;
@@ -1521,6 +1528,13 @@ export interface PreprocessorIfStatement extends NodeBase {
   alternate: BlockStatement | null;
 }
 
+/** One preprocessor directive on its own, for a fence that does not nest with the block structure around it -- `IF` outside, `#IF` inside, then `ENDIF` before `#ENDIF`. The preprocessor is a text pass, so VFP allows it; a block node cannot represent it, and the code's own blocks matter more than the fence. */
+export interface PreprocessorDirective extends NodeBase {
+  type: 'PreprocessorDirective';
+  directive: 'IF' | 'IFDEF' | 'IFNDEF' | 'ELIF' | 'ELSE' | 'ENDIF';
+  test: string;
+}
+
 /** ON ERROR | ESCAPE | SHUTDOWN | READERROR | APLABOUT | PAGE | KEY [LABEL cLabel] [command]. */
 export interface OnStatement extends NodeBase {
   type: 'OnStatement';
@@ -1609,6 +1623,7 @@ export type Statement =
   | PackStatement
   | ParametersDeclaration
   | PreprocessorIfStatement
+  | PreprocessorDirective
   | PrintStatement
   | PrivateAll
   | PrivateAllLike

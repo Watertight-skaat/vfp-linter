@@ -4,7 +4,7 @@
 	"description": "Diagnostics for Visual FoxPro: a real grammar, and rules that stay quiet unless there is evidence",
 	"author": "Sean Kaat",
 	"license": "MIT",
-	"version": "1.3.2",
+	"version": "1.3.3",
 	"publisher": "Watertight",
 	"icon": "images/icon.png",
 	"categories": [

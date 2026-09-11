@@ -36,6 +36,27 @@
     }
     return node("SetCommand", { command: cmd, arguments: args, cleared: !!toPart && !toPart.args, file: !!(toPart && toPart.args && toPart.args.file), state: o.state, additive: o.additive, inTarget: o.inTarget, into: o.into, alias: o.alias, delimiters: o.delimiters });
   }
+  // PostfixExpression folds its tail twice: once from a Primary head and once from a leading dot, which is a member of the enclosing WITH target rather than a name of its own.
+  function foldPostfix(head, tail) {
+    let expr = head;
+    for (const t of tail) {
+      if (t.type === 'member') {
+        expr = node("MemberExpression", { object: expr, property: node("Identifier", { name: t.prop }) });
+      } else if (t.type === 'scope') {
+        // Base::Method() reaches a parent implementation explicitly, which DODEFAULT() does implicitly.
+        expr = node("ScopeResolution", { object: expr, property: node("Identifier", { name: t.prop }) });
+      } else if (t.type === 'call') {
+        expr = node("CallExpression", { callee: expr, arguments: t.args });
+      } else if (t.type === 'index') {
+        expr = node('ArrayIndexExpression', { object: expr, indexes: t.indexes });
+      }
+    }
+    return expr;
+  }
+  function isBareName(expr) {
+    if (expr.type === 'WithMemberExpression') return isBareName(expr.expression);
+    return expr.type === 'Identifier' || expr.type === 'ImplicitGlobal';
+  }
   function flatten(list) {
     const out = [];
     for (const item of list) {
@@ -288,23 +309,17 @@ Pattern
 // -----------------------------
 
 // Allow dotted member chains (e.g. m.test) on the left-hand side of an assignment
+// A leading dot is a property of the enclosing WITH target, and it has to be read here rather than left to the expression rules: `.Width = 400` parsed as an expression is the reference followed by `= 400`, which EvalStatement then takes as a statement of its own -- two statements, a phantom read, and no write recorded anywhere.
 LValue
-  = head:Identifier tail:(
-      ("." / "->") _ prop:MemberName { return { type: 'member', prop: prop }; }
-    / "[" _ idxs:ExpressionList _ "]" { return { type: 'index', indexes: idxs }; }
-    / "(" _ idxs:ExpressionList _ ")" { return { type: 'index', indexes: idxs }; }
-    )* {
-      let expr = node("Identifier", { name: head });
-      for (const t of tail) {
-        if (t.type === 'member') {
-          const propName = t.prop;
-          expr = node("MemberExpression", { object: expr, property: node("Identifier", { name: propName }) });
-        } else if (t.type === 'index') {
-          expr = node('ArrayIndexExpression', { object: expr, indexes: t.indexes });
-        }
-      }
-      return expr;
+  = "." name:MemberName tail:LValueTail* {
+      return node("WithMemberExpression", { expression: foldPostfix(node("Identifier", { name }), tail) });
     }
+  / head:Identifier tail:LValueTail* { return foldPostfix(node("Identifier", { name: head }), tail); }
+
+LValueTail
+  = ("." / "->") _ prop:MemberName { return { type: 'member', prop }; }
+  / "[" _ idxs:ExpressionList _ "]" { return { type: 'index', indexes: idxs }; }
+  / "(" _ idxs:ExpressionList _ ")" { return { type: 'index', indexes: idxs }; }
 
 AssignmentStatement
   = id:LValue __ "=" __ expr:Expression {
@@ -466,6 +481,13 @@ PreprocessorStatement
   = IncludeStatement
   / DefineStatement
   / PreprocessorIfStatement
+  / PreprocessorDirective
+
+// VFP's preprocessor is a text pass that runs before the compiler, so a fence is free to open outside a block and close inside it: `IF` at the top, `#IF` under it, then `ENDIF` and `#ENDIF` in that order. Read as a block of its own the directive cannot nest that way, and PreprocessorIfStatement above fails. Falling through to here keeps the code's own blocks nesting correctly and costs only the directive, where the catch-all used to report a statement it had in fact read.
+PreprocessorDirective
+  = directive:$("#ifdef"i / "#ifndef"i / "#if"i / "#elif"i / "#else"i / "#endif"i) ![a-zA-Z0-9_] test:PreprocessorCondition {
+      return node("PreprocessorDirective", { directive: directive.slice(1).toUpperCase(), test });
+    }
 
 // ON ERROR | ESCAPE | SHUTDOWN | READERROR | APLABOUT | PAGE | KEY [LABEL cLabel] [command]
 // The command is parsed as a statement, and `_` does not cross a newline, so a bare ON ERROR that clears the handler cannot swallow the line below it.
@@ -598,9 +620,10 @@ PreprocessorBody
 PreprocessorBoundary
   = ("#elif"i / "#else"i / "#endif"i) ![a-zA-Z0-9_]
 
-// DEFINE CLASS ClassName AS ParentClass [OF ClassLibrary] [OLEPUBLIC]
+// DEFINE CLASS ClassName [AS ParentClass] [OF ClassLibrary] [OLEPUBLIC]
+// The AS clause is optional: VFP defaults the parent to Custom, and the one-off helper classes written next to the program that uses them leave it off. Required here it rejected the opener and the file failed on the ENDDEFINE.
 DefineClass
-  = "DEFINE CLASS"i WB _ name:Identifier _ "AS"i _ base:Identifier
+  = "DEFINE CLASS"i WB _ name:Identifier base:(_ "AS"i WB _ b:Identifier { return b; })?
     ofPart:(_ "OF"i WB _ lib:(StringLiteral / UnquotedPath) { return lib; })?
     olePublic:(_ "OLEPUBLIC"i WB)? __
     statements:(Statement __)*
@@ -736,8 +759,9 @@ Primary
   / "(" _ e:Expression _ ")" { return e; }
 
 // A VFP function whose name is also a command word, which Identifier refuses. The opening parenthesis with nothing between is what tells the two apart: `SELECT("customer")` is the function, `SELECT customer` the command. Without this the whole expression falls to the catch-all, and `lnArea = SELECT(0)` then reports lnArea as an unused local.
+// PARAMETERS() is the same shape and costs more: it is how the legacy code defaults an optional argument, so `IF PARAMETERS() < 3` read as the declaration keyword rejected the IF and took the file with it.
 KeywordFunction
-  = name:$("SELECT"i) &"(" { return name; }
+  = name:$("SELECT"i / "PARAMETERS"i) &"(" { return name; }
 
 // Argument list for call expressions (Allow empty arguments (i.e. consecutive commas) which are represented as null)
 ArgumentList
@@ -782,37 +806,26 @@ ExistsExpression
   = "EXISTS"i _ "(" _ sq:SelectStatement _ ")" { return node("ExistsExpression", { argument: sq }); }
 
 // Postfix expressions: allow chaining of member access (.prop) and call expressions (args)
+// The first alternative is a member of the enclosing WITH target appearing *inside* an expression -- `IF .ChartsCount > 1`, `CASE .Mode = 1`, `WITH .Fields(n)`. It was read only where a statement started with it, so the condition failed and the whole IF or DO CASE went with it; this was the largest single cause of whole-file parse failures in the corpus. MemberName is what keeps it apart from the things that also open with a dot: `.T.`, `.NULL.` and `.5` all stay literals. It builds the same WithMemberExpression a WITH body builds, so a property read in a condition reaches the symbol table by the path a property write already does.
 PostfixExpression
-  = head:Primary tail:(
-      "::" _ prop:Identifier { return { type: 'scope', prop } }
-    / ("." / "->") _ prop:MemberName { return { type: 'member', prop } }
-      / "(" _ args:ArgumentList? _ ")" { return { type: 'call', args: args || [] } }
-      / "[" _ idxs:ExpressionList _ "]" { return { type: 'index', indexes: idxs }; }
-    )*
-    {
-      let expr = head;
-      for (const t of tail) {
-        if (t.type === 'member') {
-          expr = node("MemberExpression", { object: expr, property: node("Identifier", { name: t.prop }) });
-        } else if (t.type === 'scope') {
-          // Base::Method() reaches a parent implementation explicitly, which DODEFAULT() does implicitly.
-          expr = node("ScopeResolution", { object: expr, property: node("Identifier", { name: t.prop }) });
-        } else if (t.type === 'call') {
-          expr = node("CallExpression", { callee: expr, arguments: t.args });
-        } else if (t.type === 'index') {
-          expr = node('ArrayIndexExpression', { object: expr, indexes: t.indexes });
-        }
-      }
-      return expr;
+  = "." name:MemberName tail:PostfixTail* {
+      return node("WithMemberExpression", { expression: foldPostfix(node("Identifier", { name }), tail) });
     }
+  / head:Primary tail:PostfixTail* { return foldPostfix(head, tail); }
+
+PostfixTail
+  = "::" _ prop:Identifier { return { type: 'scope', prop }; }
+  / ("." / "->") _ prop:MemberName { return { type: 'member', prop }; }
+  / "(" _ args:ArgumentList? _ ")" { return { type: 'call', args: args || [] }; }
+  / "[" _ idxs:ExpressionList _ "]" { return { type: 'index', indexes: idxs }; }
 
 // -----------------------------
 // Control Flow
 // -----------------------------
 
-// Allow a bare expression (typically a call) as a top-level statement.
+// Allow a bare expression (typically a call) as a top-level statement. A name on its own is not one -- and neither is a property on its own, or the `.prg` left over from a clause the grammar stopped short of would read as a member of the enclosing WITH and stop announcing itself.
 ExpressionStatement "expression statement"
-  = expr:PostfixExpression !{ return expr.type === 'Identifier' || expr.type === 'ImplicitGlobal'; } { return node("ExpressionStatement", { expression: expr }); }
+  = expr:PostfixExpression !{ return isBareName(expr); } { return node("ExpressionStatement", { expression: expr }); }
 
 // Leading equals can be used to evaluate/call an expression as a statement, e.g. "=func()"
 EvalStatement "equals-expression statement"
@@ -1075,6 +1088,7 @@ CopyToStatement
     target:(PathOrExpression) _
     db:DatabaseClause? _
     fields:FieldsClause? _
+    scope:CopyScope? _
     forClause:("FOR"i __ fexp:Expression { return fexp; })? _
     whileClause:("WHILE"i __ wexp:Expression { return wexp; })? _
     idx:WithIndexClause? _
@@ -1086,6 +1100,7 @@ CopyToStatement
         target,
         database: db || null,
         fields: fields || null,
+        scope: scope || null,
         for: forClause || null,
         while: whileClause || null,
         index: idx || null,
@@ -1095,6 +1110,10 @@ CopyToStatement
       });
     }
   
+// The scope half of RecordOption, which COPY TO takes in a fixed position rather than as part of an order-free set. NEXT is also a loop terminator, so an unread one could not even fall through to the unsupported catch-all: it closed the enclosing DO WHILE and the file failed on the ENDDO.
+CopyScope
+  = o:RecordOption &{ return o.kind === 'SCOPE'; } { return o.value; }
+
 // ERASE FileName | ? [RECYCLE]
 EraseStatement
   = "ERASE"i WB _ target:(PathOrExpression / "?") _ recycle:(_ "RECYCLE"i)? {
@@ -1411,16 +1430,20 @@ DoWhileLoop "do-while loop"
     }
 
 // DO CASE CASE lExpression1 [Commands] ... [OTHERWISE Commands] ENDCASE
+// DO CASE takes a trailing expression that VFP ignores -- the branches are still chosen by their own conditions -- and the old code writes there the variable it is switching on, as documentation. It is kept rather than discarded so the read still reaches the symbol table.
+// Two OTHERWISE branches likewise: VFP runs the first and the second is dead, so refusing the second cost the file for nothing. The first stays `otherwise`; the rest are `deadOtherwise`, which keeps their statements in the tree without pretending they can run.
 DoCaseStatement "do case statement"
-  = "DO CASE"i WB __
+  = "DO CASE"i WB subject:(_ e:Expression { return e; })? __
   cases:(CaseClause)*
-  otherwise:("OTHERWISE"i __ othBody:(Statement __)* { return node('BlockStatement', { body: flatten(othBody.map(s => s[0])) }); })?
+  otherwise:("OTHERWISE"i WB __ othBody:(!CaseBoundary s:Statement __ { return s; })* { return node('BlockStatement', { body: flatten(othBody) }); })*
   "ENDCASE"i {
       // (CaseClause)* yields the clauses themselves, not [clause] pairs: indexing them dropped every
       // branch of every DO CASE, contents and all, so nothing downstream could see inside one.
       return node('DoCaseStatement', {
+        subject: subject || null,
         cases,
-        otherwise: otherwise ? otherwise : null
+        otherwise: otherwise.length ? otherwise[0] : null,
+        deadOtherwise: otherwise.slice(1)
       });
     }
 
@@ -1487,8 +1510,9 @@ ExitStatement "exit"
 ShutdownStatement
   = "SHUTDOWN"i WB NotCallOrAssign { return node("ShutdownStatement", {}); }
 
+// LOOP is not a reserved word -- it is a flag variable throughout the older code -- so the statement has to refuse every shape a variable of that name takes, or `loop = .f.` reads as the loop-control word with a stray `= .f.` behind it.
 ContinueStatement "continue (LOOP)"
-  = "LOOP"i WB { return node("ContinueStatement", {}); }
+  = "LOOP"i WB NotNameReference { return node("ContinueStatement", {}); }
 
 // -----------------------------
 // CREATE TABLE/DBF/CURSOR/VIEW
@@ -1623,15 +1647,15 @@ TableConstraint
 TryStatement "try-catch statement"
   = "TRY"i WB __
     tstmts:(Statement __)*
-    cpart:(
+    cparts:(
       "CATCH"i WB
       toVar:(_ "TO"i WB _ v:ParameterName { return v; })?
       whenPart:(_ "WHEN"i WB __ wexpr:Expression { return wexpr; })?
       __
       cstmts:(Statement __)* {
-        return { to: toVar, when: whenPart, body: flatten(cstmts.map(s => s[0])) };
+        return { to: toVar, when: whenPart, body: node("BlockStatement", { body: flatten(cstmts.map(s => s[0])) }) };
       }
-    )?
+    )*
     tpart:("THROW"i _ texpr:Expression? __ { return texpr === undefined ? null : texpr; })?
     exitpart:("EXIT"i __ { return true; })?
     fpart:("FINALLY"i __ fstmts:(Statement __)* { return flatten(fstmts.map(s => s[0])); })?
@@ -1639,7 +1663,8 @@ TryStatement "try-catch statement"
     {
       return node("TryStatement", {
         tryBlock: node("BlockStatement", { body: flatten(tstmts.map(s => s[0])) }),
-        catchClause: cpart ? { to: cpart.to, when: cpart.when, body: node("BlockStatement", { body: cpart.body }) } : null,
+        // A retry loop narrows the first CATCH with WHEN and lets a second one take everything else, so the clauses are a list. Only one was read, which rejected the TRY and cost the whole file.
+        catchClauses: cparts,
         thrown: (tpart === undefined) ? null : tpart,
         didExit: !!exitpart,
         finallyBlock: fpart ? node("BlockStatement", { body: fpart }) : null
@@ -1662,17 +1687,9 @@ WithStatement
       });
     }
 
+// A WITH body is just statements: LValue and PostfixExpression both read the leading dot now, so `.Style = 1` and `.Refresh()` reach the same rules here that they do inside an IF one level down. The pair of dot-first alternatives this rule used to carry read them only as direct children of the WITH, which is what hid every property write made under a condition.
 WithBodyEntry
-  = "." _? a:DotAssignment { return a; }
-    / "." _? e:PostfixExpression { return node("ExpressionStatement", { expression: node("WithMemberExpression", { expression: e }) }); }
-    / c:Statement { return c; }
-
-// Support assignments where the left side may contain call/member chains, e.g.
-//   .Objects(n).Style = 1
-DotAssignment
-  = lhs:PostfixExpression __ "=" __ expr:Expression {
-      return node("Assignment", { target: node("WithMemberExpression", { expression: lhs }), expression: expr });
-    }
+  = Statement
 
 // -----------------------------
 // Xbase housekeeping
@@ -2324,8 +2341,8 @@ ScanStatement
 RecordOption
   = "NOOPTIMIZE"i WB { return { kind: 'NOOPTIMIZE' }; }
   / "ALL"i WB { return { kind: 'SCOPE', value: 'ALL' }; }
-  / "NEXT"i WB _ n:NumberLiteral { return { kind: 'SCOPE', value: { type: 'NEXT', count: n } }; }
-  / "RECORD"i WB _ n:NumberLiteral { return { kind: 'SCOPE', value: { type: 'RECORD', number: n } }; }
+  / "NEXT"i WB _ n:Expression { return { kind: 'SCOPE', value: { type: 'NEXT', count: n } }; }
+  / "RECORD"i WB _ n:Expression { return { kind: 'SCOPE', value: { type: 'RECORD', number: n } }; }
   / "REST"i WB { return { kind: 'SCOPE', value: 'REST' }; }
   / "FOR"i WB __ c:Expression { return { kind: 'FOR', value: c }; }
   / "WHILE"i WB __ c:Expression { return { kind: 'WHILE', value: c }; }
@@ -2429,7 +2446,7 @@ ExpressionList
 ProcedureStatement "procedure"
   = access:(a:("PROTECTED"i / "HIDDEN"i) WB _ { return a.toUpperCase(); })? cw:("PROCEDURE"i / "FUNCTION"i) WB __ name:Identifier _ proc:(
       // function-style parameter list with optional typed params and optional return type
-      "(" _ params:ProcedureParamList? _ ")" _ retPart:(_ "AS"i __ rt:IdentifierOrString)? __ statements:RoutineBody end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
+      "(" _ params:ProcedureParamList? _ ")" _ retPart:(_ "AS"i WB __ rt:IdentifierOrString)? __ statements:RoutineBody end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
         return node("ProcedureStatement", {
           name,
           access: access || null,
@@ -2440,14 +2457,14 @@ ProcedureStatement "procedure"
           lparameters: false
         });
       }
-    / // alternate LPARAMETERS style (untyped, compatible with LPARAMETERS/PARAMETERS keyword)
-    lparams:LParameters? __ statements:RoutineBody end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
+    / // alternate LPARAMETERS style (untyped, compatible with LPARAMETERS/PARAMETERS keyword). The return type is declared without a parameter list here -- `FUNCTION Release AS Logical` -- and unread it left `AS Logical` behind as a statement of its own.
+    ret:(_ "AS"i WB __ rt:IdentifierOrString { return rt; })? __ lparams:LParameters? __ statements:RoutineBody end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
         return node("ProcedureStatement", {
           name,
           access: access || null,
           isFunction: (typeof cw === 'string') ? (cw.toUpperCase() === 'FUNCTION') : false,
           parameters: lparams ? (lparams.names || []) : [],
-          returnType: null,
+          returnType: ret || null,
           body: node("BlockStatement", { body: statements }),
           lparameters: !!lparams
         });
@@ -2679,9 +2696,9 @@ Keyword "keyword"
   / ("DEFINE"i      ![a-zA-Z0-9_])
   / ("INCLUDE"i     ![a-zA-Z0-9_])
   / ("DECLARE"i     ![a-zA-Z0-9_])
-  / ("CLASS"i       ![a-zA-Z0-9_])
   / ("AS"i          ![a-zA-Z0-9_])
   / ("ENDDEFINE"i   ![a-zA-Z0-9_])
+  // NOTE: LOOP and CLASS are not reserved either. Both are column names in the metadata tables and flag variables in the 1990s code, and refusing them where an expression was expected failed the expression and the block around it. LOOP's own statement rule refuses a name reference instead, and nothing starts a statement with a bare CLASS.
   / ("REPLACE"i     ![a-zA-Z0-9_])
   / ("WITH"i        ![a-zA-Z0-9_])
   / ("ADDITIVE"i    ![a-zA-Z0-9_])
@@ -2699,7 +2716,6 @@ Keyword "keyword"
   // NOTE: Do not reserve NEXT globally so it can be used as an identifier in expressions.
   // / ("NEXT"i        ![a-zA-Z0-9_])
   / ("ENDDO"i       ![a-zA-Z0-9_])
-  / ("LOOP"i        ![a-zA-Z0-9_])
   / ("TRY"i         ![a-zA-Z0-9_])
   / ("CATCH"i       ![a-zA-Z0-9_])
   / ("ENDTRY"i      ![a-zA-Z0-9_])

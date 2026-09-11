@@ -370,11 +370,11 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
 
       case 'TryStatement':
         visit(node.tryBlock, scope);
-        if (node.catchClause) {
+        for (const clause of node.catchClauses) {
           // CATCH TO creates the error object, so an undeclared name there is an implicit PRIVATE like any other.
-          reference(scope, node.catchClause.to, 'write', at);
-          visit(node.catchClause.when, scope);
-          visit(node.catchClause.body, scope);
+          reference(scope, clause.to, 'write', at);
+          visit(clause.when, scope);
+          visit(clause.body, scope);
         }
         visit(node.thrown, scope);
         visit(node.finallyBlock, scope);

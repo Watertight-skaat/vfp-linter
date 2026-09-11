@@ -12,7 +12,8 @@ against minimal examples.
 - `*.prg` — the corpus. These must parse cleanly and produce no diagnostics, so any `.expected`
   file appearing beside one of them is a regression.
 - `diagnostics/` — fixtures written to make a rule fire on realistic code, and fixtures that record
-  a construct the grammar cannot read yet. Their `.expected` files are the assertion.
+  a construct the grammar cannot read yet. Their `.expected` files are the assertion; a `gap-*.prg`
+  with none is one that has since been fixed, and it must stay clean.
 
 The abstract, one-rule-at-a-time fixtures live in `test-files/diagnostics/`; these are the applied
 counterparts. One-line gaps go in that directory's `still-unsupported.prg` ledger, and only the
@@ -58,6 +59,7 @@ gaps that need surrounding code to show what they cost get a fixture of their ow
 the grammar gaps this corpus uncovered. Its first half came from reading; its second half came from
 running the linter over all 1747 `.prg` files in that tree and sorting the 47 whole-file parse
 failures and 5525 unsupported statements that came back. The `gap-*.prg` fixtures in
-`diagnostics/` are that second pass: one per construct that costs a file its parse, each checked
-both ways -- it must fail, and the same code with only the named construct respelled must parse
-clean.
+`diagnostics/` are that second pass: one per construct that cost a file its parse. Thirteen of the
+fourteen are fixed and parse clean now, so they guard the fix rather than record the gap; the tree
+each one produces is asserted in `run-parse-tests.js`, because a clean fixture cannot tell a correct
+parse from a misparse. `gap-cast-computed-width.prg` is the one still open.

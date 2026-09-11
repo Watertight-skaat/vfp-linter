@@ -77,7 +77,7 @@ export const tryWithoutCatch = onNode({
   severity: Severity.Information,
   on: ['TryStatement'],
   check(node, ctx) {
-    if (node.catchClause || node.finallyBlock) return;
+    if (node.catchClauses.length || node.finallyBlock) return;
     ctx.report(node.location, 'This TRY has neither CATCH nor FINALLY, so it handles nothing and any error still propagates to the caller.');
   }
 });
