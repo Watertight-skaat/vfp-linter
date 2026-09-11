@@ -1,9 +1,10 @@
 {
 	"name": "foxpro-linter",
-	"description": "A language server for VFP",
+	"displayName": "Visual FoxPro Linter",
+	"description": "Diagnostics for Visual FoxPro: a real grammar, and rules that stay quiet unless there is evidence",
 	"author": "Sean Kaat",
 	"license": "MIT",
-	"version": "1.0.1",
+	"version": "1.1.0",
 	"publisher": "Watertight",
 	"categories": [
 		"Programming Languages",

@@ -909,8 +909,8 @@ function peg$parse(input, options) {
 
   function peg$f0(statements) {    return node("Program", { body: statements ? statements.body : [] });  }
   function peg$f1(head, tail) {
-    const statements = [head, ...tail.map(t => t[1])].filter(s => s !== null);
-    return node("BlockStatement", { body: statements });
+      const statements = [head, ...tail.map(t => t[1])].filter(s => s !== null);
+      return node("BlockStatement", { body: statements });
   }
   function peg$f2(s) {    return s;  }
   function peg$f3(arrs) {    return arrs;  }
@@ -919,39 +919,39 @@ function peg$parse(input, options) {
   function peg$f6(name, t, cl) {    return cl;  }
   function peg$f7(name, t, ofPart) {    return { type: t, of: ofPart ? ofPart[2] : null };  }
   function peg$f8(name, asPart) {
-    return node("LocalDeclaration", { name, asType: asPart ? asPart.type : null, ofClass: asPart ? asPart.of : null });
+      return node("LocalDeclaration", { name, asType: asPart ? asPart.type : null, ofClass: asPart ? asPart.of : null });
   }
   function peg$f9(name, rows, cols, t, cl) {    return cl;  }
   function peg$f10(name, rows, cols, t, ofPart) {    return { type: t, of: ofPart ? ofPart[2] : null };  }
   function peg$f11(name, rows, cols, asPart) {
-    return node("LocalArrayDeclaration", { name, rows, columns: cols ? cols[2] : null, asType: asPart ? asPart.type : null, ofClass: asPart ? asPart.of : null });
+      return node("LocalArrayDeclaration", { name, rows, columns: cols ? cols[2] : null, asType: asPart ? asPart.type : null, ofClass: asPart ? asPart.of : null });
   }
   function peg$f12(head, tail) {    return [head, ...tail.map(t => t[3])];  }
   function peg$f13(p) {
-    const pat = (typeof p === 'string') ? p : (p && p.value ? p.value : p);
-    return node("PrivateAllLike", { pattern: pat });
+        const pat = (typeof p === 'string') ? p : (p && p.value ? p.value : p);
+        return node("PrivateAllLike", { pattern: pat });
   }
   function peg$f14() {    return node("PrivateAll", {});  }
   function peg$f15(vars) {    return vars.map(v => node("PrivateDeclaration", { name: v }));  }
   function peg$f16() {    return node("PrivateDirective", {});  }
   function peg$f17(vars) {
-    return vars.map(v => node("PublicDeclaration", { name: v }));
+      return vars.map(v => node("PublicDeclaration", { name: v }));
   }
   function peg$f18(vars) {
-    return node("ParametersDeclaration", { names: vars });
+      return node("ParametersDeclaration", { names: vars });
   }
   function peg$f19(first, tail) {
-    const items = [first, ...tail.map(t => t[3])];
-    return node("DimensionStatement", { items });
+      const items = [first, ...tail.map(t => t[3])];
+      return node("DimensionStatement", { items });
   }
   function peg$f20(name, rows, cols, asPart) {
-    return { name, rows, columns: cols ? cols[2] : null, asType: asPart ? asPart[2] : null };
+      return { name, rows, columns: cols ? cols[2] : null, asType: asPart ? asPart[2] : null };
   }
   function peg$f21(name, rows, cols, asPart) {
-    return { name, rows, columns: cols ? cols[2] : null, asType: asPart ? asPart[2] : null };
+      return { name, rows, columns: cols ? cols[2] : null, asType: asPart ? asPart[2] : null };
   }
   function peg$f22(head, tail) {
-    return [head, ...tail.map(t => t[3])];
+      return [head, ...tail.map(t => t[3])];
   }
   function peg$f23(name) {    return name;  }
   function peg$f24(head, tail) {    return [head, ...tail.map(t => t[3])];  }
@@ -961,62 +961,62 @@ function peg$parse(input, options) {
   function peg$f28(head, prop) {    return { type: 'member', prop: prop };  }
   function peg$f29(head, idxs) {    return { type: 'index', indexes: idxs };  }
   function peg$f30(head, tail) {
-    let expr = node("Identifier", { name: head });
-    for (const t of tail) {
-      if (t.type === 'member') {
-        const propName = t.prop;
-        expr = node("MemberExpression", { object: expr, property: node("Identifier", { name: propName }) });
-      } else if (t.type === 'index') {
-        expr = node('ArrayIndexExpression', { object: expr, indexes: t.indexes });
+      let expr = node("Identifier", { name: head });
+      for (const t of tail) {
+        if (t.type === 'member') {
+          const propName = t.prop;
+          expr = node("MemberExpression", { object: expr, property: node("Identifier", { name: propName }) });
+        } else if (t.type === 'index') {
+          expr = node('ArrayIndexExpression', { object: expr, indexes: t.indexes });
+        }
       }
-    }
-    return expr;
+      return expr;
   }
   function peg$f31(id, expr) {
-    return node("Assignment", { target: id, expression: expr });
+      return node("Assignment", { target: id, expression: expr });
   }
   function peg$f32(args) {
-    return node("PrintStatement", { arguments: args, argument: (args && args.length) ? args[0] : null });
+      return node("PrintStatement", { arguments: args, argument: (args && args.length) ? args[0] : null });
   }
   function peg$f33(opts, msg) {
-    const nowait = opts ? opts.some(o => (typeof o[1] === 'string' ? o[1].toUpperCase() : o[1]) === 'NOWAIT') : false;
-    const noclear = opts ? opts.some(o => (typeof o[1] === 'string' ? o[1].toUpperCase() : o[1]) === 'NOCLEAR') : false;
-    return node("WaitWindowStatement", { nowait, noclear, message: msg || null });
+      const nowait = opts ? opts.some(o => (typeof o[1] === 'string' ? o[1].toUpperCase() : o[1]) === 'NOWAIT') : false;
+      const noclear = opts ? opts.some(o => (typeof o[1] === 'string' ? o[1].toUpperCase() : o[1]) === 'NOCLEAR') : false;
+      return node("WaitWindowStatement", { nowait, noclear, message: msg || null });
   }
   function peg$f34(tgt, parts) {
-    const opts = { inTarget:null, online:false, admin:false, again:false, norequery:false, dataSession:null, nodata:false, index:null, alias:null, exclusive:false, shared:false, noUpdate:false, connection:null };
-    for (const p of parts.map(t => t[0])) {
-      switch (p.kind) {
-        case 'IN': opts.inTarget = p.value; break;
-        case 'ONLINE': opts.online = true; break;
-        case 'ADMIN': opts.admin = true; break;
-        case 'AGAIN': opts.again = true; break;
-        case 'NOREQUERY': opts.norequery = true; opts.dataSession = (p.value === true) ? null : p.value; break;
-        case 'NODATA': opts.nodata = true; break;
-        case 'INDEX': opts.index = p.value; break;
-        case 'ALIAS': opts.alias = p.value; break;
-        case 'EXCLUSIVE': opts.exclusive = true; break;
-        case 'SHARED': opts.shared = true; break;
-        case 'NOUPDATE': opts.noUpdate = true; break;
-        case 'CONN': opts.connection = p.value; break;
+      const opts = { inTarget:null, online:false, admin:false, again:false, norequery:false, dataSession:null, nodata:false, index:null, alias:null, exclusive:false, shared:false, noUpdate:false, connection:null };
+      for (const p of parts.map(t => t[0])) {
+        switch (p.kind) {
+          case 'IN': opts.inTarget = p.value; break;
+          case 'ONLINE': opts.online = true; break;
+          case 'ADMIN': opts.admin = true; break;
+          case 'AGAIN': opts.again = true; break;
+          case 'NOREQUERY': opts.norequery = true; opts.dataSession = (p.value === true) ? null : p.value; break;
+          case 'NODATA': opts.nodata = true; break;
+          case 'INDEX': opts.index = p.value; break;
+          case 'ALIAS': opts.alias = p.value; break;
+          case 'EXCLUSIVE': opts.exclusive = true; break;
+          case 'SHARED': opts.shared = true; break;
+          case 'NOUPDATE': opts.noUpdate = true; break;
+          case 'CONN': opts.connection = p.value; break;
+        }
       }
-    }
-    return node("UseStatement", {
-      target: tgt || null,
-      inTarget: opts.inTarget,
-      online: opts.online,
-      admin: opts.admin,
-      again: opts.again,
-      norequery: opts.norequery,
-      dataSession: opts.dataSession,
-      nodata: opts.nodata,
-      index: opts.index,
-      alias: opts.alias,
-      exclusive: opts.exclusive,
-      shared: opts.shared,
-      noUpdate: opts.noUpdate,
-      connection: opts.connection
-    });
+      return node("UseStatement", {
+        target: tgt || null,
+        inTarget: opts.inTarget,
+        online: opts.online,
+        admin: opts.admin,
+        again: opts.again,
+        norequery: opts.norequery,
+        dataSession: opts.dataSession,
+        nodata: opts.nodata,
+        index: opts.index,
+        alias: opts.alias,
+        exclusive: opts.exclusive,
+        shared: opts.shared,
+        noUpdate: opts.noUpdate,
+        connection: opts.connection
+      });
   }
   function peg$f35() {    return { kind: 'PROMPT' };  }
   function peg$f36(name) {    return { kind: 'TABLE', name };  }
@@ -1036,7 +1036,7 @@ function peg$parse(input, options) {
   function peg$f50(files) {    return { mode: 'INDEX', files };  }
   function peg$f51(ord) {    return { mode: 'PROMPT', order: ord || null };  }
   function peg$f52(head, tail) {
-    return [head, ...tail.map(t => t[3])];
+      return [head, ...tail.map(t => t[3])];
   }
   function peg$f53(tag) {    return { kind: 'TAG', ...tag };  }
   function peg$f54(n) {    return { kind: 'NUMBER', value: n };  }
@@ -1044,43 +1044,43 @@ function peg$parse(input, options) {
   function peg$f56(tag) {    return { kind: 'TAG', ...tag };  }
   function peg$f57(sel) {    return sel;  }
   function peg$f58(t, ofPart, dir) {
-    return { tag: t, of: ofPart ? ofPart[2] : null, direction: dir ? (typeof dir === 'string' ? dir.toUpperCase() : dir) : null };
+      return { tag: t, of: ofPart ? ofPart[2] : null, direction: dir ? (typeof dir === 'string' ? dir.toUpperCase() : dir) : null };
   }
   function peg$f59(cs) {    return { kind: 'CONNSTRING', value: cs };  }
   function peg$f60(h) {    return { kind: 'HANDLE', value: h };  }
   function peg$f61(label, cmd) {
-    return node("OnStatement", { event: 'KEY LABEL', label, atLine: null, command: cmd || null });
+      return node("OnStatement", { event: 'KEY LABEL', label, atLine: null, command: cmd || null });
   }
   function peg$f62(cmd) {
-    return node("OnStatement", { event: 'KEY', label: null, atLine: null, command: cmd || null });
+      return node("OnStatement", { event: 'KEY', label: null, atLine: null, command: cmd || null });
   }
   function peg$f63(n) {    return n;  }
   function peg$f64(at, cmd) {
-    return node("OnStatement", { event: 'PAGE', label: null, atLine: at || null, command: cmd || null });
+      return node("OnStatement", { event: 'PAGE', label: null, atLine: at || null, command: cmd || null });
   }
   function peg$f65(ev, cmd) {
-    return node("OnStatement", { event: ev.toUpperCase(), label: null, atLine: null, command: cmd || null });
+      return node("OnStatement", { event: ev.toUpperCase(), label: null, atLine: null, command: cmd || null });
   }
   function peg$f66(opts, lines) {
-    const o = { to: null, additive: false, textmerge: false, noshow: false, flags: null, pretext: null };
-    for (const part of opts.map(t => t[1])) {
-      switch (part.kind) {
-        case 'TO': o.to = part.value; o.additive = part.additive; break;
-        case 'TEXTMERGE': o.textmerge = true; break;
-        case 'NOSHOW': o.noshow = true; break;
-        case 'FLAGS': o.flags = part.value; break;
-        case 'PRETEXT': o.pretext = part.value; break;
+      const o = { to: null, additive: false, textmerge: false, noshow: false, flags: null, pretext: null };
+      for (const part of opts.map(t => t[1])) {
+        switch (part.kind) {
+          case 'TO': o.to = part.value; o.additive = part.additive; break;
+          case 'TEXTMERGE': o.textmerge = true; break;
+          case 'NOSHOW': o.noshow = true; break;
+          case 'FLAGS': o.flags = part.value; break;
+          case 'PRETEXT': o.pretext = part.value; break;
+        }
       }
-    }
-    return node("TextBlockStatement", {
-      to: o.to,
-      additive: o.additive,
-      textmerge: o.textmerge,
-      noshow: o.noshow,
-      flags: o.flags,
-      pretext: o.pretext,
-      content: lines.join('\n')
-    });
+      return node("TextBlockStatement", {
+        to: o.to,
+        additive: o.additive,
+        textmerge: o.textmerge,
+        noshow: o.noshow,
+        flags: o.flags,
+        pretext: o.pretext,
+        content: lines.join('\n')
+      });
   }
   function peg$f67(v, add) {    return { kind: 'TO', value: v, additive: !!add };  }
   function peg$f68() {    return { kind: 'TEXTMERGE' };  }
@@ -1089,19 +1089,19 @@ function peg$parse(input, options) {
   function peg$f71(n) {    return { kind: 'PRETEXT', value: n };  }
   function peg$f72(line) {    return line;  }
   function peg$f73(e) {
-    return node("ThrowStatement", { argument: e || null });
+      return node("ThrowStatement", { argument: e || null });
   }
   function peg$f74(row, col, body) {
-    return node("AtStatement", {
-      row,
-      column: col,
-      verb: body.verb,
-      expression: body.expression,
-      target: body.target,
-      endRow: body.endRow,
-      endColumn: body.endColumn,
-      options: body.options
-    });
+      return node("AtStatement", {
+        row,
+        column: col,
+        verb: body.verb,
+        expression: body.expression,
+        target: body.target,
+        endRow: body.endRow,
+        endColumn: body.endColumn,
+        options: body.options
+      });
   }
   function peg$f75(e, o) {    return { verb: 'SAY', expression: e, target: null, endRow: null, endColumn: null, options: o };  }
   function peg$f76(v, o) {    return { verb: 'GET', expression: null, target: v, endRow: null, endColumn: null, options: o };  }
@@ -1109,63 +1109,63 @@ function peg$parse(input, options) {
   function peg$f78(o) {    return { verb: 'CLEAR', expression: null, target: null, endRow: null, endColumn: null, options: o };  }
   function peg$f79(o) {    return o.trim() || null;  }
   function peg$f80(path) {
-    return node("IncludeStatement", { path });
+      return node("IncludeStatement", { path });
   }
   function peg$f81(name, value) {
-    return node("DefineStatement", { name, value: value.trim() });
+      return node("DefineStatement", { name, value: value.trim() });
   }
   function peg$f82(start, rest, end) {
-    // capture raw preprocessor block (including any #elif/#else lines)
-    return node("PreprocessorIfStatement", { raw: (start + rest + end).trim() });
+      // capture raw preprocessor block (including any #elif/#else lines)
+      return node("PreprocessorIfStatement", { raw: (start + rest + end).trim() });
   }
   function peg$f83(name, base, lib) {    return lib;  }
   function peg$f84(name, base, ofPart, olePublic, statements) {
-    return node("DefineClass", { name, base: base || null, ofClass: ofPart || null, olePublic: !!olePublic, body: flatten(statements.map(s => s[0])) });
+      return node("DefineClass", { name, base: base || null, ofClass: ofPart || null, olePublic: !!olePublic, body: flatten(statements.map(s => s[0])) });
   }
   function peg$f85(cFunctionType, functionName, libraryName, asPart, paramsPart) {
-    const params = paramsPart ? [paramsPart[1], ...paramsPart[2].map(t => t[3])] : [];
-    return node("DeclareStatement", { returnType: cFunctionType || null, functionName, libraryName, aliasName: asPart ? asPart[2] : null, parameters: params });
+      const params = paramsPart ? [paramsPart[1], ...paramsPart[2].map(t => t[3])] : [];
+      return node("DeclareStatement", { returnType: cFunctionType || null, functionName, libraryName, aliasName: asPart ? asPart[2] : null, parameters: params });
   }
   function peg$f86(type, byRef, name) {    
          return { type, byRef: !!byRef, name };
   }
   function peg$f87(head) {    return head;  }
   function peg$f88(head, tail) {
-    return tail.reduce((acc, t) => node("LogicalExpression", { operator: "OR", left: acc, right: t[3] }), head);
+      return tail.reduce((acc, t) => node("LogicalExpression", { operator: "OR", left: acc, right: t[3] }), head);
   }
   function peg$f89(head, tail) {
-    return tail.reduce((acc, t) => node("LogicalExpression", { operator: "AND", left: acc, right: t[3] }), head);
+      return tail.reduce((acc, t) => node("LogicalExpression", { operator: "AND", left: acc, right: t[3] }), head);
   }
   function peg$f90(head, tail) {
-    return tail.reduce((acc, t) => node("BinaryExpression", { operator: t[1], left: acc, right: t[3] }), head);
+      return tail.reduce((acc, t) => node("BinaryExpression", { operator: t[1], left: acc, right: t[3] }), head);
   }
   function peg$f91(head, op, rhs) {    return { kind: 'cmp', op, rhs };  }
   function peg$f92(head, inRhs) {    return { kind: 'in', not: true, rhs: inRhs };  }
   function peg$f93(head, inRhs2) {    return { kind: 'in', not: false, rhs: inRhs2 };  }
   function peg$f94(head, tail) {
-    return tail.reduce((acc, t) => {
-      if (!t) return acc;
-      if (t.kind === 'cmp') {
-        return node("BinaryExpression", { operator: t.op, left: acc, right: t.rhs });
-      }
-      if (t.kind === 'in') {
-        return node("InExpression", { left: acc, not: !!t.not, right: t.rhs });
-      }
-      return acc;
-    }, head);
+      return tail.reduce((acc, t) => {
+        if (!t) return acc;
+        if (t.kind === 'cmp') {
+          return node("BinaryExpression", { operator: t.op, left: acc, right: t.rhs });
+        }
+        if (t.kind === 'in') {
+          return node("InExpression", { left: acc, not: !!t.not, right: t.rhs });
+        }
+        return acc;
+      }, head);
   }
   function peg$f95(head, tail) {
-    return tail.reduce((acc, t) => node("BinaryExpression", { operator: t[1], left: acc, right: t[3] }), head);
+      return tail.reduce((acc, t) => node("BinaryExpression", { operator: t[1], left: acc, right: t[3] }), head);
   }
   function peg$f96(head, tail) {
-    return tail.reduce((acc, t) => node("BinaryExpression", { operator: t[1], left: acc, right: t[3] }), head);
+      return tail.reduce((acc, t) => node("BinaryExpression", { operator: t[1], left: acc, right: t[3] }), head);
   }
   function peg$f97(op, expr) {
-    return node("UnaryExpression", { operator: typeof op === 'string' ? op.toUpperCase() : op, argument: expr });
+      return node("UnaryExpression", { operator: typeof op === 'string' ? op.toUpperCase() : op, argument: expr });
   }
   function peg$f98(head, tail) {
-    if (!tail) return head;
-    return node("BinaryExpression", { operator: '^', left: head, right: tail[3] });
+      if (!tail) return head;
+      return node("BinaryExpression", { operator: '^', left: head, right: tail[3] });
   }
   function peg$f99(id) {    return (id && id.length && id.charAt(0) === '_') ? node("ImplicitGlobal", { name: id }) : node("Identifier", { name: id });  }
   function peg$f100(e) {    return e;  }
@@ -1187,7 +1187,7 @@ function peg$parse(input, options) {
   function peg$f107(operand, w, t) {    return { when: w, then: t };  }
   function peg$f108(operand, whens, e) {    return e;  }
   function peg$f109(operand, whens, alt) {
-    return node("CaseExpression", { operand: operand || null, whens, otherwise: alt || null });
+      return node("CaseExpression", { operand: operand || null, whens, otherwise: alt || null });
   }
   function peg$f110(e, t) {    return node("CastExpression", { expression: e, to: t });  }
   function peg$f111(sq) {    return node("ExistsExpression", { argument: sq });  }
@@ -1196,73 +1196,73 @@ function peg$parse(input, options) {
   function peg$f114(head, args) {    return { type: 'call', args: args || [] }  }
   function peg$f115(head, idxs) {    return { type: 'index', indexes: idxs };  }
   function peg$f116(head, tail) {
-    let expr = head;
-    for (const t of tail) {
-      if (t.type === 'member') {
-        expr = node("MemberExpression", { object: expr, property: node("Identifier", { name: t.prop }) });
-      } else if (t.type === 'scope') {
-        // Base::Method() reaches a parent implementation explicitly, which DODEFAULT() does implicitly.
-        expr = node("ScopeResolution", { object: expr, property: node("Identifier", { name: t.prop }) });
-      } else if (t.type === 'call') {
-        expr = node("CallExpression", { callee: expr, arguments: t.args });
-      } else if (t.type === 'index') {
-        expr = node('ArrayIndexExpression', { object: expr, indexes: t.indexes });
+      let expr = head;
+      for (const t of tail) {
+        if (t.type === 'member') {
+          expr = node("MemberExpression", { object: expr, property: node("Identifier", { name: t.prop }) });
+        } else if (t.type === 'scope') {
+          // Base::Method() reaches a parent implementation explicitly, which DODEFAULT() does implicitly.
+          expr = node("ScopeResolution", { object: expr, property: node("Identifier", { name: t.prop }) });
+        } else if (t.type === 'call') {
+          expr = node("CallExpression", { callee: expr, arguments: t.args });
+        } else if (t.type === 'index') {
+          expr = node('ArrayIndexExpression', { object: expr, indexes: t.indexes });
+        }
       }
-    }
-    return expr;
+      return expr;
   }
   function peg$f117(expr) {    return expr.type === 'Identifier' || expr.type === 'ImplicitGlobal';  }
   function peg$f118(expr) {    return node("ExpressionStatement", { expression: expr });  }
   function peg$f119(expr) {    return node("ExpressionStatement", { expression: expr });  }
   function peg$f120(test, consequent, alternate) {
-    return node("IfStatement", { test, consequent: node("BlockStatement", { body: flatten(consequent.map(s => s[0])) }), alternate: node("BlockStatement", { body: flatten(alternate.map(s => s[0])) }) });
+      return node("IfStatement", { test, consequent: node("BlockStatement", { body: flatten(consequent.map(s => s[0])) }), alternate: node("BlockStatement", { body: flatten(alternate.map(s => s[0])) }) });
   }
   function peg$f121(test, consequent) {
-    return node("IfStatement", { test, consequent: node("BlockStatement", { body: flatten(consequent.map(s => s[0])) }), alternate: null });
+      return node("IfStatement", { test, consequent: node("BlockStatement", { body: flatten(consequent.map(s => s[0])) }), alternate: null });
   }
   function peg$f122(sc, all, rhs) {    return { all: !!all, select: rhs };  }
   function peg$f123(sc, unions) {
-    const unionParts = unions ? unions : [];
-    return node('SelectStatement', { ...sc, unions: unionParts });
+      const unionParts = unions ? unions : [];
+      return node('SelectStatement', { ...sc, unions: unionParts });
   }
   function peg$f124(quant, n, percent) {    return { count: n, percent: !!percent };  }
   function peg$f125(quant, top, l) {    return l;  }
   function peg$f126(quant, top, list, parts) {
-    let from = null, withbuf = null, where = null, group = null, having = null, order = null, destination = null, pref = null, noconsol = false, plain = false, nowait = false;
-    for (const t of parts) {
-      const p = t[1];
-      switch (p.kind) {
-        case 'FROM': if (!from) from = p.value; break;
-        case 'WITHBUF': if (!withbuf) withbuf = p.value; break;
-        case 'WHERE': if (!where) where = p.value; break;
-        case 'DEST': if (!destination) destination = p.value; break;
-        case 'GROUP': if (!group) group = p.value; break;
-        case 'HAVING': if (!having) having = p.value; break;
-        case 'ORDER': if (!order) order = p.value; break;
-        case 'PREF': if (!pref) pref = p.value; break;
-        case 'NOCONSOLE': noconsol = true; break;
-        case 'PLAIN': plain = true; break;
-        case 'NOWAIT': nowait = true; break;
+      let from = null, withbuf = null, where = null, group = null, having = null, order = null, destination = null, pref = null, noconsol = false, plain = false, nowait = false;
+      for (const t of parts) {
+        const p = t[1];
+        switch (p.kind) {
+          case 'FROM': if (!from) from = p.value; break;
+          case 'WITHBUF': if (!withbuf) withbuf = p.value; break;
+          case 'WHERE': if (!where) where = p.value; break;
+          case 'DEST': if (!destination) destination = p.value; break;
+          case 'GROUP': if (!group) group = p.value; break;
+          case 'HAVING': if (!having) having = p.value; break;
+          case 'ORDER': if (!order) order = p.value; break;
+          case 'PREF': if (!pref) pref = p.value; break;
+          case 'NOCONSOLE': noconsol = true; break;
+          case 'PLAIN': plain = true; break;
+          case 'NOWAIT': nowait = true; break;
+        }
       }
-    }
-    return {
-      quantifier: quant ? (typeof quant === 'string' ? quant.toUpperCase() : quant) : null,
-      top: top || null,
-      list: list || [node('SelectStar', {})],
-      from: from || null,
-      // if the FromClause provided intermixed items, expose them for consumers
-      fromItems: from ? from.items : null,
-      withBuffering: withbuf || null,
-      where: where || null,
-      groupBy: group || null,
-      having: having || null,
-      orderBy: order || null,
-      destination: destination || null,
-      preference: pref || null,
-      noconsol,
-      plain,
-      nowait
-    };
+      return {
+        quantifier: quant ? (typeof quant === 'string' ? quant.toUpperCase() : quant) : null,
+        top: top || null,
+        list: list || [node('SelectStar', {})],
+        from: from || null,
+        // if the FromClause provided intermixed items, expose them for consumers
+        fromItems: from ? from.items : null,
+        withBuffering: withbuf || null,
+        where: where || null,
+        groupBy: group || null,
+        having: having || null,
+        orderBy: order || null,
+        destination: destination || null,
+        preference: pref || null,
+        noconsol,
+        plain,
+        nowait
+      };
   }
   function peg$f127(head, tail) {    return [head, ...tail.map(t => t[4])];  }
   function peg$f128(from) {    return { kind: 'FROM', value: from };  }
@@ -1284,20 +1284,20 @@ function peg$parse(input, options) {
   function peg$f144(expr, a) {    return a;  }
   function peg$f145(expr, a) {    return a;  }
   function peg$f146(expr, alias) {
-    return node('SelectItem', { expression: expr, alias: alias || null });  }
+      return node('SelectItem', { expression: expr, alias: alias || null });  }
   function peg$f147(callee, args, a) {    return a;  }
   function peg$f148(callee, args, a) {    return a;  }
   function peg$f149(callee, args, alias) {
-    return node('SelectItem', { expression: node('CallExpression', { callee: node('Identifier', { name: callee }), arguments: args || [] }), alias: alias || null });
+      return node('SelectItem', { expression: node('CallExpression', { callee: node('Identifier', { name: callee }), arguments: args || [] }), alias: alias || null });
   }
   function peg$f150(inner, a) {    return a;  }
   function peg$f151(inner, a) {    return a;  }
   function peg$f152(inner, alias) {
-    return node('SelectItem', { expression: inner, alias: alias || null });
+      return node('SelectItem', { expression: inner, alias: alias || null });
   }
   function peg$f153(force, seq) {
-    // seq contains ordered tables and joins; expose arrays for backwards compatibility
-    return { force: !!force, tables: seq.tables, joins: seq.joins, items: seq.items };
+      // seq contains ordered tables and joins; expose arrays for backwards compatibility
+      return { force: !!force, tables: seq.tables, joins: seq.joins, items: seq.items };
   }
   function peg$f154(first, tr) {    return { kind: 'table', value: tr };  }
   function peg$f155(first, jc) {    return { kind: 'join', value: jc };  }
@@ -1318,7 +1318,7 @@ function peg$parse(input, options) {
   function peg$f163(db, tbl) {    return { database: db, table: tbl };  }
   function peg$f164(t) {    return { database: null, table: t };  }
   function peg$f165(jt, tr, cond) {
-    return { type: jt || null, target: tr, condition: cond };
+      return { type: jt || null, target: tr, condition: cond };
   }
   function peg$f166() {    return "LEFT";  }
   function peg$f167() {    return "RIGHT";  }
@@ -1340,27 +1340,27 @@ function peg$parse(input, options) {
   function peg$f183(d) {    return { kind: 'TO', name: d };  }
   function peg$f184(p) {    return p;  }
   function peg$f185(action, src, dst) {
-    return node(action === 'COPY FILE' ? 'CopyFileStatement' : 'RenameStatement', { source: src, destination: dst });
+      return node(action === 'COPY FILE' ? 'CopyFileStatement' : 'RenameStatement', { source: src, destination: dst });
   }
   function peg$f186(target, db, fields, fexp) {    return fexp;  }
   function peg$f187(target, db, fields, forClause, wexp) {    return wexp;  }
   function peg$f188(target, db, fields, forClause, whileClause, idx, noopt, t, cp) {    return cp;  }
   function peg$f189(target, db, fields, forClause, whileClause, idx, noopt, t, ascp) {
-    return node('CopyToStatement', {
-      target,
-      database: db || null,
-      fields: fields || null,
-      for: forClause || null,
-      while: whileClause || null,
-      index: idx || null,
-      noOptimize: !!noopt,
-      exportType: t || null,
-      codepage: ascp || null
-    });
+      return node('CopyToStatement', {
+        target,
+        database: db || null,
+        fields: fields || null,
+        for: forClause || null,
+        while: whileClause || null,
+        index: idx || null,
+        noOptimize: !!noopt,
+        exportType: t || null,
+        codepage: ascp || null
+      });
   }
   function peg$f190(target, recycle) {
-    const tgt = (typeof target === 'string' && target === '?') ? { kind: 'PROMPT' } : target;
-    return node('EraseStatement', { target: tgt, recycle: !!(recycle && recycle[1]) });
+      const tgt = (typeof target === 'string' && target === '?') ? { kind: 'PROMPT' } : target;
+      return node('EraseStatement', { target: tgt, recycle: !!(recycle && recycle[1]) });
   }
   function peg$f191(db, ln) {    return ln;  }
   function peg$f192(db, name) {    return { database: db, longName: name || null };  }
@@ -1369,36 +1369,36 @@ function peg$parse(input, options) {
   function peg$f195(sk) {    return { kind: 'except', pattern: sk };  }
   function peg$f196(kind) {    return typeof kind === 'string' ? kind.toUpperCase() : kind;  }
   function peg$f197(expr, parts) {
-    // Aggregate options from arbitrary order
-    let to = null, tag = null, binary = false, collate = null, of = null, forExpr = null,
-        compact = false, direction = null, uniqueness = null, additive = false;
-    for (const p of parts.map(t => t[1])) {
-      switch (p.kind) {
-        case 'TO': to = p.value; break;
-        case 'TAG': tag = p.value; break;
-        case 'BINARY': binary = true; break;
-        case 'COLLATE': collate = p.value; break;
-        case 'OF': of = p.value; break;
-        case 'FOR': forExpr = p.value; break;
-        case 'COMPACT': compact = true; break;
-        case 'DIR': direction = (typeof p.value === 'string' ? p.value.toUpperCase() : p.value); break;
-        case 'UNIQ': uniqueness = (typeof p.value === 'string' ? p.value.toUpperCase() : p.value); break;
-        case 'ADDITIVE': additive = true; break;
+      // Aggregate options from arbitrary order
+      let to = null, tag = null, binary = false, collate = null, of = null, forExpr = null,
+          compact = false, direction = null, uniqueness = null, additive = false;
+      for (const p of parts.map(t => t[1])) {
+        switch (p.kind) {
+          case 'TO': to = p.value; break;
+          case 'TAG': tag = p.value; break;
+          case 'BINARY': binary = true; break;
+          case 'COLLATE': collate = p.value; break;
+          case 'OF': of = p.value; break;
+          case 'FOR': forExpr = p.value; break;
+          case 'COMPACT': compact = true; break;
+          case 'DIR': direction = (typeof p.value === 'string' ? p.value.toUpperCase() : p.value); break;
+          case 'UNIQ': uniqueness = (typeof p.value === 'string' ? p.value.toUpperCase() : p.value); break;
+          case 'ADDITIVE': additive = true; break;
+        }
       }
-    }
-    return node('IndexOnStatement', {
-      expression: expr,
-      to,
-      tag,
-      binary,
-      collate,
-      of,
-      for: forExpr,
-      compact,
-      direction,
-      uniqueness,
-      additive
-    });
+      return node('IndexOnStatement', {
+        expression: expr,
+        to,
+        tag,
+        binary,
+        collate,
+        of,
+        for: forExpr,
+        compact,
+        direction,
+        uniqueness,
+        additive
+      });
   }
   function peg$f198(tgt) {    return { kind: 'TO', value: tgt };  }
   function peg$f199(tag) {    return { kind: 'TAG', value: tag };  }
@@ -1420,12 +1420,12 @@ function peg$parse(input, options) {
   function peg$f215(cmd, pos, inC) {    return { pos, rec: null, inTarget: inC || null };  }
   function peg$f216(cmd, reckw, rec, inC) {    return { pos: null, rec, inTarget: inC || null };  }
   function peg$f217(cmd, part) {
-    return node("GoToStatement", {
-      command: (typeof cmd === 'string' ? cmd.toUpperCase() : cmd),
-      position: part.pos ? (typeof part.pos === 'string' ? part.pos.toUpperCase() : part.pos) : null,
-      record: part.rec || null,
-      inTarget: part.inTarget
-    });
+      return node("GoToStatement", {
+        command: (typeof cmd === 'string' ? cmd.toUpperCase() : cmd),
+        position: part.pos ? (typeof part.pos === 'string' ? part.pos.toUpperCase() : part.pos) : null,
+        record: part.rec || null,
+        inTarget: part.inTarget
+      });
   }
   function peg$f218(target) {    return target;  }
   function peg$f219(n, target) {    return target;  }
@@ -1435,7 +1435,7 @@ function peg$parse(input, options) {
   function peg$f221(n) {    return n;  }
   function peg$f222(rec, target) {    return target;  }
   function peg$f223(rec, inPart, all) {
-    return node('UnlockStatement', { record: rec ? rec[2] : null, inTarget: inPart ? inPart[2] : null, all: !!all });
+      return node('UnlockStatement', { record: rec ? rec[2] : null, inTarget: inPart ? inPart[2] : null, all: !!all });
   }
   function peg$f224(target, cols, vals) {    return { kind: 'values', values: vals };  }
   function peg$f225(target, cols, arr) {    return { kind: 'from', source: 'ARRAY', name: arr };  }
@@ -1443,22 +1443,22 @@ function peg$parse(input, options) {
   function peg$f227(target, cols, obj) {    return { kind: 'from', source: 'NAME', name: obj };  }
   function peg$f228(target, cols, select) {    return { kind: 'select', select };  }
   function peg$f229(target, cols, src) {
-    return node('InsertStatement', {
-      target,
-      columns: cols ? cols[2] : null,
-      source: src
-    });
+      return node('InsertStatement', {
+        target,
+        columns: cols ? cols[2] : null,
+        source: src
+      });
   }
   function peg$f230(target, parts) {
-    let set = null, from = null, where = null;
-    for (const p of parts.map(t => t[1])) {
-      switch (p.kind) {
-        case 'SET': if (!set) set = p.value; break;
-        case 'FROM': if (!from) from = p.value; break;
-        case 'WHERE': if (!where) where = p.value; break;
+      let set = null, from = null, where = null;
+      for (const p of parts.map(t => t[1])) {
+        switch (p.kind) {
+          case 'SET': if (!set) set = p.value; break;
+          case 'FROM': if (!from) from = p.value; break;
+          case 'WHERE': if (!where) where = p.value; break;
+        }
       }
-    }
-    return node('UpdateStatement', { target, set: set || null, from: from || null, where: where || null });
+      return node('UpdateStatement', { target, set: set || null, from: from || null, where: where || null });
   }
   function peg$f231(assigns) {    return { kind: 'SET', value: assigns };  }
   function peg$f232(from) {    return { kind: 'FROM', value: from };  }
@@ -1468,30 +1468,30 @@ function peg$parse(input, options) {
   function peg$f236(from) {    return { target: null, from };  }
   function peg$f237(target, from) {    return { target, from };  }
   function peg$f238(sel, where) {
-    const from = sel.from;
-    return node('DeleteStatement', {
-      target: sel.target || null,
-      // keep backward-compatible fields
-      tables: from.tables,
-      joins: from.joins,
-      fromItems: from.items,
-      where: where || null
-    });
+      const from = sel.from;
+      return node('DeleteStatement', {
+        target: sel.target || null,
+        // keep backward-compatible fields
+        tables: from.tables,
+        joins: from.joins,
+        fromItems: from.items,
+        where: where || null
+      });
   }
   function peg$f239(scope, fexp) {    return fexp;  }
   function peg$f240(scope, forp, wexp) {    return wexp;  }
   function peg$f241(scope, forp, whilep, inPart, noopt) {
-    return node('DeleteStatement', {
-      target: null,
-      tables: null,
-      joins: null,
-      where: null,
-      scope: scope || null,
-      for: forp || null,
-      while: whilep || null,
-      inTarget: inPart ? inPart[2] : null,
-      noOptimize: !!noopt
-    });
+      return node('DeleteStatement', {
+        target: null,
+        tables: null,
+        joins: null,
+        where: null,
+        scope: scope || null,
+        for: forp || null,
+        while: whilep || null,
+        inTarget: inPart ? inPart[2] : null,
+        noOptimize: !!noopt
+      });
   }
   function peg$f242(target) {    return target;  }
   function peg$f243(inPart) {
@@ -1501,78 +1501,78 @@ function peg$parse(input, options) {
   function peg$f245(scope, forp, wexp) {    return wexp;  }
   function peg$f246(scope, forp, whilep, noopt, target) {    return target;  }
   function peg$f247(scope, forp, whilep, noopt, inPart) {
-    return node('RecallStatement', {
-      scope: scope || null,
-      for: forp || null,
-      while: whilep || null,
-      noOptimize: !!noopt,
-      inTarget: inPart ? inPart[2] : null
-    });
+      return node('RecallStatement', {
+        scope: scope || null,
+        for: forp || null,
+        while: whilep || null,
+        noOptimize: !!noopt,
+        inTarget: inPart ? inPart[2] : null
+      });
   }
   function peg$f248(varName, init, final, step, s) {    return s;  }
   function peg$f249(varName, init, final, step, body, endVar) {
-    return node("ForStatement", {
-      variable: varName,
-      init,
-      final,
-      step: step ? step[2] : null,
-      endVariable: endVar || null,
-      body: node("BlockStatement", { body: flatten(body) })
-    });
+      return node("ForStatement", {
+        variable: varName,
+        init,
+        final,
+        step: step ? step[2] : null,
+        endVariable: endVar || null,
+        body: node("BlockStatement", { body: flatten(body) })
+      });
   }
   function peg$f250(varName, type, clslib) {    return { library: clslib };  }
   function peg$f251(varName, type, ofPart) {
-    return { typing: type, of: ofPart || null };
+      return { typing: type, of: ofPart || null };
   }
   function peg$f252(varName, typePart, group, foxobj, s) {    return s;  }
   function peg$f253(varName, typePart, group, foxobj, body, endVar) {
-    const asType = typePart ? typePart.typing : null;
-    const ofClass = typePart ? typePart.of : null;
-    return node("ForEachStatement", {
-      variable: varName,
-      asType,
-      ofClass,
-      collection: group,
-      foxObject: !!foxobj,
-      endVariable: endVar || null,
-      body: node("BlockStatement", { body: flatten(body) })
-    });
+      const asType = typePart ? typePart.typing : null;
+      const ofClass = typePart ? typePart.of : null;
+      return node("ForEachStatement", {
+        variable: varName,
+        asType,
+        ofClass,
+        collection: group,
+        foxObject: !!foxobj,
+        endVariable: endVar || null,
+        body: node("BlockStatement", { body: flatten(body) })
+      });
   }
   function peg$f254(test, body) {
-    return node("DoWhileStatement", {
-      test,
-      body: node("BlockStatement", { body: flatten(body.map(s => s[0])) })
-    });
+      return node("DoWhileStatement", {
+        test,
+        body: node("BlockStatement", { body: flatten(body.map(s => s[0])) })
+      });
   }
   function peg$f255(cases, othBody) {    return node('BlockStatement', { body: flatten(othBody.map(s => s[0])) });  }
   function peg$f256(cases, otherwise) {
-    // (CaseClause)* yields the clauses themselves, not [clause] pairs: indexing them dropped every
-    // branch of every DO CASE, contents and all, so nothing downstream could see inside one.
-    return node('DoCaseStatement', {
-      cases,
-      otherwise: otherwise ? otherwise : null
-    });
+      // (CaseClause)* yields the clauses themselves, not [clause] pairs: indexing them dropped every
+      // branch of every DO CASE, contents and all, so nothing downstream could see inside one.
+      return node('DoCaseStatement', {
+        cases,
+        otherwise: otherwise ? otherwise : null
+      });
   }
   function peg$f257(test, s) {    return s;  }
   function peg$f258(test, consequent) {
-    return node('CaseClause', {
-      test,
-      consequent: node('BlockStatement', { body: flatten(consequent) })
-    });
+      return node('CaseClause', {
+        test,
+        consequent: node('BlockStatement', { body: flatten(consequent) })
+      });
   }
   function peg$f259(target, namePart, withPart, toPart, flags) {
-    // If a TO clause was attached directly after WITH's argument list, prefer it.
-    const toFromWith = (withPart && withPart[3]) ? withPart[3][2] : null;
-    const explicitTo = toPart ? toPart[2] : null;
-    return node("DoFormStatement", {
-      target,
-      name: namePart ? namePart[2] : null,
-      linked: namePart ? !!(namePart[3]) : false,
-      arguments: withPart ? withPart[2] : [],
-      to: toFromWith || explicitTo || null,
-      noread: flags ? flags.some(f => f[1].toUpperCase() === 'NOREAD') : false,
-      noshow: flags ? flags.some(f => f[1].toUpperCase() === 'NOSHOW') : false
-    });
+      // If a TO clause was attached directly after WITH's argument list, prefer it.
+      const toFromWith = (withPart && withPart[3]) ? withPart[3][2] : null;
+      const explicitTo = toPart ? toPart[2] : null;
+      return node("DoFormStatement", {
+        target,
+        name: namePart ? namePart[2] : null,
+        linked: namePart ? !!(namePart[3]) : false,
+        arguments: withPart ? withPart[2] : [],
+        to: toFromWith || explicitTo || null,
+        noread: flags ? flags.some(f => f[1].toUpperCase() === 'NOREAD') : false,
+        noshow: flags ? flags.some(f => f[1].toUpperCase() === 'NOSHOW') : false
+      });
   }
   function peg$f260(target, params) {    return { kind: 'WITH', params };  }
   function peg$f261(target) {    return Number(n);  }
@@ -1581,40 +1581,40 @@ function peg$parse(input, options) {
   function peg$f264(target, first) {    return Number(n);  }
   function peg$f265(target, first, n) {    return { kind: 'IN', value: n };  }
   function peg$f266(target, first, rest) {
-    let withArgs = [];
-    let inSession = null;
-    function apply(p) { if (!p) return; if (p.kind === 'WITH') withArgs = p.params; else if (p.kind === 'IN') inSession = p.value; }
-    apply(first);
-    if (rest) apply(rest[1]);
-    return node("DoStatement", { target, inSession, arguments: withArgs });
+      let withArgs = [];
+      let inSession = null;
+      function apply(p) { if (!p) return; if (p.kind === 'WITH') withArgs = p.params; else if (p.kind === 'IN') inSession = p.value; }
+      apply(first);
+      if (rest) apply(rest[1]);
+      return node("DoStatement", { target, inSession, arguments: withArgs });
   }
   function peg$f267() {    return node("ExitStatement", {});  }
   function peg$f268() {    return node("ContinueStatement", {});  }
   function peg$f269(kind, name, longName) {    return longName;  }
   function peg$f270(kind, name, nameClause, free, codepage, items, tail) {
-    return { type: 'columns', items: tail ? [...items, ...tail[3]] : items };
+        return { type: 'columns', items: tail ? [...items, ...tail[3]] : items };
   }
   function peg$f271(kind, name, nameClause, free, codepage, arr) {    return { type: 'fromArray', array: arr };  }
   function peg$f272(kind, name, nameClause, free, codepage, def) {
-    const payload = { 
-      kind: (typeof kind === 'string' ? kind.toUpperCase() : kind).toUpperCase(),
-      name,
-      longName: nameClause || null,
-      free: !!free,
-      codepage: codepage ? codepage[4] : null
-    };
-    if (def.type === 'fromArray') {
-      return node('CreateStatement', { ...payload, fromArray: def.array, columns: [], constraints: [] });
-    } else {
-      const cols = def.items.filter(i => i.kind === 'column').map(i => i.node);
-      const cons = def.items.filter(i => i.kind === 'constraint').map(i => i.node);
-      return node('CreateStatement', { ...payload, columns: cols, constraints: cons, fromArray: null });
-    }
+      const payload = { 
+        kind: (typeof kind === 'string' ? kind.toUpperCase() : kind).toUpperCase(),
+        name,
+        longName: nameClause || null,
+        free: !!free,
+        codepage: codepage ? codepage[4] : null
+      };
+      if (def.type === 'fromArray') {
+        return node('CreateStatement', { ...payload, fromArray: def.array, columns: [], constraints: [] });
+      } else {
+        const cols = def.items.filter(i => i.kind === 'column').map(i => i.node);
+        const cons = def.items.filter(i => i.kind === 'constraint').map(i => i.node);
+        return node('CreateStatement', { ...payload, columns: cols, constraints: cons, fromArray: null });
+      }
   }
   function peg$f273(e) {    return e;  }
   function peg$f274(head, tail) {
-    const rest = tail.map(t => t[3]);
-    return [head, ...rest];
+      const rest = tail.map(t => t[3]);
+      return [head, ...rest];
   }
   function peg$f275(c) {    return { kind: 'column', node: c };  }
   function peg$f276(t) {    return { kind: 'constraint', node: t };  }
@@ -1627,18 +1627,18 @@ function peg$parse(input, options) {
   function peg$f283(name, ftype, fsize, nullability, check, autoinc, def, colkey, tbl, tn) {    return tn;  }
   function peg$f284(name, ftype, fsize, nullability, check, autoinc, def, colkey, tbl, tag) {    return { table: tbl, tag: tag ? tag[2] : null };  }
   function peg$f285(name, ftype, fsize, nullability, check, autoinc, def, colkey, refs, nocp) {
-    return node('ColumnDefinition', {
-      name,
-      fieldType: ftype,
-      size: fsize || null,
-      nullability: nullability ? (Array.isArray(nullability) ? 'NOT NULL' : 'NULL') : null,
-      check: check || null,
-      autoinc: autoinc || null,
-      default: def || null,
-      key: colkey || null,
-      references: refs || null,
-      nocptrans: !!nocp
-    });
+      return node('ColumnDefinition', {
+        name,
+        fieldType: ftype,
+        size: fsize || null,
+        nullability: nullability ? (Array.isArray(nullability) ? 'NOT NULL' : 'NULL') : null,
+        check: check || null,
+        autoinc: autoinc || null,
+        default: def || null,
+        key: colkey || null,
+        references: refs || null,
+        nocptrans: !!nocp
+      });
   }
   function peg$f286(t) {    return t.toUpperCase();  }
   function peg$f287(w, p) {    return { width: w, precision: p };  }
@@ -1653,37 +1653,37 @@ function peg$parse(input, options) {
   function peg$f296(tstmts, v) {    return v;  }
   function peg$f297(tstmts, toVar, wexpr) {    return wexpr;  }
   function peg$f298(tstmts, toVar, whenPart, cstmts) {
-    return { to: toVar ? toVar[2] : null, when: whenPart ? whenPart[2] : null, body: flatten(cstmts.map(s => s[0])) };
+        return { to: toVar ? toVar[2] : null, when: whenPart ? whenPart[2] : null, body: flatten(cstmts.map(s => s[0])) };
   }
   function peg$f299(tstmts, cpart, texpr) {    return texpr === undefined ? null : texpr;  }
   function peg$f300(tstmts, cpart, tpart) {    return true;  }
   function peg$f301(tstmts, cpart, tpart, exitpart, fstmts) {    return flatten(fstmts.map(s => s[0]));  }
   function peg$f302(tstmts, cpart, tpart, exitpart, fpart) {
-    return node("TryStatement", {
-      tryBlock: node("BlockStatement", { body: flatten(tstmts.map(s => s[0])) }),
-      catchClause: cpart ? { to: cpart.to, when: cpart.when, body: node("BlockStatement", { body: cpart.body }) } : null,
-      thrown: (tpart === undefined) ? null : tpart,
-      didExit: !!exitpart,
-      finallyBlock: fpart ? node("BlockStatement", { body: fpart }) : null
-    });
+      return node("TryStatement", {
+        tryBlock: node("BlockStatement", { body: flatten(tstmts.map(s => s[0])) }),
+        catchClause: cpart ? { to: cpart.to, when: cpart.when, body: node("BlockStatement", { body: cpart.body }) } : null,
+        thrown: (tpart === undefined) ? null : tpart,
+        didExit: !!exitpart,
+        finallyBlock: fpart ? node("BlockStatement", { body: fpart }) : null
+      });
   }
   function peg$f303(target, t, cl) {    return cl;  }
   function peg$f304(target, asPart, body) {
-    return node("WithStatement", {
-      target,
-      asType: asPart ? asPart[2] : null,
-      ofClass: asPart && asPart[4] ? asPart[4][2] : null,
-      body: node("BlockStatement", { body: flatten(body.map(b => b[0])) })
-    });
+      return node("WithStatement", {
+        target,
+        asType: asPart ? asPart[2] : null,
+        ofClass: asPart && asPart[4] ? asPart[4][2] : null,
+        body: node("BlockStatement", { body: flatten(body.map(b => b[0])) })
+      });
   }
   function peg$f305(a) {    return a;  }
   function peg$f306(e) {    return node("ExpressionStatement", { expression: e });  }
   function peg$f307(c) {    return c;  }
   function peg$f308(lhs, expr) {
-    return node("Assignment", { target: lhs, expression: expr });
+      return node("Assignment", { target: lhs, expression: expr });
   }
   function peg$f309(raw) {
-    return node("UnknownStatement", { raw: raw.trim() });
+      return node("UnknownStatement", { raw: raw.trim() });
   }
   function peg$f310(n) {    return { kind: 'NUMBER', value: n };  }
   function peg$f311(f) {    return { kind: 'FILE', value: f };  }
@@ -1693,60 +1693,60 @@ function peg$parse(input, options) {
   function peg$f315(sel, first, target) {    return { kind: 'IN', value: target };  }
   function peg$f316(sel, first, dir) {    return { kind: 'DIR', value: dir };  }
   function peg$f317(sel, first, second) {
-    let inTarget = null; let direction = null;
-    function apply(opt) { if (!opt) return; const p = opt[1]; if (!p) return; if (p.kind === 'IN') inTarget = p.value; else if (p.kind === 'DIR') direction = typeof p.value === 'string' ? p.value.toUpperCase() : p.value; }
-    apply(first); apply(second);
-    if (!direction && sel && sel.kind === 'TAG') direction = sel.direction || null;
-    return node('SetOrder', { selection: sel || null, inTarget, direction });
+      let inTarget = null; let direction = null;
+      function apply(opt) { if (!opt) return; const p = opt[1]; if (!p) return; if (p.kind === 'IN') inTarget = p.value; else if (p.kind === 'DIR') direction = typeof p.value === 'string' ? p.value.toUpperCase() : p.value; }
+      apply(first); apply(second);
+      if (!direction && sel && sel.kind === 'TAG') direction = sel.direction || null;
+      return node('SetOrder', { selection: sel || null, inTarget, direction });
   }
   function peg$f318(first, tail, inClause, additive) {
-    const pairs = first ? [first, ...tail.map(t => t[3])] : [];
-    return node('SetRelation', {
-      pairs: pairs.map(p => ({ expression: p.expr, into: p.into })),
-      inTarget: inClause ? inClause[2] : null,
-      additive: !!(additive && additive[1])
-    });
+        const pairs = first ? [first, ...tail.map(t => t[3])] : [];
+        return node('SetRelation', {
+          pairs: pairs.map(p => ({ expression: p.expr, into: p.into })),
+          inTarget: inClause ? inClause[2] : null,
+          additive: !!(additive && additive[1])
+        });
   }
   function peg$f319(expr, into) {
-    return { expr, into };
+        return { expr, into };
   }
   function peg$f320(setting) {    return node("SetTo", { setting });  }
   function peg$f321(cmd, toPart, argPart, additive, state) {    const argument = toPart ? toPart[2] : (argPart ? argPart[1] : null); const st = state ? state[1] : null; return node("SetCommand", { command: cmd, argument: argument, state: st ? st.toUpperCase() : null, additive: !!additive });  }
   function peg$f322(inner) {
-    // If TO form, inner is already a SetTo node and we return it directly.
-    if (inner && inner.type === 'SetTo') return inner;
-    // Otherwise inner is a SetCommand node; return it as the captured command node.
-    return inner;
+      // If TO form, inner is already a SetTo node and we return it directly.
+      if (inner && inner.type === 'SetTo') return inner;
+      // Otherwise inner is a SetCommand node; return it as the captured command node.
+      return inner;
   }
   function peg$f323() {    return { kind: 'PROMPT' };  }
   function peg$f324(src, parts) {
-    let fields = null;
-    let forExpr = null;
-    let type = null;
-    let codepage = null;
-    for (const t of parts.map(p => p[0])) {
-      if (!t) continue;
-      switch (t.kind) {
-        case 'FIELDS': fields = t.value; break;
-        case 'FOR': forExpr = t.value; break;
-        case 'TYPE': type = t.value; break;
-        case 'AS': codepage = t.value; break;
+      let fields = null;
+      let forExpr = null;
+      let type = null;
+      let codepage = null;
+      for (const t of parts.map(p => p[0])) {
+        if (!t) continue;
+        switch (t.kind) {
+          case 'FIELDS': fields = t.value; break;
+          case 'FOR': forExpr = t.value; break;
+          case 'TYPE': type = t.value; break;
+          case 'AS': codepage = t.value; break;
+        }
       }
-    }
-    return node("AppendFromStatement", {
-      source: src,
-      fields: fields,
-      for: forExpr,
-      exportType: type,
-      codepage: codepage
-    });
+      return node("AppendFromStatement", {
+        source: src,
+        fields: fields,
+        for: forExpr,
+        exportType: type,
+        codepage: codepage
+      });
   }
   function peg$f325(blank, inPart, nomenu) {
-    return node("AppendStatement", {
-      blank: !!blank,
-      inTarget: inPart ? inPart[2] : null,
-      nomenu: !!nomenu
-    });
+      return node("AppendStatement", {
+        blank: !!blank,
+        inTarget: inPart ? inPart[2] : null,
+        nomenu: !!nomenu
+      });
   }
   function peg$f326(f) {    return { kind: 'FIELDS', value: f };  }
   function peg$f327(e) {    return { kind: 'FOR', value: e };  }
@@ -1754,12 +1754,12 @@ function peg$parse(input, options) {
   function peg$f329(cp) {    return { kind: 'AS', value: cp };  }
   function peg$f330(at) {    return at;  }
   function peg$f331(first, rest) {
-    const opts = [first, ...rest.map(r => r[1])];
-    return { format: 'DELIMITED', options: opts };
+      const opts = [first, ...rest.map(r => r[1])];
+      return { format: 'DELIMITED', options: opts };
   }
   function peg$f332(t, s) {    return s;  }
   function peg$f333(t, sheet) {
-    return { format: (typeof t === 'string' ? t.toUpperCase() : t), sheet: sheet || null };
+      return { format: (typeof t === 'string' ? t.toUpperCase() : t), sheet: sheet || null };
   }
   function peg$f334() {    return { mode: 'BLANK' };  }
   function peg$f335() {    return { mode: 'TAB' };  }
@@ -1768,17 +1768,17 @@ function peg$parse(input, options) {
   function peg$f338() {    return "*";  }
   function peg$f339(del) {    return { mode: 'DELIMITER', delimiter: del };  }
   function peg$f340(parts) {
-    let fields = null; let cond = null; let norm = false; let nowait = false;
-    for (const p of parts.map(t => t[0])) {
-      if (!p) continue;
-      switch (p.kind) {
-        case 'FIELDS': fields = p.value; break;
-        case 'FOR': cond = p.value; break;
-        case 'NORM': norm = true; break;
-        case 'NOWAIT': nowait = true; break;
+      let fields = null; let cond = null; let norm = false; let nowait = false;
+      for (const p of parts.map(t => t[0])) {
+        if (!p) continue;
+        switch (p.kind) {
+          case 'FIELDS': fields = p.value; break;
+          case 'FOR': cond = p.value; break;
+          case 'NORM': norm = true; break;
+          case 'NOWAIT': nowait = true; break;
+        }
       }
-    }
-    return node('BrowseStatement', { fields: fields || [], for: cond || null, norm, nowait });
+      return node('BrowseStatement', { fields: fields || [], for: cond || null, norm, nowait });
   }
   function peg$f341(list) {    return { kind: 'FIELDS', value: list };  }
   function peg$f342(e) {    return { kind: 'FOR', value: e };  }
@@ -1787,14 +1787,14 @@ function peg$parse(input, options) {
   function peg$f345() {    return 'ALL';  }
   function peg$f346() {    return 'REST';  }
   function peg$f347(scope, fields, forClause, whileClase, inClause, noOptimize) {
-    return node("ReplaceStatement", { 
-      scope: scope ? scope[0] : null,
-      fields, 
-      forCondition: forClause ? forClause[2] : null,
-      whileCondition: whileClase ? whileClase[2] : null,
-      inTarget: inClause ? inClause[2] : null,
-      noOptimize: !!noOptimize
-    });
+      return node("ReplaceStatement", { 
+        scope: scope ? scope[0] : null,
+        fields, 
+        forCondition: forClause ? forClause[2] : null,
+        whileCondition: whileClase ? whileClase[2] : null,
+        inTarget: inClause ? inClause[2] : null,
+        noOptimize: !!noOptimize
+      });
   }
   function peg$f348(condition) {    return { kind: 'FOR', value: condition };  }
   function peg$f349() {    return { kind: 'SCOPE', value: 'ALL' };  }
@@ -1805,68 +1805,68 @@ function peg$parse(input, options) {
   function peg$f354(condition) {    return { kind: 'WHILE', value: condition };  }
   function peg$f355() {    return { kind: 'NOOPTIMIZE' };  }
   function peg$f356(parts) {
-    let forCondition = null;
-    let scope = null;
-    let inTarget = null;
-    let whileCondition = null;
-    let noOptimize = false;
-    for (const p of parts.map(t => t[1])) {
-      switch (p.kind) {
-        case 'FOR': if (!forCondition) forCondition = p.value; break;
-        case 'SCOPE': if (!scope) scope = p.value; break;
-        case 'IN': if (!inTarget) inTarget = p.value; break;
-        case 'WHILE': if (!whileCondition) whileCondition = p.value; break;
-        case 'NOOPTIMIZE': noOptimize = true; break;
+      let forCondition = null;
+      let scope = null;
+      let inTarget = null;
+      let whileCondition = null;
+      let noOptimize = false;
+      for (const p of parts.map(t => t[1])) {
+        switch (p.kind) {
+          case 'FOR': if (!forCondition) forCondition = p.value; break;
+          case 'SCOPE': if (!scope) scope = p.value; break;
+          case 'IN': if (!inTarget) inTarget = p.value; break;
+          case 'WHILE': if (!whileCondition) whileCondition = p.value; break;
+          case 'NOOPTIMIZE': noOptimize = true; break;
+        }
       }
-    }
-    return node("LocateStatement", { forCondition, scope, inTarget, whileCondition, noOptimize });
+      return node("LocateStatement", { forCondition, scope, inTarget, whileCondition, noOptimize });
   }
   function peg$f357(noopt) {    return 'ALL';  }
   function peg$f358(noopt, n) {    return { type: 'NEXT', count: n };  }
   function peg$f359(noopt, n) {    return { type: 'RECORD', number: n };  }
   function peg$f360(noopt) {    return 'REST';  }
   function peg$f361(noopt, scope, forClause, whileClause, body, endkw) {
-    return node("ScanStatement", {
-      noOptimize: !!(noopt && noopt[1]),
-      scope: scope || 'ALL',
-      forCondition: forClause ? forClause[2] : null,
-      whileCondition: whileClause ? whileClause[2] : null,
-      body: node("BlockStatement", { body: flatten(body.map(s => s[0])) })
-    });
+      return node("ScanStatement", {
+        noOptimize: !!(noopt && noopt[1]),
+        scope: scope || 'ALL',
+        forCondition: forClause ? forClause[2] : null,
+        whileCondition: whileClause ? whileClause[2] : null,
+        body: node("BlockStatement", { body: flatten(body.map(s => s[0])) })
+      });
   }
   function peg$f362(exprs, parts) {
-    const opts = { scope: null, forCondition: null, whileCondition: null, to: null, noOptimize: false, inTarget: null };
-    for (const p of parts.map(t => t[0])) {
-      if (!p) continue;
-      switch (p.kind) {
-        case 'SCOPE': opts.scope = p.value; break;
-        case 'FOR': opts.forCondition = p.value; break;
-        case 'WHILE': opts.whileCondition = p.value; break;
-        case 'TO': opts.to = p.value; break;
-        case 'NOOPTIMIZE': opts.noOptimize = true; break;
-        case 'IN': opts.inTarget = p.value; break;
+      const opts = { scope: null, forCondition: null, whileCondition: null, to: null, noOptimize: false, inTarget: null };
+      for (const p of parts.map(t => t[0])) {
+        if (!p) continue;
+        switch (p.kind) {
+          case 'SCOPE': opts.scope = p.value; break;
+          case 'FOR': opts.forCondition = p.value; break;
+          case 'WHILE': opts.whileCondition = p.value; break;
+          case 'TO': opts.to = p.value; break;
+          case 'NOOPTIMIZE': opts.noOptimize = true; break;
+          case 'IN': opts.inTarget = p.value; break;
+        }
       }
-    }
-    return node('CalculateStatement', { expressions: exprs, scope: opts.scope, forCondition: opts.forCondition, whileCondition: opts.whileCondition, to: opts.to, noOptimize: opts.noOptimize, inTarget: opts.inTarget });
+      return node('CalculateStatement', { expressions: exprs, scope: opts.scope, forCondition: opts.forCondition, whileCondition: opts.whileCondition, to: opts.to, noOptimize: opts.noOptimize, inTarget: opts.inTarget });
   }
   function peg$f363(exprs) {    return { kind: 'EXPRS', value: exprs };  }
   function peg$f364(p) {    return p;  }
   function peg$f365(parts) {
-    const opts = { scope: null, forCondition: null, whileCondition: null, to: null, noOptimize: false, inTarget: null };
-    let expressions = null;
-    for (const p of parts.map(t => t[1])) {
-      if (!p) continue;
-      if (p.kind === 'EXPRS') { expressions = p.value; continue; }
-      switch (p.kind) {
-        case 'SCOPE': if (!opts.scope) opts.scope = p.value; break;
-        case 'FOR': if (!opts.forCondition) opts.forCondition = p.value; break;
-        case 'WHILE': if (!opts.whileCondition) opts.whileCondition = p.value; break;
-        case 'TO': if (!opts.to) opts.to = p.value; break;
-        case 'NOOPTIMIZE': opts.noOptimize = true; break;
-        case 'IN': if (!opts.inTarget) opts.inTarget = p.value; break;
+      const opts = { scope: null, forCondition: null, whileCondition: null, to: null, noOptimize: false, inTarget: null };
+      let expressions = null;
+      for (const p of parts.map(t => t[1])) {
+        if (!p) continue;
+        if (p.kind === 'EXPRS') { expressions = p.value; continue; }
+        switch (p.kind) {
+          case 'SCOPE': if (!opts.scope) opts.scope = p.value; break;
+          case 'FOR': if (!opts.forCondition) opts.forCondition = p.value; break;
+          case 'WHILE': if (!opts.whileCondition) opts.whileCondition = p.value; break;
+          case 'TO': if (!opts.to) opts.to = p.value; break;
+          case 'NOOPTIMIZE': opts.noOptimize = true; break;
+          case 'IN': if (!opts.inTarget) opts.inTarget = p.value; break;
+        }
       }
-    }
-    return node('SumStatement', { expressions: expressions, scope: opts.scope, forCondition: opts.forCondition, whileCondition: opts.whileCondition, to: opts.to, noOptimize: opts.noOptimize, inTarget: opts.inTarget });
+      return node('SumStatement', { expressions: expressions, scope: opts.scope, forCondition: opts.forCondition, whileCondition: opts.whileCondition, to: opts.to, noOptimize: opts.noOptimize, inTarget: opts.inTarget });
   }
   function peg$f366() {    return { kind: 'SCOPE', value: 'ALL' };  }
   function peg$f367(n) {    return { kind: 'SCOPE', value: { type: 'NEXT', count: n } };  }
@@ -1881,10 +1881,10 @@ function peg$parse(input, options) {
   function peg$f376(target) {    return { kind: 'IN', value: target };  }
   function peg$f377(s) {    return s;  }
   function peg$f378(head, tail) {
-    return [head, ...tail.map(t => t[3])];
+      return [head, ...tail.map(t => t[3])];
   }
   function peg$f379(field, value, additive) {
-    return { field, value, additive: !!additive };
+      return { field, value, additive: !!additive };
   }
   function peg$f380(expr, vars) {    return { type: 'VarList', vars };  }
   function peg$f381(expr, arr, indexList) {    return { type: 'ArrayIndexed', array: arr, indexes: indexList };  }
@@ -1894,119 +1894,119 @@ function peg$parse(input, options) {
   }
   function peg$f384(head, tail) {    return [head, ...tail.map(t => t[3])];  }
   function peg$f385(cw, name, params, retPart, statements, ret, end) {
-    return node("ProcedureStatement", {
-      name,
-      isFunction: (typeof cw === 'string') ? (cw.toUpperCase() === 'FUNCTION') : false,
-      parameters: params || [],
-      returnType: retPart ? retPart[3] : null,
-      body: node("BlockStatement", { body: flatten(statements.map(s => s[0])) }),
-      returnExpression: ret ? ret[2] : null,
-      lparameters: false
-    });
+        return node("ProcedureStatement", {
+          name,
+          isFunction: (typeof cw === 'string') ? (cw.toUpperCase() === 'FUNCTION') : false,
+          parameters: params || [],
+          returnType: retPart ? retPart[3] : null,
+          body: node("BlockStatement", { body: flatten(statements.map(s => s[0])) }),
+          returnExpression: ret ? ret[2] : null,
+          lparameters: false
+        });
   }
   function peg$f386(cw, name, lparams, statements, ret, end) {
-    return node("ProcedureStatement", {
-      name,
-      isFunction: (typeof cw === 'string') ? (cw.toUpperCase() === 'FUNCTION') : false,
-      parameters: lparams ? (lparams.names || []) : [],
-      returnType: null,
-      body: node("BlockStatement", { body: flatten(statements.map(s => s[0])) }),
-      returnExpression: ret ? ret[2] : null,
-      lparameters: !!lparams
-    });
+        return node("ProcedureStatement", {
+          name,
+          isFunction: (typeof cw === 'string') ? (cw.toUpperCase() === 'FUNCTION') : false,
+          parameters: lparams ? (lparams.names || []) : [],
+          returnType: null,
+          body: node("BlockStatement", { body: flatten(statements.map(s => s[0])) }),
+          returnExpression: ret ? ret[2] : null,
+          lparameters: !!lparams
+        });
   }
   function peg$f387(cw, name, proc) {    return proc;  }
   function peg$f388(expr) {    return node("ReturnStatement", { argument: expr === undefined ? null : expr });  }
   function peg$f389(opt) {
-    return node('ClearStatement', {
-      target: opt ? opt.target : null,
-      name: opt ? opt.name : null,
-      all: opt ? opt.all : false
-    });
+      return node('ClearStatement', {
+        target: opt ? opt.target : null,
+        name: opt ? opt.name : null,
+        all: opt ? opt.all : false
+      });
   }
   function peg$f390(kw, n) {    return { target: kw.toUpperCase(), name: n, all: false };  }
   function peg$f391(a) {    return { target: 'READ', name: null, all: !!a };  }
   function peg$f392(kw) {
-    return { target: kw.toUpperCase(), name: null, all: false };
+      return { target: kw.toUpperCase(), name: null, all: false };
   }
   function peg$f393(opt) {
-    return node('CloseStatement', { target: opt ? opt.target : null, all: opt ? opt.all : false });
+      return node('CloseStatement', { target: opt ? opt.target : null, all: opt ? opt.all : false });
   }
   function peg$f394(kw, a) {
-    return { target: kw.toUpperCase(), all: !!a };
+      return { target: kw.toUpperCase(), all: !!a };
   }
   function peg$f395(body) {
-    return node('ReleaseStatement', {
-      scope: body.scope,
-      extended: body.extended,
-      mode: body.mode,
-      pattern: body.pattern,
-      names: body.names,
-      options: body.options
-    });
+      return node('ReleaseStatement', {
+        scope: body.scope,
+        extended: body.extended,
+        mode: body.mode,
+        pattern: body.pattern,
+        names: body.names,
+        options: body.options
+      });
   }
   function peg$f396(m, pat) {
-    return { scope: 'ALL', extended: false, mode: m.toUpperCase(), pattern: pat, names: [], options: null };
+      return { scope: 'ALL', extended: false, mode: m.toUpperCase(), pattern: pat, names: [], options: null };
   }
   function peg$f397(ext) {
-    return { scope: 'ALL', extended: !!ext, mode: null, pattern: null, names: [], options: null };
+      return { scope: 'ALL', extended: !!ext, mode: null, pattern: null, names: [], options: null };
   }
   function peg$f398(kw, opts) {
-    return { scope: kw.toUpperCase(), extended: false, mode: null, pattern: null, names: [], options: opts };
+      return { scope: kw.toUpperCase(), extended: false, mode: null, pattern: null, names: [], options: opts };
   }
   function peg$f399(names) {
-    return { scope: null, extended: false, mode: null, pattern: null, names, options: null };
+      return { scope: null, extended: false, mode: null, pattern: null, names, options: null };
   }
   function peg$f400(what, tbl, t) {    return t;  }
   function peg$f401(what, tbl, inTgt) {
-    return node('PackStatement', {
-      what: what ? what[0].toUpperCase() : null,
-      table: tbl || null,
-      inTarget: inTgt || null
-    });
+      return node('PackStatement', {
+        what: what ? what[0].toUpperCase() : null,
+        table: tbl || null,
+        inTarget: inTgt || null
+      });
   }
   function peg$f402(e, ord, dir, t) {    return t;  }
   function peg$f403(e, ord, dir, inTgt) {
-    return node('SeekStatement', {
-      expression: e,
-      order: ord || null,
-      direction: dir ? dir[0].toUpperCase() : null,
-      inTarget: inTgt || null
-    });
+      return node('SeekStatement', {
+        expression: e,
+        order: ord || null,
+        direction: dir ? dir[0].toUpperCase() : null,
+        inTarget: inTgt || null
+      });
   }
   function peg$f404() {    return node('SuspendStatement', {});  }
   function peg$f405() {    return node('ResumeStatement', {});  }
   function peg$f406(e, flags) {
-    const names = flags.map(f => f[1].toUpperCase());
-    return node('KeyboardStatement', {
-      expression: e,
-      plain: names.includes('PLAIN'),
-      clear: names.includes('CLEAR')
-    });
+      const names = flags.map(f => f[1].toUpperCase());
+      return node('KeyboardStatement', {
+        expression: e,
+        plain: names.includes('PLAIN'),
+        clear: names.includes('CLEAR')
+      });
   }
   function peg$f407(cmd, form, opts) {
-    return node('ReportFormStatement', { command: cmd.toUpperCase(), form, options: opts });
+      return node('ReportFormStatement', { command: cmd.toUpperCase(), form, options: opts });
   }
   function peg$f408(target, first, rest, opts) {
-    return node('SortStatement', { target, fields: [first, ...rest.map(r => r[3])], options: opts });
+      return node('SortStatement', { target, fields: [first, ...rest.map(r => r[3])], options: opts });
   }
   function peg$f409(name, flags) {
-    const f = flags.map(x => x[1].toUpperCase());
-    return { name, descending: f.includes('D'), ignoreCase: f.includes('C') };
+      const f = flags.map(x => x[1].toUpperCase());
+      return { name, descending: f.includes('D'), ignoreCase: f.includes('C') };
   }
   function peg$f410(cmd, subj, opts) {
-    return node('ListStatement', { command: cmd.toUpperCase(), subject: subj, options: opts });
+      return node('ListStatement', { command: cmd.toUpperCase(), subject: subj, options: opts });
   }
   function peg$f411(kw) {
-    return kw.toUpperCase();
+      return kw.toUpperCase();
   }
   function peg$f412(pref, name) {    return (pref ? pref : '') + name;  }
   function peg$f413() {    return node("NumberLiteral", { value: 0, raw: "SELECT(0)", currency: false });  }
   function peg$f414(value) {
-    const raw = value;
-    const isCurrency = raw.charAt(0) === '$';
-    const num = parseFloat(isCurrency ? raw.slice(1) : raw);
-    return node("NumberLiteral", { value: num, raw, currency: !!isCurrency });
+      const raw = value;
+      const isCurrency = raw.charAt(0) === '$';
+      const num = parseFloat(isCurrency ? raw.slice(1) : raw);
+      return node("NumberLiteral", { value: num, raw, currency: !!isCurrency });
   }
   function peg$f415(chars) {    return node("StringLiteral", { value: chars.join("") });  }
   function peg$f416(chars) {    return node("StringLiteral", { value: chars.join("") });  }

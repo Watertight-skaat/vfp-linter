@@ -25,3 +25,4 @@ eslint.config.mjs
 *.vsix
 debug_ast.json
 CLAUDE.md
+CONTRIBUTING.md

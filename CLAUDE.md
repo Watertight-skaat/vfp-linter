@@ -6,5 +6,4 @@ Conventions:
 - Don't split up long comments to multiple lines. Modern IDEs have text wrap, so just leave them on one line
 
 Notes:
-- If `bun run dev` is already running, the parser is rebuilt on save and you do not need to
-  rebuild it yourself.
+- If `bun run dev` is already running, the parser is rebuilt on save and you do not need to rebuild it yourself.
