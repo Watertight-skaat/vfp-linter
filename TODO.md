@@ -23,7 +23,7 @@ Measured by running the linter over Watertight's codebase
 
 ### Announces itself, and is only worth the volume
 
-Ordered by measured uses. `WAIT CLEAR` alone is 426 uses across 185 files, which makes it the most common unparsed statement in the source by a wide margin; `@ <row>,<col>` with no clause is 147. After those come the console commands (`ACTIVATE SCREEN`, `EJECT`, `READ EVENTS`, `RETRY`, `CANCEL`, `SHOW GETS`), `AS <type>` on `PRIVATE`/`PUBLIC`/a method return, `DELETE RECORD n`, `ADD OBJECT` in a class, `MD (<expr>)`, the clauses whose operand is an expression (`FLUSH IN`, `SET RELATION OFF INTO`, `SET ORDER TO <expr>`), `IF ... THEN`, and `DIMEN`. All are one-liners in `test-files/diagnostics/still-unsupported.prg`.
+Ordered by measured uses. `@ <row>,<col>` with no clause is 147. After that come the console commands (`ACTIVATE SCREEN`, `EJECT`, `READ EVENTS`, `RETRY`, `CANCEL`, `SHOW GETS`), `AS <type>` on `PRIVATE`/`PUBLIC`/a method return, `DELETE RECORD n`, `ADD OBJECT` in a class, `MD (<expr>)`, the clauses whose operand is an expression (`FLUSH IN`, `SET RELATION OFF INTO`, `SET ORDER TO <expr>`), `IF ... THEN`, and `DIMEN`. All are one-liners in `test-files/diagnostics/still-unsupported.prg`.
 
 ### Older items, still open
 

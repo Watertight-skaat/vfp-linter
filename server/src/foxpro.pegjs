@@ -346,7 +346,8 @@ WaitStatement
       for (const part of [...lead, ...trail].map(t => t[1])) {
         switch (part.kind) {
           case 'TO': if (!o.to) o.to = part.value; break;
-          case 'WINDOW': o.window = true; if (part.value) o.at = part.value; break;
+          case 'WINDOW': o.window = true; if (part.value) o.at = part.value.value; break;
+          case 'AT': o.at = part.value; break;
           case 'NOWAIT': o.nowait = true; break;
           case 'NOCLEAR': o.noclear = true; break;
           case 'CLEAR': o.clear = true; break;
@@ -358,11 +359,16 @@ WaitStatement
 
 WaitOption
   = "TO"i WB _ v:ParameterName { return { kind: 'TO', value: v }; }
-  / "WINDOW"i WB at:(_ "AT"i WB _ r:Expression _ "," _ c:Expression { return { row: r, column: c }; })? { return { kind: 'WINDOW', value: at }; }
+  / "WINDOW"i WB at:(_ a:WaitAt { return a; })? { return { kind: 'WINDOW', value: at }; }
+  / WaitAt
   / "NOWAIT"i WB { return { kind: 'NOWAIT' }; }
   / "NOCLEAR"i WB { return { kind: 'NOCLEAR' }; }
   / "CLEAR"i WB { return { kind: 'CLEAR' }; }
   / "TIMEOUT"i WB _ n:Expression { return { kind: 'TIMEOUT', value: n }; }
+
+// AT belongs to WINDOW, but it is written after the message as often as before it -- WAIT WINDOW "Saving" AT 10, 20 -- and read only in the documented position the tail fell out of the statement.
+WaitAt
+  = "AT"i WB _ r:Expression _ "," _ c:Expression { return { kind: 'AT', value: { row: r, column: c } }; }
 
 // USE [[DatabaseName!] TableName | SQLViewName | ?]
 //  [IN nWorkArea | cTableAlias] [ONLINE] [ADMIN] [AGAIN]

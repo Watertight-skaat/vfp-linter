@@ -92,6 +92,9 @@ check('DECLARE of a DLL function still reads', first('DECLARE INTEGER Sleep IN k
 check('WAIT ... TO names the variable', first('WAIT "" TO lcKey').to, 'lcKey');
 check('WAIT WINDOW still reads', (({ window, nowait }) => ({ window, nowait }))(first('WAIT WINDOW "hi" NOWAIT')), { window: true, nowait: true });
 check('WAIT WINDOW AT', first('WAIT WINDOW AT 10, 20 "hello"').at.row.value, 10);
+check('WAIT WINDOW AT after the message', types('WAIT WINDOW "hello" AT 10, 20 NOWAIT'), ['WaitStatement']);
+check('WAIT WINDOW AT after the message keeps the position', first('WAIT WINDOW "hello" AT 10, 20').at.column.value, 20);
+check('WAIT CLEAR', (({ clear, message }) => ({ clear, message }))(first('WAIT CLEAR')), { clear: true, message: null });
 check('a variable called wait is untouched', first('wait = 1').type, 'Assignment');
 check('DEBUGOUT', first('DEBUGOUT lcMessage').expression.name, 'lcMessage');
 check('a call to a routine of that name is untouched', first('debugout(1)').expression.type, 'CallExpression');

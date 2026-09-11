@@ -32,10 +32,11 @@ SHOW GETS
 ASSERT lOk MESSAGE "no"
 PLAY MACRO mMac
 
-* The full-screen and console commands. Measured over the Watertight source, WAIT CLEAR alone is the most common unparsed statement there is -- 426 uses across 185 files -- because every routine that puts a status message up takes it down again.
+* The full-screen and console commands. WAIT is read in every spelling now, including the AT that follows the message; the three below are the control, and they must stay clean.
 WAIT CLEAR
 WAIT "" TIMEOUT 1
 WAIT "NOT ON CASH ACCOUNTING" WINDOW
+WAIT WINDOW "Saving" AT 10, 20 NOWAIT
 ACTIVATE SCREEN
 EJECT
 READ EVENTS
