@@ -37,8 +37,8 @@ Start "start of program"
 
 SourceElements "statement list"
   = head:Statement tail:(__ Statement)* {
-      const statements = [head, ...tail.map(t => t[1])].filter(s => s !== null);
-      return node("BlockStatement", { body: statements });
+      // Flattened like every block body: a LOCAL list is several declarations, not one statement holding an array.
+      return node("BlockStatement", { body: flatten([head, ...tail.map(t => t[1])]) });
     }
 
 // A Statement returns either a single AST node or an Array of nodes (e.g. multiple LOCAL vars)
@@ -2171,28 +2171,39 @@ ExpressionList
 ProcedureStatement "procedure"
   = cw:("PROCEDURE"i / "FUNCTION"i) WB __ name:Identifier _ proc:(
       // function-style parameter list with optional typed params and optional return type
-      "(" _ params:ProcedureParamList? _ ")" _ retPart:(_ "AS"i __ rt:IdentifierOrString)? __ statements:(Statement __)* end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
+      "(" _ params:ProcedureParamList? _ ")" _ retPart:(_ "AS"i __ rt:IdentifierOrString)? __ statements:RoutineBody end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
         return node("ProcedureStatement", {
           name,
           isFunction: (typeof cw === 'string') ? (cw.toUpperCase() === 'FUNCTION') : false,
           parameters: params || [],
           returnType: retPart ? retPart[3] : null,
-          body: node("BlockStatement", { body: flatten(statements.map(s => s[0])) }),
+          body: node("BlockStatement", { body: statements }),
           lparameters: false
         });
       }
     / // alternate LPARAMETERS style (untyped, compatible with LPARAMETERS/PARAMETERS keyword)
-    lparams:LParameters? __ statements:(Statement __)* end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
+    lparams:LParameters? __ statements:RoutineBody end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
         return node("ProcedureStatement", {
           name,
           isFunction: (typeof cw === 'string') ? (cw.toUpperCase() === 'FUNCTION') : false,
           parameters: lparams ? (lparams.names || []) : [],
           returnType: null,
-          body: node("BlockStatement", { body: flatten(statements.map(s => s[0])) }),
+          body: node("BlockStatement", { body: statements }),
           lparameters: !!lparams
         });
       }
-    ) { return proc; }
+    ) {
+      // The node is built inside the alternative, whose location starts after the name; the routine's own location has to cover its first line for the outline and folding to be right.
+      proc.location = location();
+      return proc;
+    }
+
+// ENDPROC is optional in VFP, and the next PROCEDURE, FUNCTION or DEFINE CLASS is where a routine ends. Without this guard each routine swallowed every routine after it as part of its own body, so a file of ten procedures parsed as one nested ten deep.
+RoutineBody
+  = body:(!RoutineBoundary s:Statement __ { return s; })* { return flatten(body); }
+
+RoutineBoundary
+  = ("PROCEDURE"i / "FUNCTION"i / "DEFINE CLASS"i) WB
 
 ReturnStatement
   = "RETURN"i WB _ expr:Expression? _ LineTerminator? { return node("ReturnStatement", { argument: expr === undefined ? null : expr }); }

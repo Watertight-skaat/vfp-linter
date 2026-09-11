@@ -1,8 +1,8 @@
 // Per-routine symbol table: what each routine declares, where each name is read and written, and which work area is open as the routine runs.
-// The rules in linter.ts are a stateless AST walk -- getProblemsFromNode sees one node and knows nothing about what came before it.
+// A node rule in rules/ sees one node and knows nothing about what came before it.
 // The scope-dependent rules (implicit PRIVATE from an undeclared assignment, unused LOCAL, a missing m. prefix on a name that is also a field, work-area handling) all read this structure instead of re-walking the tree themselves.
 
-import type { AstNode, DefineClass, Expr, Loc, ProcedureStatement, Program, SelectStatement } from './ast.js';
+import type { AstNode, DefineClass, Expr, Loc, ProcedureStatement, Program, SelectStatement, Statement } from './ast.js';
 
 /** Which statement brought the name into being. */
 export type SymbolKind =
@@ -73,6 +73,8 @@ export interface Scope {
   /** Textual containment only. VFP scoping is dynamic, so this is not a name-resolution chain. */
   parent: Scope | null;
   children: Scope[];
+  /** The routine's own statements, in source order, so a fix can find where a declaration belongs. */
+  body: Statement[];
 }
 
 export interface SymbolTable {
@@ -89,11 +91,11 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
   const scopes: Scope[] = [];
   // Depth rather than a flag, because subqueries nest.
   let sqlDepth = 0;
-  const main = newScope('(main)', 'main', ast?.location ?? null, null);
+  const main = newScope('(main)', 'main', ast?.location ?? null, null, ast?.body ?? []);
   if (ast?.body) visit(ast.body, main);
   return { main, scopes };
 
-  function newScope(name: string, kind: ScopeKind, location: Loc | null, parent: Scope | null): Scope {
+  function newScope(name: string, kind: ScopeKind, location: Loc | null, parent: Scope | null, body: Statement[]): Scope {
     const scope: Scope = {
       name, kind, location,
       symbols: new Map(),
@@ -101,7 +103,8 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
       workArea: [],
       openAliases: new Set(),
       parent,
-      children: []
+      children: [],
+      body
     };
     if (parent) parent.children.push(scope);
     scopes.push(scope);
@@ -163,7 +166,7 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
     if (kind !== 'close' && name) scope.openAliases.add(name);
   }
 
-  // A routine boundary. PROCEDURE/FUNCTION do not nest in VFP, but the grammar nests them when ENDPROC is omitted, so a nested routine becomes its own scope either way.
+  // A routine boundary: a PROCEDURE or FUNCTION at file level, or a method inside a DEFINE CLASS.
   function visitRoutine(node: ProcedureStatement, parent: Scope) {
     const inClass = parent.kind === 'class';
     const name = node.name;
@@ -171,7 +174,8 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
       inClass ? parent.name + '.' + name : name,
       inClass ? 'method' : (node.isFunction ? 'function' : 'procedure'),
       node.location ?? null,
-      parent
+      parent,
+      node.body.body
     );
     for (const param of node.parameters) {
       // Function-style params are { name, type }; the LPARAMETERS form is a bare string.
@@ -182,7 +186,7 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
   }
 
   function visitClass(node: DefineClass, parent: Scope) {
-    const scope = newScope(node.name, 'class', node.location ?? null, parent);
+    const scope = newScope(node.name, 'class', node.location ?? null, parent, node.body);
     for (const stmt of node.body) {
       if (!stmt || typeof stmt !== 'object') continue;
       // `cName = ""` at class-body level declares a property, not a variable.

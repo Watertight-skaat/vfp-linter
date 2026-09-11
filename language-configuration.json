@@ -1,0 +1,37 @@
+{
+	"comments": {
+		"lineComment": "&&"
+	},
+	"brackets": [
+		["(", ")"],
+		["[", "]"],
+		["{", "}"]
+	],
+	"autoClosingPairs": [
+		{ "open": "(", "close": ")" },
+		{ "open": "[", "close": "]", "notIn": ["string"] },
+		{ "open": "{", "close": "}" },
+		{ "open": "\"", "close": "\"", "notIn": ["string", "comment"] },
+		{ "open": "'", "close": "'", "notIn": ["string", "comment"] }
+	],
+	"surroundingPairs": [
+		["(", ")"],
+		["[", "]"],
+		["{", "}"],
+		["\"", "\""],
+		["'", "'"]
+	],
+	"wordPattern": {
+		"pattern": "[A-Za-z_][A-Za-z0-9_]*"
+	},
+	"indentationRules": {
+		"increaseIndentPattern": {
+			"pattern": "^\\s*(IF|ELSE|DO\\s+WHILE|DO\\s+CASE|CASE|OTHERWISE|FOR|SCAN|TRY|CATCH|FINALLY|WITH|DEFINE\\s+CLASS|TEXT)\\b",
+			"flags": "i"
+		},
+		"decreaseIndentPattern": {
+			"pattern": "^\\s*(ENDIF|ELSE|ENDDO|ENDCASE|CASE|OTHERWISE|ENDFOR|NEXT|ENDSCAN|ENDTRY|CATCH|FINALLY|ENDWITH|ENDDEFINE|ENDTEXT)\\b",
+			"flags": "i"
+		}
+	}
+}

@@ -23,7 +23,26 @@ The extension parses your code with a real grammar instead of matching patterns,
 | `try-without-catch` | Information | A `TRY` with neither `CATCH` nor `FINALLY` |
 | `empty-branch` | Information | An `IF`, `ELSE`, `CASE` or `OTHERWISE` branch with no statements |
 
-Every diagnostic carries its code, so you can filter or disable any of them from the Problems panel.
+Every diagnostic carries its code. The severity of each rule is a setting (`foxpro.rules`, below), and any single finding can be silenced where it stands:
+
+```foxpro
+* vfp-lint-disable-next-line implicit-private
+gnHandle = 0
+lcOld = SET("EXACT")   && vfp-lint-disable-line missing-memvar-prefix -- SET() is not a field
+* vfp-lint-disable unreachable-code
+...
+* vfp-lint-enable unreachable-code
+```
+
+A directive with no code silences every rule on that line or in that region. Anything after `--` is a reason and is not read.
+
+### Quick fixes
+
+Three rules know how to fix themselves, and the lightbulb offers it: `implicit-private` adds a `LOCAL` at the top of the routine, `unused-local` removes the name from its `LOCAL` line (or the line, when it was the only name), and `missing-memvar-prefix` inserts the `m.`. Every diagnostic also offers *Suppress on this line*, which writes the `vfp-lint-disable-next-line` comment for you.
+
+### In the editor
+
+The Outline and breadcrumbs list every procedure, function, class, method, property and `#DEFINE` in the file. Blocks fold: `IF`, `DO WHILE`, `DO CASE` and each `CASE`, `FOR`, `SCAN`, `TRY`, `WITH`, `TEXT`, `DEFINE CLASS`, routines with or without `ENDPROC`, and a `SELECT` written over several lines. Comment toggling uses `&&`, brackets and quotes auto-close, and Enter indents after a block opener.
 
 ### Rules that deliberately stay quiet
 
@@ -38,12 +57,20 @@ A few rules would be unusable if they reported everything they could, so they ho
 
 | Setting | Default | What it does |
 | ------- | ------- | ------------ |
-| `foxpro.unsupportedSyntaxSeverity` | `information` | How to report statements the grammar cannot parse yet |
+| `foxpro.rules` | see the table above | The severity of each rule: `error`, `warning`, `information`, `hint` or `off` |
 | `foxpro.maxNumberOfProblems` | `100` | Caps the diagnostics reported per file |
+| `foxpro.unsupportedSyntaxSeverity` | `information` | Deprecated: the same as `foxpro.rules` for `unsupported-syntax` alone |
 
-The grammar does not cover all of FoxPro, so valid code can reach the catch-all rule. `unsupportedSyntaxSeverity` keeps that advisory by default; it takes `error`, `warning`, `information`, `hint` or `off`.
+A rule not named in `foxpro.rules` keeps its default, so a settings file only has to say what it changes:
 
-Syntax errors and unterminated blocks are never quieted by that setting, because both are genuinely wrong.
+```json
+"foxpro.rules": {
+  "implicit-private": "error",
+  "empty-branch": "off"
+}
+```
+
+The grammar does not cover all of FoxPro, so valid code can reach the catch-all rule; `unsupported-syntax` is advisory by default for that reason. `syntax-error` and `unterminated-block` cannot be changed, because both are genuinely wrong.
 
 ## What it does not read yet
 

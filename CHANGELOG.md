@@ -2,6 +2,65 @@
 
 ## Unreleased
 
+The editor side: every rule gets a severity setting, any finding can be suppressed in place, three
+rules fix themselves, and the file gets an Outline, folding and a language configuration. Underneath,
+the rules are now a registry rather than a switch.
+
+### Per-rule severities
+
+`foxpro.rules` sets each rule to `error`, `warning`, `information`, `hint` or `off`; a rule not named
+keeps its default. `foxpro.unsupportedSyntaxSeverity` still works and is marked deprecated, since it
+is now the same setting for one rule. `syntax-error` and `unterminated-block` are locked at error.
+
+### Suppression comments
+
+`* vfp-lint-disable-next-line code`, `&& vfp-lint-disable-line code` on the statement itself, and
+`* vfp-lint-disable code` ... `* vfp-lint-enable code` around a region. No code means every rule; a
+reason can follow `--`. Every diagnostic offers *Suppress on this line* as a quick fix, which writes
+the comment.
+
+### Quick fixes
+
+`implicit-private` adds the `LOCAL` at the top of the routine -- not above the first write, which is
+often inside a loop where `LOCAL` would reset the value on every pass. `unused-local` removes the name
+from its `LOCAL` line, or the line when it was alone. `missing-memvar-prefix` inserts the `m.`, and only
+where the source at the reported position is the name itself, so a reference the grammar pinned to a
+whole statement gets no fix rather than a wrong one.
+
+### Outline, folding and language configuration
+
+Procedures, functions, classes with their methods and properties, and `#DEFINE` constants appear in
+the Outline and breadcrumbs. Every block folds, including a routine with no `ENDPROC`, each `CASE`,
+and a `SELECT` written over several lines. The new `language-configuration.json` gives the language
+`&&` comment toggling, bracket and quote pairing, and indentation after a block opener.
+
+### A routine ends where the next one starts
+
+`ENDPROC` is optional, and the grammar used to read every routine after an unterminated one as part of
+its body, so a file of ten procedures parsed as one nested ten deep. A routine now stops at the next
+`PROCEDURE`, `FUNCTION` or `DEFINE CLASS`. The symbol table's `parent` is now the file for every
+file-level routine, and the routine's location now starts at its keyword rather than after its name.
+The top-level statement list is also flattened like every block, which fixes `unreachable-code`
+reporting a file-level `LOCAL` after `RETURN` at line 1 instead of where it is.
+
+### The syntax-error diagnostic
+
+A parse failure now goes through the same `lint()` path as everything else, so it carries the code
+`syntax-error` and the same source as the other diagnostics; the harness used to fabricate it.
+`duplicate-case` also now skips a constant `CASE .F.`, which is how a branch is switched off without
+deleting it.
+
+### The end-to-end suite
+
+Was asserting that an unsupported statement is an error, which stopped being true when the severity
+setting arrived, and its "clean" fixture looped over an undeclared `i`, which `implicit-private` has
+rightly reported since it arrived; nothing ran the suite, so neither was noticed. It now asserts the
+code and the advisory severity, the fixture declares its loop variable, and the runner clears
+`ELECTRON_RUN_AS_NODE` so it can be started from VS Code's own terminal, where the downloaded
+Code.exe used to inherit that variable and reject every launch flag.
+
+---
+
 Grammar coverage: the five gaps the roadmap had measured are closed, and one silent misparse found
 while verifying them is fixed.
 

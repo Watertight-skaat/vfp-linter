@@ -30,8 +30,9 @@
 | `run-all-tests.js`        | Each fixture's diagnostics match its recorded `.expected` file, exactly                 |
 | `run-ast-tests.js`        | `ast.ts` declares exactly the node types and properties the grammar emits               |
 | `run-scope-tests.js`      | The contents of the symbol table built from `test-files/scope.prg`                       |
-| `run-severity-tests.js`   | Unsupported syntax follows the severity setting; broken code ignores it                  |
+| `run-severity-tests.js`   | Each rule follows `foxpro.rules`; locked rules and syntax errors ignore it; suppression comments; `package.json` and the README name every rule |
 | `run-keyword-tests.js`    | Every keyword literal in the grammar still allows an identifier that starts with it       |
+| `run-fix-tests.js`        | Each quick fix produces the expected text and makes its own finding go away; the Outline and folding ranges |
 
 Fixtures live in three places. `test-files/*.prg` is the coverage corpus: the grammar is expected to
 read all of it. A `.expected` file against one of those records either a grammar gap or a rule
@@ -132,15 +133,22 @@ git history and re-add `eslint`, `@eslint/js`, `@stylistic/eslint-plugin`,
 │   ├── src
 │   │   ├── test // End to End tests for Language Client / Server
 │   │   └── extension.ts // Language Client entry point
-├── package.json // The extension manifest.
+├── language-configuration.json // Comments, brackets and indentation for the editor
+├── package.json // The extension manifest, including the foxpro.rules settings schema
 └── server // Language Server
     └── src
         ├── ast.ts // Typed AST: a discriminated union over every node the grammar emits
         ├── foxpro.pegjs // The grammar
-        ├── linter.ts // Rules; importable without a connection, so tests can run it
+        ├── linter.ts // lint(text): parse, run the rules, resolve severities, apply suppressions
+        ├── outline.ts // Document symbols and folding ranges, read off the tree
+        ├── rule.ts // The Rule and RuleContext types, and the helpers every rule shares
+        ├── rules/ // One module per family of rules, registered in rules/index.ts
         ├── scope.ts // Per-routine symbol table the scope-dependent rules read
         └── server.ts // Language Server entry point
 ```
+
+Nothing under `server/src` except `server.ts` imports the language server, so `bun run test` drives
+`lint()`, the symbol table and the outline straight from source.
 
 ### When diagnostics run
 
@@ -159,7 +167,27 @@ rather than racing it.
 
 ### Rules
 
-The user-facing list of rules and what they report is in [README.md](README.md). Two implementation
+A rule is an object with a `code`, a default `severity` and a `check`, made with `onNode()` for a rule
+that wants every node of some types or `onFile()` for one that runs once with the whole program. It
+reports through `ctx.report(location, message, fix?)`; the context also carries the symbol table, the
+source lines and the file's line ending, which is what a fix needs to build an edit. `linter.ts` makes
+one traversal for every node rule, runs the file rules, resolves each rule's severity from
+`foxpro.rules` (a rule marked `locked` ignores the settings), drops what a suppression comment covers,
+and sorts what is left.
+
+To add a rule: write it in the module its family lives in, add it to `rules/index.ts`, add its code and
+default to the `foxpro.rules` schema in `package.json`, and add a row to the README table.
+`run-severity-tests.js` fails until the last two are done, so the settings UI and the docs cannot
+drift from the registry.
+
+A fix is a title and a list of edits. It travels on the diagnostic's `data`, which the client hands back
+untouched with a code-action request, so `server.ts` never recomputes anything: it wraps the fix as a
+quick fix and adds the generic *Suppress on this line* action beside it. A fix must be safe where it
+lands -- the `LOCAL` for `implicit-private` goes at the top of the routine rather than above the first
+write, because `LOCAL` resets the variable and the first write is often inside a loop -- and
+`run-fix-tests.js` asserts each one by applying it and linting the result.
+
+The user-facing list of rules and what they report is in [README.md](README.md). Three implementation
 notes that do not belong there:
 
 **`implicit-private`** reports a symbol whose kind is `implicit` -- nothing declared it -- and that is

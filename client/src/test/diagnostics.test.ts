@@ -11,8 +11,10 @@ suite('Should get diagnostics', () => {
 		const diagnostics = vscode.languages.getDiagnostics(docUri);
 
 		assert.strictEqual(diagnostics.length, 1, `expected 1 diagnostic, got ${diagnostics.length}`);
-		assert.match(diagnostics[0].source ?? '', /^VFP Linter/);
-		assert.strictEqual(diagnostics[0].severity, vscode.DiagnosticSeverity.Error);
+		assert.strictEqual(diagnostics[0].source, 'VFP Linter');
+		assert.strictEqual(diagnostics[0].code, 'unsupported-syntax');
+		// Advisory by default: valid FoxPro the grammar has not learned is not an error.
+		assert.strictEqual(diagnostics[0].severity, vscode.DiagnosticSeverity.Information);
 		assert.strictEqual(diagnostics[0].range.start.line, 5);
 	});
 

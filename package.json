@@ -4,7 +4,7 @@
 	"description": "Diagnostics for Visual FoxPro: a real grammar, and rules that stay quiet unless there is evidence",
 	"author": "Sean Kaat",
 	"license": "MIT",
-	"version": "1.2.1",
+	"version": "1.2.2",
 	"publisher": "Watertight",
 	"icon": "images/icon.png",
 	"categories": [
@@ -41,7 +41,8 @@
 					".prg",
 					".mpr",
 					".spr"
-				]
+				],
+				"configuration": "./language-configuration.json"
 			}
 		],
 		"configuration": {
@@ -73,7 +74,88 @@
 						"Do not report unsupported syntax at all."
 					],
 					"default": "information",
-					"markdownDescription": "How to report statements the linter cannot parse yet. These are usually valid FoxPro the grammar has not learned rather than mistakes in your code, so they are advisory by default. Genuine syntax errors are always reported as errors, whatever this is set to."
+					"markdownDescription": "How to report statements the linter cannot parse yet. These are usually valid FoxPro the grammar has not learned rather than mistakes in your code, so they are advisory by default. Genuine syntax errors are always reported as errors, whatever this is set to.",
+					"markdownDeprecationMessage": "Use `#foxpro.rules#` instead, which sets the severity of every rule, `unsupported-syntax` included."
+				},
+				"foxpro.rules": {
+					"scope": "resource",
+					"type": "object",
+					"markdownDescription": "The severity of each rule, or `off` to disable it. A rule not listed here keeps its default. `syntax-error` and `unterminated-block` are always errors and cannot be set. Any diagnostic can also be silenced in place with a comment: `* vfp-lint-disable-next-line implicit-private`.",
+					"additionalProperties": false,
+					"properties": {
+						"unsupported-syntax": {
+							"type": "string",
+							"enum": ["error", "warning", "information", "hint", "off"],
+							"default": "information",
+							"description": "Valid FoxPro the grammar has not learned yet."
+						},
+						"implicit-private": {
+							"type": "string",
+							"enum": ["error", "warning", "information", "hint", "off"],
+							"default": "warning",
+							"description": "An assignment to an undeclared name, which FoxPro creates as a PRIVATE."
+						},
+						"unused-local": {
+							"type": "string",
+							"enum": ["error", "warning", "information", "hint", "off"],
+							"default": "warning",
+							"description": "A LOCAL that is never read or written."
+						},
+						"missing-memvar-prefix": {
+							"type": "string",
+							"enum": ["error", "warning", "information", "hint", "off"],
+							"default": "warning",
+							"description": "A variable referenced without m. whose name is also used as a field."
+						},
+						"unreachable-code": {
+							"type": "string",
+							"enum": ["error", "warning", "information", "hint", "off"],
+							"default": "warning",
+							"description": "A statement after RETURN, EXIT or LOOP in the same block."
+						},
+						"duplicate-case": {
+							"type": "string",
+							"enum": ["error", "warning", "information", "hint", "off"],
+							"default": "warning",
+							"description": "A CASE condition identical to an earlier one in the same DO CASE."
+						},
+						"private-all": {
+							"type": "string",
+							"enum": ["error", "warning", "information", "hint", "off"],
+							"default": "warning",
+							"description": "PRIVATE ALL, which hides every variable of the caller."
+						},
+						"unlinked-tables": {
+							"type": "string",
+							"enum": ["error", "warning", "information", "hint", "off"],
+							"default": "warning",
+							"description": "Tables in FROM with nothing relating them: a Cartesian product."
+						},
+						"select-without-into": {
+							"type": "string",
+							"enum": ["error", "warning", "information", "hint", "off"],
+							"default": "warning",
+							"description": "A query with no INTO or TO, which browses its whole result."
+						},
+						"having-without-group-by": {
+							"type": "string",
+							"enum": ["error", "warning", "information", "hint", "off"],
+							"default": "information",
+							"description": "HAVING with no GROUP BY, so it is only a post-filter."
+						},
+						"try-without-catch": {
+							"type": "string",
+							"enum": ["error", "warning", "information", "hint", "off"],
+							"default": "information",
+							"description": "A TRY with neither CATCH nor FINALLY."
+						},
+						"empty-branch": {
+							"type": "string",
+							"enum": ["error", "warning", "information", "hint", "off"],
+							"default": "information",
+							"description": "An IF, ELSE, CASE or OTHERWISE branch with no statements."
+						}
+					}
 				},
 				"foxpro.trace.server": {
 					"scope": "window",
@@ -100,7 +182,7 @@
 		"watch:bundle": "node ./scripts/build.mjs --watch",
 		"typecheck": "tsc -p client/tsconfig.json && tsc -p server/tsconfig.json",
 		"postinstall": "cd client && bun install && cd ../server && bun install && cd .. && bun run build:parser",
-		"test": "bun ./test-files/run-all-tests.js && bun ./test-files/run-ast-tests.js && bun ./test-files/run-scope-tests.js && bun ./test-files/run-severity-tests.js && bun ./test-files/run-keyword-tests.js",
+		"test": "bun ./test-files/run-all-tests.js && bun ./test-files/run-ast-tests.js && bun ./test-files/run-scope-tests.js && bun ./test-files/run-severity-tests.js && bun ./test-files/run-keyword-tests.js && bun ./test-files/run-fix-tests.js",
 		"test:update": "bun ./test-files/run-all-tests.js --update",
 		"release": "node ./scripts/publish.mjs",
 		"e2e": "bun run compile && node ./scripts/build.mjs --tests && node client/out/test/runTest.js"

@@ -1,8 +1,7 @@
 // Diffs every fixture's diagnostics against a recorded expectation, so a rule that is supposed to fire can be regression-tested and a severity change shows up in review.
 // A fixture with no `.expected` file must produce no diagnostics at all. Run `bun run test:update` to rewrite the expectations, then review the diff.
-const parser = require('../server/src/parser.js');
 const fs = require('fs');
-const { runLinterRules } = require('../server/src/linter.ts');
+const { lint } = require('../server/src/linter.ts');
 
 // This harness is also a grammar-coverage probe, so it asks for the strict reading: a statement the grammar cannot parse is an error here, even though users get it as advisory information.
 const strict = { unsupportedSyntaxSeverity: 'error' };
@@ -23,19 +22,8 @@ function format(diagnostic) {
 	return `${line + 1}:${character + 1} ${severity} ${diagnostic.code ?? '(no code)'} ${message}`;
 }
 
-function diagnose(file) {
-	const src = fs.readFileSync(file, 'utf-8');
-	let ast;
-	try {
-		ast = parser.parse(src, { grammarSource: file });
-	} catch (e) {
-		// A parse failure is recorded like any other diagnostic, so the syntax-error path can be tested too.
-		const start = e.location && e.location.start;
-		const at = start ? `${start.line}:${start.column}` : '1:1';
-		return [`${at} error syntax-error ${String(e.message).replace(/\s+/g, ' ').trim()}`];
-	}
-	return runLinterRules(ast, strict).map(format);
-}
+// The same entry point the server calls, so a parse failure is recorded through the same path the editor shows it.
+const diagnose = file => lint(fs.readFileSync(file, 'utf-8'), strict).diagnostics.map(format);
 
 const failures = [];
 let passed = 0;
