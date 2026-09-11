@@ -6,6 +6,7 @@
 	"license": "MIT",
 	"version": "1.2.0",
 	"publisher": "Watertight",
+	"icon": "images/icon.png",
 	"categories": [
 		"Programming Languages",
 		"Linters"
