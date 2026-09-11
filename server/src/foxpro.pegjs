@@ -724,14 +724,8 @@ SelectCore
   = "SELECT"i WB WS0
     quant:("ALL"i / "DISTINCT"i)? WS0
     top:("TOP"i WS0 n:Expression WS0 percent:("PERCENT"i)? { return { count: n, percent: !!percent }; })? WS0
-    list:(!("FROM"i ![a-zA-Z0-9_]
-          / "WITH"i ![a-zA-Z0-9_]
-          / "WHERE"i ![a-zA-Z0-9_]
-          / "GROUP BY"i ![a-zA-Z0-9_] 
-          / "HAVING"i ![a-zA-Z0-9_] 
-          / "ORDER BY"i ![a-zA-Z0-9_] 
-          / "INTO"i ![a-zA-Z0-9_] 
-          / "UNION"i ![a-zA-Z0-9_]) l:SelectList { return l; })?
+    // Deliberately not SelectClauseKeyword: the four tail-only flags are excluded from an alias but are ordinary column names in the list, so `SELECT plain FROM t` selects a column called plain.
+    list:(!SelectListStopKeyword l:SelectList { return l; })?
     parts:(ContSpace SelectTailPart)* {
       let from = null, withbuf = null, where = null, group = null, having = null, order = null, destination = null, pref = null, noconsol = false, plain = false, nowait = false;
       for (const t of parts) {
@@ -755,8 +749,6 @@ SelectCore
         top: top || null,
         list: list || [node('SelectStar', {})],
         from: from || null,
-        // if the FromClause provided intermixed items, expose them for consumers
-        fromItems: from ? from.items : null,
         withBuffering: withbuf || null,
         where: where || null,
         groupBy: group || null,
@@ -769,6 +761,14 @@ SelectCore
         nowait
       };
     }
+
+// A select list item ends at one of these, so none of them can be an implicit alias -- the same lookahead guards every alias position.
+SelectClauseKeyword
+  = ("FROM"i / "WITH"i / "WHERE"i / "GROUP"i / "HAVING"i / "ORDER"i / "INTO"i / "UNION"i / "PREFERENCE"i / "NOCONSOLE"i / "PLAIN"i / "NOWAIT"i) ![a-zA-Z0-9_]
+
+// What can stand in place of the whole select list, which is the clause keywords only: NOCONSOLE, PLAIN, NOWAIT and PREFERENCE are legal column names there.
+SelectListStopKeyword
+  = ("FROM"i / "WITH"i / "WHERE"i / "GROUP"i / "HAVING"i / "ORDER"i / "INTO"i / "UNION"i) ![a-zA-Z0-9_]
 
 SelectList
   = head:SelectItem tail:(_ (MacroSubstitute _)* "," _ SelectItem)* { return [head, ...tail.map(t => t[4])]; }
@@ -784,22 +784,7 @@ SelectTailPart
   / order:OrderByClause { return { kind: 'ORDER', value: order }; }
   / pref:PreferenceClause { return { kind: 'PREF', value: pref }; }
   / ms:MacroSubstitute { return { kind: 'MACRO', value: ms }; }
-  / !(
-      "FROM"i ![A-Za-z0-9_]
-    / "WITH"i ![A-Za-z0-9_]
-    / "WHERE"i ![A-Za-z0-9_]
-    / "GROUP BY"i ![A-Za-z0-9_]
-    / "HAVING"i ![A-Za-z0-9_]
-    / "ORDER BY"i ![A-Za-z0-9_]
-    / "INTO"i ![A-Za-z0-9_]
-    / "UNION"i ![A-Za-z0-9_]
-    / "PREFERENCE"i ![A-Za-z0-9_]
-    / "NOCONSOLE"i ![A-Za-z0-9_]
-    / "PLAIN"i ![A-Za-z0-9_]
-    / "NOWAIT"i ![A-Za-z0-9_]
-    / "," ![A-Za-z0-9_]
-    / "JOIN"i ![A-Za-z0-9_]
-    ) e:Expression { return { kind: 'EXTRA', value: e }; }
+  / !(SelectClauseKeyword / "," ![A-Za-z0-9_] / "JOIN"i ![A-Za-z0-9_]) e:Expression { return { kind: 'EXTRA', value: e }; }
   / "NOCONSOLE"i { return { kind: 'NOCONSOLE' }; }
   / "PLAIN"i { return { kind: 'PLAIN' }; }
   / "NOWAIT"i { return { kind: 'NOWAIT' }; }
@@ -810,69 +795,27 @@ SelectItem
   / tbl:Identifier "." "*" { return node('SelectStar', { table: tbl }); }
   / expr:Expression alias:(
       _ "AS"i _ a:Identifier { return a; }
-      / _ !(
-          "FROM"i ![a-zA-Z0-9_]
-        / "WITH"i ![a-zA-Z0-9_]
-        / "WHERE"i ![a-zA-Z0-9_]
-        / "GROUP"i ![a-zA-Z0-9_]
-        / "HAVING"i ![a-zA-Z0-9_]
-        / "ORDER"i ![a-zA-Z0-9_]
-        / "INTO"i ![a-zA-Z0-9_]
-        / "UNION"i ![a-zA-Z0-9_]
-        / "PREFERENCE"i ![a-zA-Z0-9_]
-        / "NOCONSOLE"i ![a-zA-Z0-9_]
-        / "PLAIN"i ![a-zA-Z0-9_]
-        / "NOWAIT"i ![a-zA-Z0-9_]
-      ) a:Identifier { return a; }
+      / _ !SelectClauseKeyword a:Identifier { return a; }
     )? {
       return node('SelectItem', { expression: expr, alias: alias || null }); }
   / callee:Identifier _? "(" _ args:ArgumentList? _ ")" alias:(
       _ "AS"i _ a:Identifier { return a; }
-      / _ !(
-          "FROM"i ![a-zA-Z0-9_]
-        / "WITH"i ![a-zA-Z0-9_]
-        / "WHERE"i ![a-zA-Z0-9_]
-        / "GROUP"i ![a-zA-Z0-9_]
-        / "HAVING"i ![a-zA-Z0-9_]
-        / "ORDER"i ![a-zA-Z0-9_]
-        / "INTO"i ![a-zA-Z0-9_]
-        / "UNION"i ![a-zA-Z0-9_]
-        / "PREFERENCE"i ![a-zA-Z0-9_]
-        / "NOCONSOLE"i ![a-zA-Z0-9_]
-        / "PLAIN"i ![a-zA-Z0-9_]
-        / "NOWAIT"i ![a-zA-Z0-9_]
-      ) a:Identifier { return a; }
+      / _ !SelectClauseKeyword a:Identifier { return a; }
     )? {
       return node('SelectItem', { expression: node('CallExpression', { callee: node('Identifier', { name: callee }), arguments: args || [] }), alias: alias || null });
     }
   / "(" _ inner:Expression _ ")" alias:(
       _ "AS"i _ a:Identifier { return a; }
-      / _ !(
-          "FROM"i ![a-zA-Z0-9_]
-        / "WITH"i ![a-zA-Z0-9_]
-        / "WHERE"i ![a-zA-Z0-9_]
-        / "GROUP"i ![a-zA-Z0-9_]
-        / "HAVING"i ![a-zA-Z0-9_]
-        / "ORDER"i ![a-zA-Z0-9_]
-        / "INTO"i ![a-zA-Z0-9_]
-        / "UNION"i ![a-zA-Z0-9_]
-        / "PREFERENCE"i ![a-zA-Z0-9_]
-        / "NOCONSOLE"i ![a-zA-Z0-9_]
-        / "PLAIN"i ![a-zA-Z0-9_]
-        / "NOWAIT"i ![a-zA-Z0-9_]
-      ) a:Identifier { return a; }
+      / _ !SelectClauseKeyword a:Identifier { return a; }
     )? {
       return node('SelectItem', { expression: inner, alias: alias || null });
     }
 
 FromClause
   = "FROM"i ContSpace force:("FORCE"i ContSpace)? seq:FromSequence {
-      // seq contains ordered tables and joins; expose arrays for backwards compatibility
+      // `items` keeps tables and joins in source order; `tables` and `joins` are that same list split by kind, which is how every consumer wants it.
       return { force: !!force, tables: seq.tables, joins: seq.joins, items: seq.items };
     }
-
-TableList
-  = head:TableRef tail:(_ "," _ TableRef)* { return [head, ...tail.map(t => t[3])]; }
 
 // FromSequence allows TableRef and JoinClause to be intermixed, e.g.
 // FROM t1 ; LEFT JOIN t2 ON ... ; ,t3, t4
@@ -959,15 +902,6 @@ ToClause
 
 PreferenceClause
   = "PREFERENCE"i __ p:IdentifierOrString { return p; }
-
-NoConsoleFlag
-  = "NOCONSOLE"i { return true; }
-
-PlainFlag
-  = "PLAIN"i { return true; }
-
-NowaitFlag
-  = "NOWAIT"i { return true; }
 
 // -----------------------------
 // COPY/RENAME
@@ -1199,13 +1133,9 @@ DeleteStatement
       / target:IdentifierOrString _ from:FromClause { return { target, from }; }
     ) _
     where:WhereClause? {
-      const from = sel.from;
       return node('DeleteStatement', {
         target: sel.target || null,
-        // keep backward-compatible fields
-        tables: from.tables,
-        joins: from.joins,
-        fromItems: from.items,
+        from: sel.from,
         where: where || null
       });
     }
@@ -1217,8 +1147,7 @@ DeleteStatement
     noopt:("NOOPTIMIZE"i)? {
       return node('DeleteStatement', {
         target: null,
-        tables: null,
-        joins: null,
+        from: null,
         where: null,
         scope: scope || null,
         for: forp || null,
@@ -2427,8 +2356,6 @@ Keyword "keyword"
   / ("ON"i          ![a-zA-Z0-9_])
   / ("WHERE"i       ![a-zA-Z0-9_])
   / ("SELECT"i     ![a-zA-Z0-9_])
-  / ("WITH"i       ![a-zA-Z0-9_])
-  / ("WHERE"i      ![a-zA-Z0-9_])
   / ("HAVING"i     ![a-zA-Z0-9_])
   / ("UNION"i      ![a-zA-Z0-9_])
   / ("INTO"i       ![a-zA-Z0-9_])
@@ -2550,9 +2477,6 @@ LineContinuation "semicolon"
 Whitespace "whitespace"
   = [ \t\f\v]+ 
 
-EmptyLine "empty line"
-	= __ LineTerminator
-
 Comment "comment"
   = PartialLineComment
   / FullLineComment
@@ -2562,11 +2486,6 @@ PartialLineComment "&& comment"
 
 FullLineComment "* comment"
   = [ \t]* "*" (!LineTerminator .)*
-
-EOS
-  = _ PartialLineComment? LineTerminatorSequence
-  // / __ EOF
-  / __
 
 EOF "end of file"
 	= !.

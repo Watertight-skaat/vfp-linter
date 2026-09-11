@@ -154,3 +154,14 @@ PROCEDURE ComputedAreas
 	USE IN (m.tcAlias)
 	SET ORDER TO (m.tcAlias) IN (m.tcAlias)
 ENDPROC
+
+* Both DELETE forms on the one node type. The SQL form's tables and joins hang off its FROM clause rather
+* than sitting beside it on the statement, so the assertion is that the names in each clause are still
+* reached: a FROM that stopped being visited would take the WHERE beside it out of the symbol table.
+PROCEDURE Purging
+	LPARAMETERS tnBatch
+	LOCAL lnFloor
+	lnFloor = 0
+	DELETE FROM orders WHERE batch_id = m.tnBatch
+	DELETE FOR qty < m.lnFloor IN orders
+ENDPROC

@@ -25,12 +25,8 @@ jobs:
         with:
           node-version: 22
 
-      # The root install runs the client/ and server/ installs through postinstall.
+      # client/ and server/ are workspaces of the root package, so this is the only install and --frozen-lockfile covers all three.
       - run: bun install --frozen-lockfile
-
-      # Those nested installs are not themselves frozen, so check all three lockfiles rather than trusting the root flag.
-      - name: Lockfiles are unchanged
-        run: git diff --exit-code -- bun.lock client/bun.lock server/bun.lock
 
       # Regenerates the parser, type-checks both projects, then bundles.
       - run: bun run compile

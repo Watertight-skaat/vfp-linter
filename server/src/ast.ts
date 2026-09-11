@@ -631,8 +631,6 @@ export interface SelectStatement extends NodeBase {
   top: { count: Expr; percent: boolean } | null;
   list: (SelectItem | SelectStar)[];
   from: FromClause | null;
-  /** from.items, hoisted for convenience; null when there is no FROM. */
-  fromItems: FromItem[] | null;
   withBuffering: unknown;
   where: Expr | null;
   groupBy: Expr[] | null;
@@ -676,9 +674,8 @@ export interface UpdateStatement extends NodeBase {
 export interface DeleteStatement extends NodeBase {
   type: 'DeleteStatement';
   target: IdentifierOrString | null;
-  tables: TableRef[] | null;
-  joins: JoinClause[] | null;
-  fromItems?: FromItem[];
+  /** The SQL form only; null for the Xbase form. */
+  from: FromClause | null;
   where: Expr | null;
   scope?: IdentifierOrString | null;
   for?: Expr | null;

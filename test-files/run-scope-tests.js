@@ -37,7 +37,8 @@ check('scopes found', table.scopes.map(s => `${s.name}:${s.kind}`), [
 	'Records:procedure',
 	'Reordered:procedure',
 	'KeywordMembers:procedure',
-	'ComputedAreas:procedure'
+	'ComputedAreas:procedure',
+	'Purging:procedure'
 ]);
 check('main is the root', table.main.name, '(main)');
 check('methods hang off the class', scope('Widget').children.map(c => c.name), ['Widget.Init', 'Widget.Label']);
@@ -162,5 +163,15 @@ check('USE IN closes a targeted area', scope('ComputedAreas').workArea.map(e => 
 check('the variable naming a computed area is read', shape('ComputedAreas', 'TCALIAS'),
 	{ kind: 'parameter', type: null, array: false, declared: true, reads: 3, writes: 0 });
 check('a targeted close leaves the current alias alone', aliasInEffectAt(scope('ComputedAreas'), 200), null);
+
+// --- DELETE, both forms ----------------------------------------------------
+check('the SQL form reaches its WHERE through the statement, not a hoisted copy', shape('Purging', 'TNBATCH'),
+	{ kind: 'parameter', type: null, array: false, declared: true, reads: 1, writes: 0 });
+check('the Xbase form reaches its FOR', shape('Purging', 'LNFLOOR'),
+	{ kind: 'local', type: null, array: false, declared: true, reads: 1, writes: 1 });
+// An unqualified name in a DELETE is booked as an implicit read marked sqlContext, which is what tells missing-memvar-prefix it could be a field. Losing the FROM clause would take these reads with it.
+check('unqualified names in a DELETE are marked as SQL context',
+	['BATCH_ID', 'QTY'].map(n => { const r = sym('Purging', n)?.reads ?? []; return [r.length, r[0]?.sqlContext]; }),
+	[[1, true], [1, true]]);
 
 report('Scope checks');

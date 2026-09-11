@@ -103,6 +103,17 @@ Fixed: `TAG` was read as the index file name and the tag name was left to the ca
 the statement look parsed while the selection was wrong. `USE ... ORDER` already guarded this; the
 `SET` form now guards it the same way.
 
+### Repository housekeeping
+
+No change to what the linter reports. `client/` and `server/` are now Bun workspaces of the root
+package, so there is one lockfile and one install instead of three and a `postinstall` chain, and CI
+no longer has to diff the lockfiles to make `--frozen-lockfile` mean anything. The grammar loses six
+rules nothing referenced, the two keywords `Keyword` listed twice, and five copies of the same
+select-clause lookahead, now the single rule `SelectClauseKeyword` — `SelectCore` keeps a shorter list
+of its own, since `NOCONSOLE`, `PLAIN`, `NOWAIT` and `PREFERENCE` cannot be an alias but are ordinary
+column names. `SelectStatement.fromItems` and `DeleteStatement.tables`/`joins`/`fromItems` are gone;
+`DELETE ... FROM` now carries the `FromClause` itself, as `SELECT` and `UPDATE` already did.
+
 ## 1.2.1
 
 Packaging only — no change to the grammar or the rules. The extension now ships an icon, so it has a

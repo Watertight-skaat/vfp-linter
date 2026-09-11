@@ -1,9 +1,6 @@
 {
 	"compilerOptions": {
-		// VS Code 1.101 (the floor declared in engines.vscode) ships Node 22.15.
-		// `node20` is the newest pinned module mode TypeScript 5.9 offers; Node 22 is a
-		// superset of it. ES2024 is exactly what Node 22 implements -- do not raise either
-		// without raising engines.vscode first, or the compiler stops enforcing the floor.
+		// Support 2 months of VSCode Releases
 		"module": "node20",
 		"esModuleInterop": true,
 		"skipLibCheck": true,
@@ -12,8 +9,7 @@
 			"ES2024"
 		],
 		"strict": true,
-		// ESLint is not currently in the toolchain (typescript-eslint does not support TS 7),
-		// so the compiler carries the unused-code checks it used to provide.
+		// ESLint is not in the toolchain (typescript-eslint does not support TS 7), so the compiler carries the unused-code checks it used to provide.
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
 		"sourceMap": true,

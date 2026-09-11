@@ -2,7 +2,7 @@
 
 ## Developing the LSP
 
-- Install [Bun](https://bun.sh), then run `bun install` in this folder. This installs the dependencies for the root, client and server packages.
+- Install [Bun](https://bun.sh), then run `bun install` in this folder. `client/` and `server/` are workspaces of the root package, so one install covers all three.
 - Open VS Code on this folder.
 - run `bun run dev` to start developing
 - Switch to the Run and Debug View in the Sidebar (Ctrl+Shift+D).
@@ -15,7 +15,7 @@
 
 | Command             | What it does                                                           |
 | ------------------- | ---------------------------------------------------------------------- |
-| `bun install`       | Installs root, client and server dependencies                          |
+| `bun install`       | Installs the workspace: root, client and server                        |
 | `bun run compile`   | Regenerates the parser, type-checks, and bundles client + server       |
 | `bun run dev`       | Watches the grammar, the bundles and both type-check projects          |
 | `bun run typecheck` | Type-checks only (esbuild does not type-check)                         |
@@ -67,9 +67,8 @@ that sees it.
 
 `.github/workflows/ci.yml` runs on every push to `master` and every pull request:
 `bun install --frozen-lockfile`, then `bun run compile`, then `bun run test`, on pinned bun and
-node 22. One guard sits between them: **all three lockfiles are unchanged.** The root install runs the
-`client/` and `server/` installs through `postinstall`, and those nested installs are not themselves
-frozen, so the lockfiles are diffed rather than trusting the root flag.
+node 22. `client/` and `server/` are workspaces of the root package, so there is one lockfile and
+`--frozen-lockfile` is the whole guard.
 
 `bun run e2e` is not part of CI: it downloads VS Code and needs a display.
 

@@ -29,11 +29,6 @@ These announce themselves as `unsupported-syntax` rather than producing a wrong 
 
 ## Cleanup
 
-- **Bun workspaces** — three `package.json` files, three lockfiles, a `postinstall` chain and a CI step that diffs the lockfiles all exist because the packages are not a workspace. Declaring `workspaces` in the root collapses that to one lockfile and one frozen install.
-- **Grammar dead weight** — unused rules `EOS`, `EmptyLine`, `NoConsoleFlag`, `NowaitFlag`, `PlainFlag` and `TableList`; `WITH` and `WHERE` listed twice in `Keyword`; the twelve-keyword negative lookahead repeated three times in `SelectItem` and again in `SelectCore` and `SelectTailPart`, which one `SelectClauseKeyword` rule would replace.
-- **"Backward compatible" fields** — `fromItems` on `SelectStatement` and the `tables`/`joins`/`fromItems` triple on `DeleteStatement` are marked as kept for compatibility, but nothing outside this repo consumes the AST.
-- **Stale editor config** — `.vscode/tasks.json` references a `watch` script that does not exist, `.vscode/settings.json` still runs ESLint on save, and the root `tsconfig.json` comment still talks about TypeScript 5.9.
-- **`test-files/do.FXP`** — a compiled FoxPro object file committed in an early pass. Remove it and ignore `*.fxp`.
 - **e2e in CI** — `bun run e2e` is the only thing exercising the LSP over the wire, and it passes again as of this pass. It downloads VS Code and needs a display, so it would need `xvfb-run` and would be the flakiest job in the file. The case for a separate, non-blocking job: the suite was red for two releases, on two counts, and nobody knew. Two things to fix on the way: the runner exits 0 when Mocha finds no test files, and the quick fixes, Outline and folding have no e2e coverage yet.
 
 ## Practices

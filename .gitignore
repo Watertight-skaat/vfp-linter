@@ -16,3 +16,7 @@ package-lock.json
 # grammar change carried a 3,000-line parser diff around it, burying the review that mattered.
 server/src/parser.js
 server/src/parser.d.ts
+
+# compiled FoxPro object files (FoxPro writes .FXP; the pattern is case-sensitive where the filesystem is)
+*.fxp
+*.FXP
