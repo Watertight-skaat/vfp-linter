@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 1.2.0
+
+The release that finishes the symbol table's first pair of rules, and closes every grammar gap the
+corpus put a number on.
 
 ### `unused-local`
 
