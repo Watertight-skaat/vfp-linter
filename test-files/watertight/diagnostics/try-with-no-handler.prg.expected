@@ -1,0 +1,1 @@
+5:1 information try-without-catch This TRY has neither CATCH nor FINALLY, so it handles nothing and any error still propagates to the caller.

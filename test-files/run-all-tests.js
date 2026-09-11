@@ -9,11 +9,11 @@ const strict = { unsupportedSyntaxSeverity: 'error' };
 const severityNames = { 1: 'error', 2: 'warning', 3: 'information', 4: 'hint' };
 const update = process.argv.includes('--update');
 
-// test-files/ is the corpus that must parse cleanly; test-files/diagnostics/ holds fixtures written to make a rule fire.
-const dirs = ['./test-files', './test-files/diagnostics'];
-const fixtures = dirs.flatMap(dir =>
-	fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith('.prg')).map(f => `${dir}/${f}`) : []
+// Every .prg under test-files/ is a fixture. The top level and test-files/watertight/ are corpora that must parse cleanly; the diagnostics/ directories hold fixtures written to make a rule fire, or to record a construct the grammar cannot read yet.
+const collect = dir => fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry =>
+	entry.isDirectory() ? collect(`${dir}/${entry.name}`) : entry.name.endsWith('.prg') ? [`${dir}/${entry.name}`] : []
 );
+const fixtures = collect('./test-files');
 
 // One diagnostic per line: "line:character severity code message", positions 1-based as an editor shows them.
 function format(diagnostic) {

@@ -1,0 +1,6 @@
+7:8 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '(D_MTPC)'
+10:38 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'IN 0'
+13:17 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'stnum + acctnum INTO (m.cAlias)'
+14:23 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'DESCENDING IN (m.cAlias)'
+15:8 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'IN (m.cAlias)'
+18:12 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'TO'

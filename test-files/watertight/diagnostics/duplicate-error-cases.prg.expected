@@ -1,0 +1,3 @@
+14:2 warning duplicate-case This condition is identical to the CASE on line 6, so this branch can never be reached.
+16:2 warning duplicate-case This condition is identical to the CASE on line 8, so this branch can never be reached.
+18:2 warning duplicate-case This condition is identical to the CASE on line 10, so this branch can never be reached.

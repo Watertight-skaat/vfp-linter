@@ -1,0 +1,1 @@
+4:10 warning private-all PRIVATE ALL hides every variable of the caller from this routine and everything it calls. Name the variables it needs to hide, or declare the ones this routine owns as LOCAL.

@@ -1,0 +1,2 @@
+6:1 warning unlinked-tables Nothing relates these tables to each other: CUSTINFO, STMAST. VFP will build the Cartesian product -- every row of each against every row of the others -- which on real table sizes reads as a hang rather than an error.
+12:1 warning unlinked-tables Nothing relates these tables to each other: INVINFO + SERVADDR, PRODMAST. VFP will build the Cartesian product -- every row of each against every row of the others -- which on real table sizes reads as a hang rather than an error.

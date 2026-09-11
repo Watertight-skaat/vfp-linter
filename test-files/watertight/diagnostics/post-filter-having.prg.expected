@@ -1,0 +1,2 @@
+6:1 warning unlinked-tables Nothing relates these tables to each other: U1, U2. VFP will build the Cartesian product -- every row of each against every row of the others -- which on real table sizes reads as a hang rather than an error.
+8:9 information having-without-group-by There is no group by clause, so this is simply a post-filter on the result set.

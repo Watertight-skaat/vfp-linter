@@ -1,0 +1,2 @@
+5:1 warning select-without-into This query has nowhere to put its result, so VFP sends the whole result set to a Browse window at run time. Add INTO CURSOR, INTO TABLE, INTO ARRAY, or TO FILE.
+9:1 warning select-without-into This query has nowhere to put its result, so VFP sends the whole result set to a Browse window at run time. Add INTO CURSOR, INTO TABLE, INTO ARRAY, or TO FILE.

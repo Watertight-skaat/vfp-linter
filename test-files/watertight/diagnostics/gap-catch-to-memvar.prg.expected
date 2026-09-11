@@ -1,0 +1,1 @@
+7:11 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '.ErrObj'

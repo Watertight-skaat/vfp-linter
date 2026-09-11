@@ -32,7 +32,7 @@
 | `run-scope-tests.js`      | The contents of the symbol table built from `test-files/scope.prg`                       |
 | `run-severity-tests.js`   | Unsupported syntax follows the severity setting; broken code ignores it                  |
 
-Fixtures live in two places. `test-files/*.prg` is the coverage corpus: the grammar is expected to
+Fixtures live in three places. `test-files/*.prg` is the coverage corpus: the grammar is expected to
 read all of it. A `.expected` file against one of those records either a grammar gap or a rule
 finding — `select.prg` and `macro-sub.prg` carry a run of `select-without-into` lines because they
 are SQL syntax fixtures whose queries were written without a destination. Either way the point is
@@ -41,6 +41,11 @@ that it is stated out loud rather than passing silently.
 with the diagnostics it must produce. One of them, `still-unsupported.prg`, is a deliberate ledger
 of constructs the grammar cannot read yet: when one is implemented, `test:update` drops its line and
 the diff shows coverage improving.
+`test-files/watertight/` is a second corpus, modelled on the code patterns in the Watertight ERP
+application rather than on the grammar: same rule as the top level -- it must parse cleanly, so a
+`.expected` beside one of those files is a regression -- with its own `diagnostics/` subdirectory
+for the rule findings and grammar gaps that need surrounding code to show what they cost. Its
+`README.md` says what each file covers and `SEE-ALSO.md` records what reading that source turned up.
 
 A fixture with no `.expected` file must produce nothing. To accept a change, run
 `bun run test:update` and review the resulting diff: that diff is the point, because it makes a

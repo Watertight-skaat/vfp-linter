@@ -1,0 +1,3 @@
+7:2 warning missing-memvar-prefix 'stnum' is declared as a variable and is also used as a field name in this file. A bare name resolves to the field while CUSTINFO is open, so write 'm.stnum' to be sure of reaching the variable.
+8:2 warning missing-memvar-prefix 'acctnum' is declared as a variable and is also used as a field name in this file. A bare name resolves to the field while CUSTINFO is open, so write 'm.acctnum' to be sure of reaching the variable.
+17:2 warning missing-memvar-prefix 'invbal' is declared as a variable and is also used as a field name in this file. A bare name resolves to the field while INVINFO is open, so write 'm.invbal' to be sure of reaching the variable.

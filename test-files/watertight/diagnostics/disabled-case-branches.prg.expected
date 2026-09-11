@@ -1,0 +1,2 @@
+8:2 warning duplicate-case This condition is identical to the CASE on line 6, so this branch can never be reached.
+10:2 warning duplicate-case This condition is identical to the CASE on line 6, so this branch can never be reached.

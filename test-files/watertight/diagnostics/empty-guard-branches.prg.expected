@@ -1,0 +1,4 @@
+6:1 information empty-branch This IF branch is empty, so the test decides nothing.
+12:1 information empty-branch This ELSE branch is empty and can be removed.
+20:2 information empty-branch This CASE branch is empty, so matching it does nothing.
+22:2 information empty-branch This OTHERWISE branch is empty and can be removed.
