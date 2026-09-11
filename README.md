@@ -115,6 +115,21 @@ git history and re-add `eslint`, `@eslint/js`, `@stylistic/eslint-plugin`,
         └── server.ts // Language Server entry point
 ```
 
+### When diagnostics run
+
+`onDidChangeContent` is debounced: a document has to stop changing for 300 ms before it is re-linted,
+and each document has its own timer so typing in one file does not hold back another. Closing a
+document cancels its pending timer, and the timer re-reads the document rather than capturing it, so a
+file that changed or closed while the timer ran is never linted from a stale snapshot.
+
+This is about keystroke latency, not throughput. Parsing is not a bottleneck — a 27,000-line file
+takes about 250 ms to parse and under 9 ms to lint — but without the debounce every keystroke queued a
+parse of the whole file. Measured on a burst of eleven edits 40 ms apart: eleven parses and eleven
+`publishDiagnostics` before, one after.
+
+A settings change re-lints through the same path, so it coalesces with whatever the typist has pending
+rather than racing it.
+
 ### Rules
 
 | Code | Severity | What it reports |
