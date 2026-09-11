@@ -27,7 +27,11 @@ ENDPROC
 
 FUNCTION Describe(tcName AS Character)
 	LOCAL lcOut AS Character
-	lcOut = ALLTRIM(tcName)
+	PRIVATE pcHeading AS String
+	PUBLIC gnAccountID AS Integer
+	pcHeading = "<h1>"
+	gnAccountID = 1
+	lcOut = m.pcHeading + ALLTRIM(tcName) + TRANSFORM(m.gnAccountID)
 	RETURN lcOut
 ENDFUNC
 

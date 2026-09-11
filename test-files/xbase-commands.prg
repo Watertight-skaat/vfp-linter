@@ -20,15 +20,19 @@ SUM invbal TO lnRows
 
 FLUSH
 FLUSH FORCE
+FLUSH IN (m.lcAlias) FORCE
 REINDEX
 MD datalog
+MD (ADDBS(m.lcPath) + "temp")
 RD datalog
+DIMEN laWide(1, 16)
 CONTINUE
 NODEFAULT
 PUSH KEY
 POP KEY
 EXTERNAL ARRAY laExternal
 MODIFY STRUCTURE
+MODIFY COMMAND (m.lcPath) NOWAIT
 ALTER TABLE custinfo ADD COLUMN websync l(1)
 RUN /N notepad.exe
 
@@ -36,6 +40,9 @@ RUN /N notepad.exe
 WAIT WINDOW "Resizing graphs..." NOWAIT NOCLEAR
 WAIT WINDOW NOWAIT "Rebuilding"
 WAIT WINDOW "Waiting" TIMEOUT 3
+WAIT WINDOW "Saving" AT 10, 20 NOWAIT
+WAIT "" TIMEOUT 1
+WAIT CLEAR
 SET FILTER TO
 
 * A work area named by an expression, wherever an alias is expected.
@@ -44,6 +51,7 @@ USE (m.lcPath) AGAIN ALIAS (m.lcAlias) IN 0
 SET RELATION TO stnum + acctnum INTO (m.lcAlias)
 SET ORDER TO (m.lcAlias) DESCENDING IN (m.lcAlias)
 SET ORDER TO TAG stnum OF custinfo DESCENDING IN (m.lcAlias)
+SET ORDER TO IIF(TYPE("m.lcAlias") = "U", "stnum", m.lcAlias)
 GO TOP IN (m.lcAlias)
 
 * ADDITIVE anywhere in the option list, not only next to the variable.

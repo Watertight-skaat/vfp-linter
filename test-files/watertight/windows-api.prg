@@ -29,6 +29,9 @@ DECLARE INTEGER OpenProcess IN kernel32 ;
 
 FUNCTION ModulePath(tnProcessId AS Integer) AS Character
 	LOCAL lcBuffer, lnHandle, lnLength, lcResult
+	LOCAL loSecurityAttributes as SECURITY_ATTRIBUTES OF oplocks.prg
+
+	loSecurityAttributes = NULL
 
 	lcBuffer	= SPACE(MAX_PATH)
 	lnHandle	= OpenProcess(PROCESS_QUERY_INFO, 0, tnProcessId)

@@ -26,6 +26,7 @@ DO CASE
 				=prntcolor("PRINTER")
 			ENDIF
 			@ m.prow, m.pcol SAY m.dispval
+			@ PROW()+1, 1
 		ENDIF
 
 	CASE "laser" $ m.print_job_output
@@ -54,6 +55,7 @@ PROCEDURE DrawFrame
 	@ 0.730, m.nCol					SAY "Statement" PICTURE "@I" SIZE 0.938, m.nWidth FONT "MS Sans Serif", 8 STYLE "T"
 	@ 2.500, 2						TO WROWS() - 0.5, WCOLS() - 2 PATTERN 1 COLOR RGB(,,,m.nF1,m.nF2,m.nF3) PEN 1,0
 	@ 5, 10 CLEAR
+	@ PROW() + 1, 0
 
 	RETURN
 ENDPROC

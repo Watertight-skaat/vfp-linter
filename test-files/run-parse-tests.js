@@ -342,4 +342,66 @@ check('the code blocks nest and the directives stand alone',
 	[['IfStatement', ['Assignment', 'PreprocessorDirective', 'Assignment']], ['PreprocessorDirective', 'ENDIF']]);
 check('a fence that does nest is still one block', first('#IF A\nx=1\n#ELSE\n#IF B\ny=1\n#ENDIF\n#ENDIF').alternate.body.map(s => s.type), ['PreprocessorIfStatement']);
 
+// --- the ledger's volume half ------------------------------------------------------
+// Nine constructs that announced themselves rather than parsing, in the order they were measured over the corpus. Each is asserted on the field that was lost, and each has a control beside it: the shape that already worked has to keep working, because every one of these widens a rule that a name of its own could now be eaten by.
+
+// @ with no verb, which just moves the print head: 147 uses, the most common @ there is.
+check('@ with no clause is still the statement', (({ type, verb, options }) => ({ type, verb, options }))(first('@ PROW()+1, 1')),
+	{ type: 'AtStatement', verb: null, options: null });
+check('and its coordinates are read', (({ row, column }) => [row.type, column.value])(first('@ PROW()+1, 1')), ['BinaryExpression', 1]);
+// The bare form has to end the line, or a verb the grammar has not learned reads as it and reports the gap on the tail instead of the statement.
+check('a verb it has not learned is one gap, not a statement and a remainder', types('@ 3, 2 EDIT m.cUsed SIZE 17, 75 NOEDIT'), ['UnknownStatement']);
+check('a verb it has is untouched', first('@ 2,5 SAY "Name:"').verb, 'SAY');
+
+// The console commands.
+check('EJECT', first('EJECT'), { type: 'EjectStatement', page: false });
+check('EJECT PAGE is the in-band form', first('EJECT PAGE').page, true);
+check('RETRY', first('RETRY').type, 'RetryStatement');
+check('SHOW GETS', first('SHOW GETS'), { type: 'ShowGetsStatement', target: null, options: null });
+check('SHOW GET names one, which is a read the symbol table needs',
+	(({ target, options }) => [target, options])(first('SHOW GET m.answer DISABLE')),
+	[{ type: 'MemberExpression', object: { type: 'Identifier', name: 'm' }, property: { type: 'Identifier', name: 'answer' } }, 'DISABLE']);
+check('SHOW WINDOW is still the window command', first('SHOW WINDOW wOut').type, 'ScreenCommandStatement');
+
+// AS on a declaration other than LOCAL, and the OF clause naming the file the type is defined in.
+check('PRIVATE reads a type', first('PRIVATE cHeaderHTML as String'),
+	{ type: 'PrivateDeclaration', name: 'cHeaderHTML', isArray: false, asType: 'String', ofClass: null });
+check('PUBLIC does too', first('PUBLIC pnMailAccountID as Integer').asType, 'Integer');
+check('the class library keeps its extension', first('LOCAL loSec as SECURITY_ATTRIBUTES OF oplocks.prg').ofClass, { type: 'Path', path: 'oplocks.prg' });
+check('an untyped name is unchanged', first('PRIVATE cName'), { type: 'PrivateDeclaration', name: 'cName', isArray: false, asType: null, ofClass: null });
+
+// DELETE's scope clause, which names a record number as often as a word.
+check('DELETE RECORD reads the number as an expression, because the corpus writes RECNO()',
+	first('DELETE RECORD RECNO("rec2inv") IN rec2inv').scope,
+	{ type: 'RECORD', number: { type: 'CallExpression', callee: { type: 'Identifier', name: 'RECNO' }, arguments: [{ type: 'StringLiteral', value: 'rec2inv' }] } });
+check('and the clause after it', first('DELETE RECORD RECNO("rec2inv") IN rec2inv').inTarget, 'rec2inv');
+check('RECALL is the same shape', first('RECALL RECORD 5').scope, { type: 'RECORD', number: { type: 'NumberLiteral', value: 5, raw: '5', currency: false } });
+check('a word scope is still a word', first('DELETE ALL').scope, 'ALL');
+check('and DELETE FROM is still the SQL form', first('DELETE FROM cities').type, 'DeleteStatement');
+
+// The clauses whose operand is an expression rather than a name.
+check('FLUSH IN reads the work area', (({ inTarget, force }) => [inTarget, force])(first('FLUSH IN (m.inWorkArea) FORCE')),
+	[{ type: 'MemberExpression', object: { type: 'Identifier', name: 'm' }, property: { type: 'Identifier', name: 'inWorkArea' } }, true]);
+check('a bare FLUSH is unchanged', first('FLUSH'), { type: 'FlushStatement', inTarget: null, force: false });
+check('SET ORDER TO a call is an expression, not an index file named IIF',
+	first('SET ORDER TO IIF(TYPE("m.cOrder") = "U", "servsnum", m.cOrder)').selection.kind, 'EXPR');
+check('a bare tag is still a file name', first('SET ORDER TO servsnum').selection, { kind: 'FILE', value: 'servsnum' });
+check('MD over an expression', first('MD (ADDBS(m.m_tpath) + "temp")').target.type, 'BinaryExpression');
+check('MD over a path is unchanged', first('MD datalog').target, { type: 'Path', path: 'datalog' });
+check('and MD glued to the parenthesis is still a call', first('MD(1)').type, 'ExpressionStatement');
+check('MODIFY COMMAND over an expression', (({ what, options }) => [what, options])(first('MODIFY COMMAND (m.cFile) NOWAIT')), ['COMMAND', '(m.cFile) NOWAIT']);
+
+// The optional THEN, which the symbol table booked as a read of a variable named THEN.
+check('THEN is punctuation, not the first statement of the branch',
+	first('IF m.stat = 3 THEN\n? 1\nENDIF').consequent.body.map(s => s.type), ['PrintStatement']);
+check('the condition is unchanged beside it', first('IF m.stat = 3 THEN\n? 1\nENDIF').test.operator, '=');
+// It is claimed on the condition's own line only, so the word on the line below is still a name.
+check('a variable called THEN is still a variable', first('IF x\nTHEN = 1\nENDIF').consequent.body, [{ type: 'Assignment', target: { type: 'Identifier', name: 'THEN' }, expression: { type: 'NumberLiteral', value: 1, raw: '1', currency: false } }]);
+
+// DIMEN, the four-letter abbreviation VFP allows on every command word.
+check('DIMEN is DIMENSION', first('DIMEN invarr(1, 16)'),
+	{ type: 'DimensionStatement', items: [{ name: 'invarr', rows: { type: 'NumberLiteral', value: 1, raw: '1', currency: false }, columns: { type: 'NumberLiteral', value: 16, raw: '16', currency: false }, asType: null }] });
+check('the full spelling is unchanged', first('DIMENSION invarr(1, 16)').type, 'DimensionStatement');
+check('and a longer word starting with it is still a name', first('DIMENSIONS = 1').type, 'Assignment');
+
 report('Parse checks');

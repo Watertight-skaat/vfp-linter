@@ -474,12 +474,17 @@ export interface PublicDeclaration extends NodeBase {
   type: 'PublicDeclaration';
   name: string;
   isArray: boolean;
+  /** Neither PUBLIC nor PRIVATE documents AS, but the code writes it and VFP accepts it. */
+  asType: IdentifierOrString | null;
+  ofClass: IdentifierOrString | null;
 }
 
 export interface PrivateDeclaration extends NodeBase {
   type: 'PrivateDeclaration';
   name: string;
   isArray: boolean;
+  asType: IdentifierOrString | null;
+  ofClass: IdentifierOrString | null;
 }
 
 /** PRIVATE ALL, which hides every variable of the caller. */
@@ -738,7 +743,7 @@ export interface DeleteStatement extends NodeBase {
   /** The SQL form only; null for the Xbase form. */
   from: FromClause | null;
   where: Expr | null;
-  scope?: IdentifierOrString | null;
+  scope?: RecordScope | null;
   for?: Expr | null;
   while?: Expr | null;
   inTarget?: Expr | null;
@@ -909,6 +914,8 @@ export interface AggregateStatement extends NodeBase {
 
 export interface FlushStatement extends NodeBase {
   type: 'FlushStatement';
+  /** The work area to flush, which the code names by expression as often as by alias. */
+  inTarget: Expr | null;
   force: boolean;
 }
 
@@ -1185,7 +1192,7 @@ export interface ZapStatement extends NodeBase {
 
 export interface RecallStatement extends NodeBase {
   type: 'RecallStatement';
-  scope: IdentifierOrString | null;
+  scope: RecordScope | null;
   for: Expr | null;
   while: Expr | null;
   noOptimize: boolean;
@@ -1381,12 +1388,12 @@ export interface ThrowStatement extends NodeBase {
   argument: Expr | null;
 }
 
-/** @ nRow, nColumn SAY | GET | TO | CLEAR. The per-verb option tail is kept as raw source in `options`. */
+/** @ nRow, nColumn [SAY | GET | TO | CLEAR]. The per-verb option tail is kept as raw source in `options`; `verb` is null for the bare form, which only moves the print head. */
 export interface AtStatement extends NodeBase {
   type: 'AtStatement';
   row: Expr;
   column: Expr;
-  verb: 'SAY' | 'GET' | 'TO' | 'CLEAR';
+  verb: 'SAY' | 'GET' | 'TO' | 'CLEAR' | null;
   /** The SAY expression. */
   expression: Expr | null;
   /** The GET variable. */
@@ -1452,6 +1459,24 @@ export interface CancelStatement extends NodeBase {
 /** READ EVENTS hands control to the event loop until CLEAR EVENTS. */
 export interface ReadEventsStatement extends NodeBase {
   type: 'ReadEventsStatement';
+}
+
+/** EJECT sends a form feed; EJECT PAGE ends the page from inside a report band. */
+export interface EjectStatement extends NodeBase {
+  type: 'EjectStatement';
+  page: boolean;
+}
+
+/** RETRY re-runs the statement that raised the error. Unlike CANCEL it is not treated as ending the block: where it resumes is the caller's business. */
+export interface RetryStatement extends NodeBase {
+  type: 'RetryStatement';
+}
+
+/** SHOW GETS redraws every @ ... GET; SHOW GET names one, and `target` is that read. */
+export interface ShowGetsStatement extends NodeBase {
+  type: 'ShowGetsStatement';
+  target: Expr | null;
+  options: string | null;
 }
 
 export interface CompileStatement extends NodeBase {
@@ -1687,6 +1712,9 @@ export type Statement =
   | SuspendStatement
   | CancelStatement
   | ReadEventsStatement
+  | EjectStatement
+  | RetryStatement
+  | ShowGetsStatement
   | CompileStatement
   | BuildStatement
   | TableConstraint

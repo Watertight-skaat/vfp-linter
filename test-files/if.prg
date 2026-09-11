@@ -11,3 +11,10 @@ endif
 IF !(";" + LOWER(m.folder_data) + ";" $ ";" + LOWER(SET("Path")) + ";")
 	? "test"
 ENDIF
+
+* The optional THEN, which VFP ignores and the 2000s layer writes.
+IF m.stat = 3 THEN
+	? "three"
+ELSE
+	? "other"
+ENDIF

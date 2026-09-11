@@ -97,6 +97,7 @@ Statement "statement"
   / ImplementsStatement
   / AddObjectStatement
   / DefineScreenStatement
+  / ShowGetsStatement
   / ScreenCommandStatement
   / MenuBarStatement
   / MenuToStatement
@@ -168,6 +169,8 @@ Statement "statement"
   / ResumeStatement
   / CancelStatement
   / ReadEventsStatement
+  / EjectStatement
+  / RetryStatement
   / CompileStatement
   / BuildStatement
   / KeyboardStatement
@@ -219,11 +222,20 @@ LocalEntry
   = ArrayDecl
   / VarDecl
 
+// AS type [ OF ClassLib ], which every declaration that carries a type shares. The library is a file as often as a name -- `OF oplocks.prg` -- and read as an identifier it stopped at the dot and left the extension behind as a statement.
+AsClause
+  = "AS"i __ t:IdentifierOrString ofPart:(_ "OF"i WB _ cl:FileNameOrIdentifier { return cl; })? { return { type: t, of: ofPart }; }
+
+// A name with an optional type. PRIVATE and PUBLIC do not document AS, but the code writes it and VFP accepts it, so reading it costs a field and saves a statement.
+TypedName
+  = name:ParameterName as:(_ a:AsClause { return a; })? { return { name, asType: as ? as.type : null, ofClass: as ? as.of : null }; }
+
+TypedNameList
+  = head:TypedName tail:(_ "," _ TypedName)* { return [head, ...tail.map(t => t[3])]; }
+
 // Variable declaration: name [ AS type [ OF ClassLib ] ]
 VarDecl
-  = name:ParameterName _ asPart:(_ "AS"i __ t:IdentifierOrString _ ofPart:(_ "OF"i WB _ cl:IdentifierOrString { return cl; })? { return { type: t, of: ofPart }; })? {
-      return node("LocalDeclaration", { name, asType: asPart ? asPart.type : null, ofClass: asPart ? asPart.of : null });
-    }
+  = t:TypedName { return node("LocalDeclaration", { name: t.name, asType: t.asType, ofClass: t.ofClass }); }
 
 // Array declaration: ArrayName( nRows [, nColumns ] ) [ AS type [ OF ClassLib ] ]
 ArrayDims
@@ -231,7 +243,7 @@ ArrayDims
   / "[" _ rows:Expression _ cols:(_ "," _ c:Expression { return c; })? _ "]" { return { rows, columns: cols }; }
 
 ArrayDecl
-  = name:Identifier _ dims:ArrayDims _ asPart:(_ "AS"i __ t:IdentifierOrString _ ofPart:(_ "OF"i WB _ cl:IdentifierOrString { return cl; })? { return { type: t, of: ofPart }; })? {
+  = name:Identifier _ dims:ArrayDims _ asPart:(_ a:AsClause { return a; })? {
       return node("LocalArrayDeclaration", { name, rows: dims.rows, columns: dims.columns, asType: asPart ? asPart.type : null, ofClass: asPart ? asPart.of : null });
     }
 
@@ -249,17 +261,17 @@ PrivateStatement
         return node("PrivateAllExcept", { pattern: pat });
       }
       / "ALL"i { return node("PrivateAll", {}); }
-      / "ARRAY"i WB _ arrs:ArrayDeclList { return arrs.map(a => node("PrivateDeclaration", { name: a.name, isArray: true })); }
-      / vars:IdentifierList{ return vars.map(v => node("PrivateDeclaration", { name: v, isArray: false })); }
+      / "ARRAY"i WB _ arrs:ArrayDeclList { return arrs.map(a => node("PrivateDeclaration", { name: a.name, isArray: true, asType: a.asType, ofClass: a.ofClass })); }
+      / vars:TypedNameList { return vars.map(v => node("PrivateDeclaration", { name: v.name, isArray: false, asType: v.asType, ofClass: v.ofClass })); }
       / _ { return node("PrivateDirective", {}); }
   ) { return decl; }
 
 PublicStatement
   = "PUBLIC"i WB _ "ARRAY"i WB _ arrs:ArrayDeclList {
-      return arrs.map(a => node("PublicDeclaration", { name: a.name, isArray: true }));
+      return arrs.map(a => node("PublicDeclaration", { name: a.name, isArray: true, asType: a.asType, ofClass: a.ofClass }));
     }
-  / "PUBLIC"i WB _ vars:IdentifierList {
-      return vars.map(v => node("PublicDeclaration", { name: v, isArray: false }));
+  / "PUBLIC"i WB _ vars:TypedNameList {
+      return vars.map(v => node("PublicDeclaration", { name: v.name, isArray: false, asType: v.asType, ofClass: v.ofClass }));
     }
 
 // The singular spellings are the older ones and the app still uses them. These declare a routine's inputs, so missing one leaves the symbol table without the parameters of the whole routine. Longest first: PARAMETERS has to be tried before PARAMETER, and PARAMETER before PARAM.
@@ -269,8 +281,9 @@ LParameters
     }
 
 // DIMENSION ArrayName(nRows [, nColumns]) [AS cType] [, ArrayName2(...)] ...
+// VFP abbreviates any command word to its first four letters, and the corpus writes DIMEN. Longest first: PEG does not re-enter an ordered choice once one alternative has matched, so with DIME first the full spelling matches four letters, fails the word boundary after them, and the whole statement falls to the catch-all.
 DimensionStatement
-  = "DIMENSION"i WB __ first:DimensionItem tail:(_ "," _ DimensionItem)* {
+  = ("DIMENSION"i / "DIMENSIO"i / "DIMENSI"i / "DIMENS"i / "DIMEN"i / "DIME"i) WB __ first:DimensionItem tail:(_ "," _ DimensionItem)* {
       const items = [first, ...tail.map(t => t[3])];
       return node("DimensionStatement", { items });
     }
@@ -563,7 +576,7 @@ ThrowStatement
       return node("ThrowStatement", { argument: e || null });
     }
 
-// @ nRow, nColumn SAY | GET | TO | CLEAR, the legacy screen commands.
+// @ nRow, nColumn [SAY | GET | TO | CLEAR], the legacy screen commands.
 // Their option tails (PICTURE, FUNCTION, SIZE, FONT, VALID, WHEN, COLOR ...) are long and vary by verb, so they are kept as raw source: recognising the statement is what stops the false positive.
 AtStatement "screen coordinate statement"
   = "@" _ row:Expression _ "," _ col:Expression _ body:AtBody {
@@ -584,6 +597,8 @@ AtBody
   / "GET"i WB _ v:LValue o:RawOptions { return { verb: 'GET', expression: null, target: v, endRow: null, endColumn: null, options: o }; }
   / "TO"i WB _ r:Expression _ "," _ c:Expression o:RawOptions { return { verb: 'TO', expression: null, target: null, endRow: r, endColumn: c, options: o }; }
   / "CLEAR"i WB o:RawOptions { return { verb: 'CLEAR', expression: null, target: null, endRow: null, endColumn: null, options: o }; }
+  // No verb at all, which just moves the print head -- the most common @ in the corpus. It has to end the line: a verb the grammar has not learned, `@ 3, 2 EDIT ...`, would otherwise read as this and leave its tail behind as a statement, which reports the gap in the wrong place.
+  / &(PartialLineComment / LineTerminator / EOF) { return { verb: null, expression: null, target: null, endRow: null, endColumn: null, options: null }; }
 
 // The rest of a command line, verbatim, for option tails the grammar does not model yet.
 RawOptions
@@ -838,7 +853,7 @@ EvalStatement "equals-expression statement"
   = "=" _ expr:Expression { return node("ExpressionStatement", { expression: expr }); }
 
 IfStatement "if statement"
-  = "IF"i WB __ test:Expression __ 
+  = "IF"i WB __ test:Expression IfThen __
     consequent:(Statement __)*
     "ELSE"i __
     alternate:(Statement __)*
@@ -846,12 +861,16 @@ IfStatement "if statement"
     {
       return node("IfStatement", { test, consequent: node("BlockStatement", { body: flatten(consequent.map(s => s[0])) }), alternate: node("BlockStatement", { body: flatten(alternate.map(s => s[0])) }) });
     }
-    / "IF"i WB __ test:Expression __ 
-      consequent:(Statement __)* 
+    / "IF"i WB __ test:Expression IfThen __
+      consequent:(Statement __)*
       "ENDIF"i __
     {
       return node("IfStatement", { test, consequent: node("BlockStatement", { body: flatten(consequent.map(s => s[0])) }), alternate: null });
     }
+
+// The optional THEN the 2000s code writes. It has to stay on the condition's own line: read across the line break, `IF x` followed by a statement assigning to a variable called THEN would take the word for punctuation. Unread it was a statement of its own, which the symbol table booked as a read of a variable named THEN.
+IfThen
+  = (_ "THEN"i WB)?
 
 // `SELECT [ALL | DISTINCT] [TOP nExpr [PERCENT]] Select_List_Item [, ...]
   //  FROM [FORCE] Table_List_Item [, ...]
@@ -1328,8 +1347,8 @@ DeleteStatement
         where: where || null
       });
     }
-  / "DELETE"i WB _ 
-      scope:IdentifierOrString? _
+  / "DELETE"i WB _
+      scope:CopyScope? _
     forp:("FOR"i __ fexp:Expression { return fexp; })? _
     whilep:("WHILE"i __ wexp:Expression { return wexp; })? _
     inPart:("IN"i _ inTarget:(NumberLiteral / Identifier))? _
@@ -1356,7 +1375,7 @@ ZapStatement
 //    [IN nWorkArea | cTableAlias]
 RecallStatement
   = "RECALL"i WB _
-    scope:(!("IN"i) IdentifierOrString)? _
+    scope:CopyScope? _
     forp:(("FOR"i __ fexp:Expression { return fexp; }))? _
     whilep:(("WHILE"i __ wexp:Expression { return wexp; }))? _
     noopt:("NOOPTIMIZE"i)? _
@@ -1682,7 +1701,7 @@ TryStatement "try-catch statement"
 // ENDWITH
 WithStatement
   = "WITH"i WB _ target:(LValue / PostfixExpression)
-    asPart:(_ "AS"i __ t:IdentifierOrString _ ofPart:(_ "OF"i WB _ cl:IdentifierOrString { return cl; })? { return { type: t, of: ofPart }; })? __
+    asPart:(_ a:AsClause { return a; })? __
     body:(WithBodyEntry __)*
     "ENDWITH"i {
       return node("WithStatement", {
@@ -1702,9 +1721,10 @@ WithBodyEntry
 // -----------------------------
 // None of these command words are reserved, so each opens with NotCallOrAssign and keeps only the operands a rule could want. A long option tail is captured as raw source: recognising the statement is what stops the false positive, and pretending to model the tail would buy nothing.
 
+// FLUSH [IN nWorkArea | cTableAlias] [FORCE]. The work area is an expression as often as a name -- `FLUSH IN (m.inWorkArea)` -- which AliasRef already reads.
 FlushStatement
-  = "FLUSH"i WB NotCallOrAssign force:(_ "FORCE"i WB)? {
-      return node('FlushStatement', { force: !!force });
+  = "FLUSH"i WB NotCallOrAssign inPart:(_ "IN"i WB __ target:AliasRef { return target; })? force:(_ "FORCE"i WB)? {
+      return node('FlushStatement', { inTarget: inPart, force: !!force });
     }
 
 ReindexStatement
@@ -1712,9 +1732,9 @@ ReindexStatement
       return node('ReindexStatement', { compact: !!compact });
     }
 
-// MD/RD/CD and their long spellings. Whitespace before the path is required rather than optional: these are two letters long, and without it `CD.Value` would read as a command rather than a member.
+// MD/RD/CD and their long spellings. Whitespace before the path is required rather than optional: these are two letters long, and without it `CD.Value` would read as a command rather than a member. A parenthesis is refused only when glued to the word, which is the call `MD(x)`; with the whitespace it is the command over an expression, `MD (ADDBS(m.m_tpath) + "temp")`.
 DirectoryStatement
-  = cmd:("MKDIR"i / "RMDIR"i / "CHDIR"i / "MD"i / "RD"i / "CD"i) WB NotCallOrAssign Whitespace _ target:PathOrExpression {
+  = cmd:("MKDIR"i / "RMDIR"i / "CHDIR"i / "MD"i / "RD"i / "CD"i) WB !"(" !(_ "=") Whitespace _ target:PathOrExpression {
       return node('DirectoryStatement', { command: cmd.toUpperCase(), target });
     }
 
@@ -1737,8 +1757,9 @@ ExternalStatement
       return node('ExternalStatement', { kind: kind.toUpperCase(), names });
     }
 
+// The sub-keyword is required, so nothing here can be a call or an assignment except the file, which is parenthesised as often as not: `MODIFY COMMAND (m.cFile)`.
 ModifyStatement
-  = "MODIFY"i WB _ what:("STRUCTURE"i / "COMMAND"i / "CONNECTION"i / "DATABASE"i / "FILE"i / "MEMO"i / "REPORT"i / "FORM"i / "CLASS"i / "VIEW"i / "PROCEDURE"i / "LABEL"i / "MENU"i / "PROJECT"i / "QUERY"i / "WINDOW"i / "GENERAL"i) WB NotCallOrAssign opts:RawOptions {
+  = "MODIFY"i WB _ what:("STRUCTURE"i / "COMMAND"i / "CONNECTION"i / "DATABASE"i / "FILE"i / "MEMO"i / "REPORT"i / "FORM"i / "CLASS"i / "VIEW"i / "PROCEDURE"i / "LABEL"i / "MENU"i / "PROJECT"i / "QUERY"i / "WINDOW"i / "GENERAL"i) WB opts:RawOptions {
       return node('ModifyStatement', { what: what.toUpperCase(), options: opts });
     }
 
@@ -2006,6 +2027,8 @@ SetOrderToStatement
     sel:(
       n:NumberLiteral { return { kind: 'NUMBER', value: n }; }
       / "(" _ e:Expression _ ")" { return { kind: 'EXPR', value: e }; }
+      // A call names the tag at run time -- `SET ORDER TO IIF(TYPE("m.cOrder") = "U", "servsnum", m.cOrder)`. Without this the identifier alternative below took the function's name for the index file and left its arguments behind as a statement.
+      / &(Identifier _ "(") e:Expression { return { kind: 'EXPR', value: e }; }
       // An explicit TAG has to be claimed before the file alternative, which would otherwise read the word TAG itself as the index file and leave the tag name to the catch-all. OrderSpec guards it the same way.
       / &("TAG"i WB) t:TagSpec { return { kind: 'TAG', tag: t.tag, of: t.of, direction: t.direction }; }
       / f:FileNameOrIdentifier { return { kind: 'FILE', value: f }; }
@@ -2604,6 +2627,19 @@ CancelStatement
 // READ EVENTS hands control to the event loop until CLEAR EVENTS. The bare READ is the obsolete screen command and is not this.
 ReadEventsStatement
   = "READ"i WB _ "EVENTS"i WB NotCallOrAssign { return node('ReadEventsStatement', {}); }
+
+// EJECT sends a form feed to the printer; EJECT PAGE ends the page from inside a report band.
+EjectStatement
+  = "EJECT"i WB NotCallOrAssign page:(_ "PAGE"i WB)? { return node('EjectStatement', { page: !!page }); }
+
+// RETRY re-runs the statement that raised the error, which is how the old error handlers loop. It leaves the routine like RETURN does, but where it resumes is the caller's business, so it is not treated as a terminator here.
+RetryStatement
+  = "RETRY"i WB NotCallOrAssign { return node('RetryStatement', {}); }
+
+// SHOW GETS redraws every @ ... GET on the screen; SHOW GET names one, and that name is a read the symbol table would otherwise lose. The option tail varies by control and stays raw source.
+ShowGetsStatement
+  = "SHOW"i WB _ "GETS"i WB opts:RawOptions { return node('ShowGetsStatement', { target: null, options: opts }); }
+  / "SHOW"i WB _ "GET"i WB _ v:LValue opts:RawOptions { return node('ShowGetsStatement', { target: v, options: opts }); }
 
 // COMPILE [DATABASE | FORM | LABEL | REPORT] FileSkeleton [options]. The file is the part a rule would ask about; the flag tail stays raw source.
 CompileStatement

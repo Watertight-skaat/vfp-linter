@@ -210,6 +210,11 @@ above are still the pre-fix numbers.
 Counted over the whole source. The one-line ledger is in `../diagnostics/still-unsupported.prg`; only
 the two that need surrounding code to show the cost have a fixture here.
 
+The counts are the measurement and are left as they were taken. Every row below is read now except
+`ADD COLUMN` past the first clause, `CAST` with a computed width, and the last row's `ON("error")`,
+bare `?` and `DO FORM <a-b>` -- those are what the ledger still records. `@ ... EDIT` is the one
+remaining half of the `@` row.
+
 | Construct | Uses | Note |
 | --- | --- | --- |
 | `WAIT CLEAR` | 426 in 185 files | The most common unparsed statement there is: every routine that puts a status message up takes it down again. `WAIT "" TIMEOUT n` and `WAIT <msg> WINDOW` are the same family |

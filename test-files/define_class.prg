@@ -16,6 +16,11 @@ DEFINE CLASS MyThing AS Custom
 	ENDFUNC
 ENDDEFINE
 
+DEFINE CLASS X12_Message AS Custom
+	ADD OBJECT Segments as Collection
+	ADD OBJECT oHeader AS Line WITH Caption = "ISA", Visible = .T.
+ENDDEFINE
+
 DEFINE CLASS Svc AS Session OLEPUBLIC
 	FUNCTION Ping()
 		RETURN .T.

@@ -21,22 +21,21 @@ Measured by running the linter over Watertight's codebase
 - **`CAST(x AS C(<expr>))`** costs the whole `SELECT` its parse, so the query's destination, joins and WHERE go unchecked. The only whole-file-scale gap left: `TypeSpec` reads the width as a `NumberLiteral`, and the widths come from the schema at runtime.
 - **`DO FORM <a-b>`** reads the name as far as the hyphen, so the statement looks read and names the wrong form.
 
-### Announces itself, and is only worth the volume
+### Others
 
-Ordered by measured uses. `@ <row>,<col>` with no clause is 147. After that come the console commands (`ACTIVATE SCREEN`, `EJECT`, `READ EVENTS`, `RETRY`, `CANCEL`, `SHOW GETS`), `AS <type>` on `PRIVATE`/`PUBLIC`/a method return, `DELETE RECORD n`, `ADD OBJECT` in a class, `MD (<expr>)`, the clauses whose operand is an expression (`FLUSH IN`, `SET RELATION OFF INTO`, `SET ORDER TO <expr>`), `IF ... THEN`, and `DIMEN`. All are one-liners in `test-files/diagnostics/still-unsupported.prg`.
+Every measured one is read now: `@ <row>,<col>` with no clause (147 uses), the console commands `EJECT`, `RETRY` and `SHOW GETS` (with `SHOW GET <var>`, whose operand is a read the symbol table was losing), `AS <type>` on `PRIVATE` and `PUBLIC`, `DELETE RECORD n`, `MD (<expr>)`, `MODIFY COMMAND (<expr>)`, `FLUSH IN`, `SET ORDER TO <expr>`, `IF ... THEN` and `DIMEN`. `ACTIVATE SCREEN`, `READ EVENTS`, `CANCEL`, `ADD OBJECT`, `SET RELATION OFF INTO` and the `AS` on a method return were already read when the list was written.
+
+What is left in the ledger is unmeasured, and each item costs one statement: transactions (`BEGIN`/`END TRANSACTION`, `ROLLBACK`), the database container (`CREATE`/`OPEN DATABASE`, `CREATE CONNECTION`, `FREE`/`REMOVE TABLE`, and the `DELETE DATABASE`/`VIEW`/`CONNECTION` partials), console input (`INPUT`, `ACCEPT`), `READ CYCLE` and `@ ... EDIT`. Transactions are the only one with a rule waiting behind them. All are one-liners in `test-files/diagnostics/still-unsupported.prg`.
 
 ### Older items, still open
 
 - **UNIQUE / FOREIGN KEY after the column list in `CREATE TABLE`** — column-level `UNIQUE`, `CHECK` and `REFERENCES` are read; a constraint written after the column list is not, and it costs the whole `CREATE TABLE` its parse. A second `ADD COLUMN` on `ALTER TABLE` is the same shape, 91 uses.
-- **Pre-SQL data commands** — `TOTAL`, `JOIN WITH`, `UPDATE ON`, `COPY STRUCTURE`, `DELETE TAG`, `BLANK`. Each names a table or a variable, so they carry operands a rule would want.
-- **`STORE 0 TO a[1], b[2]`** — multiple targets where one is subscripted. Currently announces itself rather than silently dropping the subscript, which is what it used to do.
-- **Memory-variable and debugging commands** — `SAVE TO` / `RESTORE FROM`, `PRIVATE ALL EXCEPT`, `ASSERT`, `PLAY MACRO`.
-- **Screen and menu commands** — `DEFINE WINDOW` / `BAR` / `MENU`, `ACTIVATE WINDOW`, `ON SELECTION`. A 30-year-old application carries a lot of them, but not one touches data or a variable, so no rule loses anything. Lowest value here.
 
-Two found by a sweep that are defects in rules that already exist rather than missing ones:
+Three found by a sweep that are defects in rules that already exist rather than missing ones:
 
 - **`TOTAL TO totals ON custid`** — the documented argument order. `TotalStatement` reads only the reverse, `TOTAL ON key TO file`, so the canonical spelling falls to the catch-all. Accepting either order is the fix.
 - **Three `SET`s whose argument runs past what the setting reader claims** — `SET TOPIC ID TO 5`, `SET NOTIFY CURSOR OFF` and `SET WINDOW OF MEMO notes TO myform`, each leaving the tail behind. (partial)
+- **`REPLACE ... RECORD n`** — the scope clause *after* the field list is unread, so `REPLACE invbal WITH 0 RECORD 5` leaves `RECORD 5` behind. The leading `ALL`/`REST` is read. Found while giving `DELETE` and `RECALL` the same clause; unmeasured, which is why it is here rather than done.
 
 ## Cleanup
 

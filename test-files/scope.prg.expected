@@ -1,4 +1,4 @@
 11:16 warning unused-local 'lcUnused' is declared in CountRows, but never used.
 17:2 warning implicit-private 'lnUndeclared' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
 20:2 warning implicit-private 'lnI' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
-124:3 warning implicit-private 'lnSeen' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
+128:3 warning implicit-private 'lnSeen' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE

@@ -4,3 +4,5 @@
 @ 4,5 SAY "Total:" + TRANSFORM(lnTotal, "999,999.99")
 @ 1,1 TO 10,40 PANEL
 @ 6,5 CLEAR TO 8,40
+@ 8,1
+@ PROW()+1, 1

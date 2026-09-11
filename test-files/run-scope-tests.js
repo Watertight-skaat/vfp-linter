@@ -61,6 +61,11 @@ check('PRIVATE', sym('CountRows', 'PNSEED').kind, 'private');
 check('PUBLIC', sym('CountRows', 'GNTOTAL').kind, 'public');
 check('AS clause is kept', shape('Describe', 'LCOUT'),
 	{ kind: 'local', type: 'Character', array: false, declared: true, reads: 1, writes: 1 });
+// PRIVATE and PUBLIC do not document AS, and the code writes it anyway. Unread, the type fell off and the rest of the line reported as unsupported.
+check('a typed PRIVATE keeps its type', shape('Describe', 'PCHEADING'),
+	{ kind: 'private', type: 'String', array: false, declared: true, reads: 1, writes: 1 });
+check('a typed PUBLIC too', shape('Describe', 'GNACCOUNTID'),
+	{ kind: 'public', type: 'Integer', array: false, declared: true, reads: 1, writes: 1 });
 check('typed parameter', shape('Describe', 'TCNAME'),
 	{ kind: 'parameter', type: 'Character', array: false, declared: true, reads: 1, writes: 0 });
 

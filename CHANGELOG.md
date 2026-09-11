@@ -1,5 +1,63 @@
 # Changelog
 
+## 1.3.4
+
+### The measured half of the ledger
+
+The constructs that reported themselves rather than parsing. None of them cost a file -- each cost
+one statement, which is the acceptable failure mode -- so the case for reading them was volume, and
+that is what the sweep over the Watertight source measured. Every measured one is read now, and what
+is left in `still-unsupported.prg` is unmeasured.
+
+**`@ <row>, <col>` with no verb** was the most common `@` in that source at 147 uses: the print-head
+move the report code emits between lines. The bare form has to end the line, which is what keeps a verb
+the grammar has not learned -- `@ 3, 2 EDIT m.cUsed SIZE 17, 75 NOEDIT` -- reporting as one gap instead
+of splitting into a statement that looks read and an orphaned tail. `verb` is `null` for it.
+
+**The console commands.** `EJECT`, `EJECT PAGE`, `RETRY`, `SHOW GETS` and `SHOW GET m.answer`.
+`RETRY` re-runs the statement that raised the error and so does not fall through, but where it resumes
+is the caller's business, so it is deliberately not treated as a block terminator the way `CANCEL` is.
+`SHOW GET` keeps the variable it names, which is a read the symbol table was losing.
+
+**`AS <type> [OF <library>]` on `PRIVATE` and `PUBLIC`.** Neither documents the clause; the code
+writes it anyway and VFP accepts it, so the name was read and the type fell off as a statement of its
+own. The type now reaches the symbol table as the declared type, the same as `LOCAL`'s. `OF` reads a
+file name on all three, so `LOCAL loSA AS SECURITY_ATTRIBUTES OF oplocks.prg` no longer stops at the
+dot and leaves `.prg` behind. One `AsClause` rule replaced three copies of the same inline clause.
+
+**`DELETE RECORD <n> IN <alias>`**, 59 uses. The xbase form read its scope as a bare identifier, so
+`ALL` worked and a record number did not; it now uses the same scope rule as `COPY TO`, which reads
+`RECORD RECNO("rec2inv")` and `NEXT 5` as well. `RECALL` had the identical defect and the same fix.
+A side effect worth having: `DELETE VIEW myview` used to read `VIEW` as the record scope, so the gap
+it reported was the name alone; it now reports the whole clause it could not read.
+
+**Four clauses whose operand is an expression rather than a name.** `FLUSH IN (m.inWorkArea) FORCE`
+had no `IN` clause at all. `SET ORDER TO IIF(TYPE("m.cOrder") = "U", "servsnum", m.cOrder)` took the
+function's name for an index file and left its arguments behind. `MD (ADDBS(m.m_tpath) + "temp")` and
+`MODIFY COMMAND (m.cFile)` were refused outright by the guard that keeps `MD(x)` a call to a function
+of that name; the parenthesis is now refused only when it is glued to the word, which is what tells the
+two apart.
+
+**`IF <cond> THEN`**, which the 2000s layer writes and the rest does not. The `IF` itself parsed, so
+the cost was a stray statement -- but one the symbol table booked as a read of a variable named `THEN`.
+It is claimed on the condition's own line only, so `THEN = .F.` on the line below is still an
+assignment to a variable of that name.
+
+**`DIMEN`**, and every other spelling down to the four letters VFP allows.
+
+Each has its parse asserted in `run-parse-tests.js` on the field that was lost, with a control beside
+it, because widening a rule is how the next silent misparse gets in. The constructs themselves moved
+out of the ledger and into the fixtures, where an `.expected` file appearing beside one is the
+regression.
+
+### Records that had gone stale
+
+`ACTIVATE SCREEN`, `READ EVENTS`, `CANCEL`, `ADD OBJECT ... AS`, `SET RELATION OFF INTO` and a
+method's declared return type were all recorded as unread and all parse. So were the pre-SQL data
+commands, `STORE 0 TO a[1], b[2]`, the memory-variable and debugging commands, and the screen and menu
+commands, each of which had a bullet in the TODO claiming otherwise. Probing the parser one construct
+at a time is what turned them up; reading the grammar is what let them go stale.
+
 ## 1.3.3
 
 ### The thirteen constructs that cost a whole file

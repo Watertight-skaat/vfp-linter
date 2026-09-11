@@ -271,8 +271,8 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
         visit(node.rows, scope);
         visit(node.columns, scope);
         return;
-      case 'PublicDeclaration': declare(scope, node.name, 'public', at, null, node.isArray); return;
-      case 'PrivateDeclaration': declare(scope, node.name, 'private', at, null, node.isArray); return;
+      case 'PublicDeclaration': declare(scope, node.name, 'public', at, node.asType, node.isArray); return;
+      case 'PrivateDeclaration': declare(scope, node.name, 'private', at, node.asType, node.isArray); return;
       case 'PrivateAll':
       case 'PrivateAllLike':
       case 'PrivateAllExcept':
