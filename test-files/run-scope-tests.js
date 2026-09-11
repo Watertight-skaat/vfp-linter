@@ -38,7 +38,8 @@ check('scopes found', table.scopes.map(s => `${s.name}:${s.kind}`), [
 	'Reordered:procedure',
 	'KeywordMembers:procedure',
 	'ComputedAreas:procedure',
-	'Purging:procedure'
+	'Purging:procedure',
+	'LegacyMenu:procedure'
 ]);
 check('main is the root', table.main.name, '(main)');
 check('methods hang off the class', scope('Widget').children.map(c => c.name), ['Widget.Init', 'Widget.Label']);
@@ -163,6 +164,12 @@ check('USE IN closes a targeted area', scope('ComputedAreas').workArea.map(e => 
 check('the variable naming a computed area is read', shape('ComputedAreas', 'TCALIAS'),
 	{ kind: 'parameter', type: null, array: false, declared: true, reads: 3, writes: 0 });
 check('a targeted close leaves the current alias alone', aliasInEffectAt(scope('ComputedAreas'), 200), null);
+
+// --- the Foxbase menu system -----------------------------------------------
+check('MENU TO writes the bar the user chose', shape('LegacyMenu', 'LNCHOICE'),
+	{ kind: 'local', type: null, array: false, declared: true, reads: 1, writes: 1 });
+check('MENU BAR reads the array it builds the bar from', shape('LegacyMenu', 'LABAR'),
+	{ kind: 'local', type: null, array: true, declared: true, reads: 1, writes: 1 });
 
 // --- DELETE, both forms ----------------------------------------------------
 check('the SQL form reaches its WHERE through the statement, not a hoisted copy', shape('Purging', 'TNBATCH'),

@@ -3,19 +3,51 @@
 * A line that leaves a *partial* node behind is marked as such: the statement before the remainder parsed into something, so half of it is already readable and only the tail announces itself.
 * Each of these was found by probing the parser rather than by reading the grammar, which is the only way the list stays true.
 
-* Referential integrity: the trigger a table fires on a change, and the check that the database container still matches what is on disk.
-CREATE TRIGGER ON customer FOR INSERT AS NewCustomer()
-DELETE TRIGGER ON customer FOR INSERT
-VALIDATE DATABASE RECOVER
+* Transactions. These wrap the table buffering commands that are already read, so a rule about a write that is never committed has nothing to hang off until they are.
+BEGIN TRANSACTION
+END TRANSACTION
+ROLLBACK
 
-* SHUTDOWN ends the VFP session, running ON SHUTDOWN first. QUIT, which does not, is read.
-SHUTDOWN
+* The database container's other half: the commands that make one and open it. CREATE TRIGGER and VALIDATE DATABASE are read; what holds them is not.
+CREATE DATABASE mydata
+OPEN DATABASE mydata
+CREATE CONNECTION myconn DATASOURCE 'dsn'
+FREE TABLE customer
+REMOVE TABLE customer
 
-* The Foxbase menu system, which predates DEFINE POPUP and still turns up in the oldest files. MENU TO puts the chosen bar number in a variable, so what is lost here is a write the symbol table never sees.
-MENU BAR mBar, 5
-MENU TO lnChoice
-READ MENU TO lnChoice
+* DELETE's other objects, all three the same shape DELETE TRIGGER was: DELETE parses and the name is what is lost. (partial)
+DELETE DATABASE mydata
+DELETE VIEW myview
+DELETE CONNECTION myconn
 
-* RELEASE's screen forms. RELEASE reads as far as the word, then takes MENU for the name of a variable to release and leaves the real name behind. (partial)
-RELEASE MENU mMain EXTENDED
-RELEASE POPUP pFileMenu
+* Console input. Both put what was typed in the variable, so what is lost is a write the symbol table never sees -- the shape MENU TO had.
+INPUT 'Name: ' TO lcName
+ACCEPT 'Name: ' TO lcName
+
+* The old READ screen, which @ ... GET fills and these two drive.
+READ CYCLE
+SHOW GETS
+
+* Moving data in and out of the session, and the print job that wraps a report.
+IMPORT FROM sales.xls TYPE XLS
+EXPORT TO sales TYPE XLS
+TYPE readme.txt
+EJECT
+PRINTJOB
+ENDPRINTJOB
+EDIT
+
+* REGIONAL declares a variable local to the routine and to any macro it expands, so it is a declaration the symbol table never sees.
+REGIONAL lcTemp
+
+* The keyboard macro set.
+SAVE MACROS TO mykeys.fky
+RESTORE MACROS FROM mykeys.fky
+
+* TOTAL's documented argument order. The reverse -- TOTAL ON key TO file -- is read, so this is a gap in a rule that already exists rather than a missing one.
+TOTAL TO totals ON custid
+
+* Three SETs whose argument runs past what the setting reader claims, each leaving the tail behind. (partial)
+SET TOPIC ID TO 5
+SET NOTIFY CURSOR OFF
+SET WINDOW OF MEMO notes TO myform

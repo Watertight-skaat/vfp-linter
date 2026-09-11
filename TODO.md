@@ -16,15 +16,19 @@
 
 Reported as `unsupported-syntax`. `test-files/diagnostics/still-unsupported.prg` holds the list, and everything on it was found by probing the parser rather than by reading the grammar.
 
-- **`CREATE TRIGGER` / `DELETE TRIGGER`, and `VALIDATE DATABASE`** — the referential-integrity side of the database container. `DELETE TRIGGER` is partial: `DELETE` parses and `ON customer FOR INSERT` is what is lost.
-- **`SHUTDOWN`** — ends the session, running `ON SHUTDOWN` first. `QUIT`, which does not, is read.
-- **The Foxbase menu system** — `MENU BAR`, `MENU TO` and `READ MENU TO`, which predate `DEFINE POPUP` and still turn up in the oldest files. `MENU TO` puts the chosen bar number in a variable, so what is lost is a write the symbol table never sees.
-- **`RELEASE MENU` / `RELEASE POPUP`** — partial, and the worst shape of the four: `RELEASE` reads as far as the word, then takes `MENU` for the name of a variable to release and leaves the real name behind. It is the only one here that misparses rather than reporting, so fixing it is worth more than the line count suggests.
+- **Transactions** — `BEGIN TRANSACTION`, `END TRANSACTION`, `ROLLBACK`. These wrap the table buffering commands that are already read, so a rule about a write that is never committed has nothing to hang off until they are; that rule is the reason to do them.
+- **The database container's other half** — `CREATE DATABASE`, `OPEN DATABASE`, `CREATE CONNECTION`, `FREE TABLE`, `REMOVE TABLE`. `CREATE TRIGGER` and `VALIDATE DATABASE` are read; what holds them is not.
+- **`DELETE DATABASE` / `DELETE VIEW` / `DELETE CONNECTION`** — partial, all three the shape `DELETE TRIGGER` had: `DELETE` parses and the name is what is lost. Adding them is the same one-rule-above-`DeleteStatement` move that fixed the trigger.
+- **`INPUT` and `ACCEPT`** — both put what the user typed in a variable, so what is lost is a write the symbol table never sees, the shape `MENU TO` had.
+- **The old `READ` screen** — `READ CYCLE` and `SHOW GETS`, which `@ ... GET` fills and these two drive.
+- **Moving data in and out, and the print job** — `IMPORT`, `EXPORT`, `TYPE`, `EJECT`, `PRINTJOB` / `ENDPRINTJOB`, `EDIT`. Line count, not depth: none of them reaches a variable.
+- **`REGIONAL`** — declares a variable local to the routine and to any macro it expands, so it is a declaration the symbol table never sees. Worth more than the others here for that reason.
+- **`SAVE MACROS` / `RESTORE MACROS`** — the keyboard macro set.
 
-Two things a sweep found that are not gaps but misparses, so nothing reports them:
+Two found by a sweep that are defects in rules that already exist rather than missing ones:
 
-- **`USE customer ORDER TAG custid`** — `OrderSpec` is only reachable through `USE ... ?`, so every word of the `ORDER` clause falls to `UseConnPart` and is read as a connection handle, the last one winning. The clause itself is already written; it needs adding to `UseOption` above the handle alternative.
-- **`SET HELP TO x.hlp`** — parses, but reads the file as member access on a variable called `x`, which books a read of a name that does not exist. Same shape as the index-file fix, one level up in `SetCommand`'s argument list.
+- **`TOTAL TO totals ON custid`** — the documented argument order. `TotalStatement` reads only the reverse, `TOTAL ON key TO file`, so the canonical spelling falls to the catch-all. Accepting either order is the fix.
+- **Three `SET`s whose argument runs past what the setting reader claims** — `SET TOPIC ID TO 5`, `SET NOTIFY CURSOR OFF` and `SET WINDOW OF MEMO notes TO myform`, each leaving the tail behind. (partial)
 
 ## Cleanup
 

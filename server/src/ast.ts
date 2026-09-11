@@ -599,6 +599,11 @@ export interface ExitStatement extends NodeBase {
   type: 'ExitStatement';
 }
 
+/** SHUTDOWN, which ends the session after running ON SHUTDOWN. QUIT, which does not run it, is an ExitStatement. */
+export interface ShutdownStatement extends NodeBase {
+  type: 'ShutdownStatement';
+}
+
 /** LOOP, which continues the enclosing loop. */
 export interface ContinueStatement extends NodeBase {
   type: 'ContinueStatement';
@@ -755,6 +760,30 @@ export interface CreateViewStatement extends NodeBase {
   query: SelectStatement;
 }
 
+/** CREATE TRIGGER: the expression a table evaluates before it commits a change of the named kind. */
+export interface CreateTriggerStatement extends NodeBase {
+  type: 'CreateTriggerStatement';
+  table: IdentifierOrString;
+  event: TriggerEvent;
+  expression: Expr;
+}
+
+export interface DeleteTriggerStatement extends NodeBase {
+  type: 'DeleteTriggerStatement';
+  table: IdentifierOrString;
+  event: TriggerEvent;
+}
+
+export type TriggerEvent = 'DELETE' | 'INSERT' | 'UPDATE';
+
+/** VALIDATE DATABASE: the check that the database container still matches what is on disk. */
+export interface ValidateDatabaseStatement extends NodeBase {
+  type: 'ValidateDatabaseStatement';
+  /** RECOVER, which makes the check repair what it finds rather than only report it. */
+  recover: boolean;
+  options: string | null;
+}
+
 export interface ColumnDefinition extends NodeBase {
   type: 'ColumnDefinition';
   name: string;
@@ -796,6 +825,8 @@ export interface UseStatement extends NodeBase {
   dataSession: Expr | null;
   nodata: boolean;
   index: unknown;
+  /** ORDER: the index order the table opens on, as a tag, a file or a number. */
+  order: OrderSelection | null;
   alias: IdentifierOrString | null;
   exclusive: boolean;
   shared: boolean;
@@ -1075,6 +1106,21 @@ export interface ScreenCommandStatement extends NodeBase {
 }
 
 /** SET SKIP OF greys a menu item out. It is menu furniture rather than a setting. */
+/** MENU BAR, the Foxbase menu system's bar definition: the array holds one prompt per bar. */
+export interface MenuBarStatement extends NodeBase {
+  type: 'MenuBarStatement';
+  array: string;
+  count: Expr;
+}
+
+/** MENU TO, which activates that menu and puts the number of the chosen bar in the variable. */
+export interface MenuToStatement extends NodeBase {
+  type: 'MenuToStatement';
+  to: string;
+  /** The READ MENU TO spelling, which is the same activation reached through READ. */
+  read: boolean;
+}
+
 export interface SetSkipOfStatement extends NodeBase {
   type: 'SetSkipOfStatement';
   what: 'MENU' | 'PAD' | 'POPUP' | 'BAR';
@@ -1526,6 +1572,9 @@ export type Statement =
   | RenameObjectStatement
   | CreateStatement
   | CreateViewStatement
+  | CreateTriggerStatement
+  | DeleteTriggerStatement
+  | ValidateDatabaseStatement
   | DeclareStatement
   | DefineClass
   | ClassAccessStatement
@@ -1541,6 +1590,7 @@ export type Statement =
   | DoWhileStatement
   | EraseStatement
   | ExitStatement
+  | ShutdownStatement
   | ExpressionStatement
   | ForEachStatement
   | ForStatement
@@ -1610,6 +1660,8 @@ export type Statement =
   | PlayMacroStatement
   | DefineScreenStatement
   | ScreenCommandStatement
+  | MenuBarStatement
+  | MenuToStatement
   | SetSkipOfStatement
   | SetMarkOfStatement
   | OnSelectionStatement

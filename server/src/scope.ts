@@ -330,6 +330,15 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
         reference(scope, node.to, 'write', at);
         visitChildren(node, scope);
         return;
+      case 'MenuToStatement':
+        // MENU TO puts the number of the bar the user chose in the variable, so it creates the name like any other write.
+        reference(scope, node.to, 'write', at);
+        return;
+      case 'MenuBarStatement':
+        // MENU BAR builds the bar from the array, which is a read of it.
+        reference(scope, node.array, 'read', at);
+        visit(node.count, scope);
+        return;
       case 'SaveScreenStatement':
         // SAVE SCREEN TO puts the screen image in the variable, so it creates the name like any other write; RESTORE SCREEN FROM reads it back.
         reference(scope, node.to, 'write', at);

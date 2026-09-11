@@ -199,4 +199,70 @@ check('a file actually named TABLE too, which is where the two forms meet', firs
 check('a name that merely starts with it too', first('RENAME tablename TO other').source, { type: 'Path', path: 'tablename' });
 check('COPY FILE is unchanged beside it', first('COPY FILE a.txt TO b.txt').type, 'CopyFileStatement');
 
+// --- the referential-integrity side of the database container ----------------------
+check('CREATE TRIGGER reads all three of its parts',
+	(({ table, event, expression }) => [table, event, expression.callee.name])(first('CREATE TRIGGER ON customer FOR INSERT AS NewCustomer()')),
+	['customer', 'INSERT', 'NewCustomer']);
+check('the expression is code, not text', first('CREATE TRIGGER ON customer FOR UPDATE AS m.lnX > 0').expression.type, 'BinaryExpression');
+// Without its own rule DELETE read TRIGGER as the record scope and left `ON customer FOR INSERT` to the catch-all.
+check('DELETE TRIGGER is claimed ahead of the xbase DELETE', first('DELETE TRIGGER ON customer FOR INSERT'),
+	{ type: 'DeleteTriggerStatement', table: 'customer', event: 'INSERT' });
+check('the xbase DELETE is untouched beside it', first('DELETE ALL FOR amount = 0').scope, 'ALL');
+check('and so is the SQL one', first('DELETE FROM orders WHERE amount = 0').type, 'DeleteStatement');
+check('VALIDATE DATABASE keeps the flag that makes it write', (({ recover, options }) => ({ recover, options }))(first('VALIDATE DATABASE RECOVER')),
+	{ recover: true, options: null });
+check('the report tail stays raw', first('VALIDATE DATABASE NOCONSOLE TO FILE errs.txt').options, 'NOCONSOLE TO FILE errs.txt');
+
+// --- SHUTDOWN, which is not QUIT ---------------------------------------------------
+// ON SHUTDOWN runs first, so it is a chance for code to run and the two cannot share a node.
+check('SHUTDOWN is its own statement', first('SHUTDOWN').type, 'ShutdownStatement');
+check('QUIT is still the exit', first('QUIT').type, 'ExitStatement');
+check('a name that starts with it is untouched', first('shutdownhook(1)').expression.type, 'CallExpression');
+
+// --- the Foxbase menu system -------------------------------------------------------
+check('MENU BAR names the array and the count',
+	(({ array, count }) => [array, count.value])(first('MENU BAR mBar, 5')), ['mBar', 5]);
+check('MENU TO names the variable it writes', first('MENU TO lnChoice'), { type: 'MenuToStatement', to: 'lnChoice', read: false });
+check('READ MENU TO is the same activation', (({ to, read }) => ({ to, read }))(first('READ MENU TO lnChoice')), { to: 'lnChoice', read: true });
+check('READ EVENTS is untouched beside it', first('READ EVENTS').type, 'ReadEventsStatement');
+check('a property called menu is untouched', first('menu.caption = "x"').target.type, 'MemberExpression');
+
+// --- RELEASE's screen forms --------------------------------------------------------
+// The only one of the four that misparsed: RELEASE read as far as the word, took MENU for the name of a variable to release and left the real name behind.
+check('RELEASE MENU names the menu, not a variable called MENU',
+	(({ scope, names, extended }) => ({ scope, names, extended }))(first('RELEASE MENU mMain EXTENDED')),
+	{ scope: 'MENUS', names: ['mMain'], extended: true });
+check('RELEASE POPUP is the same shape', (({ scope, names }) => ({ scope, names }))(first('RELEASE POPUP pFileMenu')),
+	{ scope: 'POPUPS', names: ['pFileMenu'] });
+check('the plural spelling reads the same way', first('RELEASE MENUS mMain').scope, 'MENUS');
+check('and stands on its own', first('RELEASE MENUS').names, []);
+check('RELEASE of variables is untouched', first('RELEASE loA, loB').names, ['loA', 'loB']);
+check('so is RELEASE ALL EXTENDED', (({ scope, extended }) => ({ scope, extended }))(first('RELEASE ALL EXTENDED')), { scope: 'ALL', extended: true });
+
+// --- USE's ORDER clause ------------------------------------------------------------
+// OrderSpec was reachable only through `USE ... ?`, so every word of the clause fell to the connection-handle alternative and the last one won: the tag was read as a handle and nothing reported it.
+check('USE ... ORDER TAG reads the tag', (({ order, connection }) => ({ order, connection }))(first('USE customer ORDER TAG custid')),
+	{ order: { kind: 'TAG', tag: 'custid', of: null, direction: null }, connection: null });
+check('the whole clause reads, and the option after it is no longer lost',
+	(({ order, inTarget }) => [order.of, order.direction, inTarget.value])(first('USE customer ORDER TAG custid OF cust.cdx DESCENDING IN 2')),
+	[{ type: 'Path', path: 'cust.cdx' }, 'DESCENDING', 2]);
+check('an order number still reads', first('USE customer ORDER 1').order.kind, 'NUMBER');
+check('a connection handle is still a handle', first('USE customer CONNSTRING lnHandle').connection,
+	{ kind: 'CONNSTRING', value: 'lnHandle' });
+check('USE with no ORDER leaves it null', first('USE customer ALIAS cust').order, null);
+
+// --- a SET whose argument is a file ------------------------------------------------
+// `SET HELP TO x.hlp` parsed, and read the file as member access on a variable called x: a read of a name that does not exist, reported by nothing.
+check('the file reads as one name', first('SET HELP TO x.hlp').arguments, [{ type: 'Path', path: 'x.hlp' }]);
+check('a bare name is still an expression, because it may be a variable holding the file',
+	first('SET CLASSLIB TO mylib').arguments, [{ type: 'Identifier', name: 'mylib' }]);
+check('an m. prefix is still a memvar, not a path', first('SET HELP TO m.cHelpFile').arguments[0].type, 'MemberExpression');
+check('a parenthesised argument too', first('SET PROCEDURE TO (m.cLib) ADDITIVE').arguments[0].type, 'MemberExpression');
+check('a mixed list reads each item for what it is',
+	first('SET PROCEDURE TO lib1.prg, (m.cLib)').arguments.map(a => a.type), ['Path', 'MemberExpression']);
+check('a drive or a share reads as one path too', first('SET HELP TO \\\\srv\\share\\vfp.hlp').arguments, [{ type: 'Path', path: '\\\\srv\\share\\vfp.hlp' }]);
+check('the clause after the file still reads', first('SET ALTERNATE TO out.txt ADDITIVE').additive, true);
+check('a SET outside the file list keeps the expression reader',
+	first('SET FILTER TO customer.state = "NY"').arguments[0].left.type, 'MemberExpression');
+
 report('Parse checks');

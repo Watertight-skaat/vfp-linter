@@ -74,7 +74,7 @@ The grammar does not cover all of FoxPro, so valid code can reach the catch-all 
 
 ## What it does not read yet
 
-Still unread, and reported as `unsupported-syntax`: `SET` commands whose argument is a list or carries a clause of its own (`SET SKIP TO ... INTO`, `SET RELATION OFF INTO`, `SET PROCEDURE TO a, b`, `SET CLASSLIB TO ... IN ... ALIAS`), `BROWSE` options past the first, `SAVE WINDOW`/`RESTORE WINDOW`, `INSERT BEFORE`, `FIND`, `COPY INDEXES`, `CREATE VIEW`, `DECLARE` of an array, `WAIT ... TO`, and `DEBUGOUT`. Most of those leave the statement itself parsed and lose only the tail.
+Still unread, and reported as `unsupported-syntax`: db-transactions, the commands that make/open/manage a database, console input, the old `READ` screen, moving data in and out, the print job, `REGIONAL`, `SAVE`/`RESTORE MACROS`, `TOTAL TO ... ON ...` in that argument order, and three `SET`s whose argument runs past what the setting reader claims (`SET TOPIC ID TO`, `SET NOTIFY CURSOR`, `SET WINDOW OF MEMO`).
 
 Macro substitution is parsed where it appears, and `&lcCmd` counts as a read of `lcCmd`, but a macro's contents are only known at run time, so checks that depend on reading a condition skip it.
 

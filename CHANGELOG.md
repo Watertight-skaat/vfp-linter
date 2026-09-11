@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.3.2
+
+### The last four lines of the unsupported ledger
+
+`CREATE TRIGGER ON customer FOR INSERT AS NewCustomer()` and `DELETE TRIGGER ON customer FOR INSERT`
+are the referential-integrity side of the database container, and `VALIDATE DATABASE RECOVER` the check
+that it still matches what is on disk. The trigger's expression is parsed as code rather than kept as
+text, because it is usually a call into a validation routine. `DELETE TRIGGER` had to be claimed ahead
+of `DELETE`, whose xbase form read `TRIGGER` as the record scope and left the rest of the line behind.
+
+`SHUTDOWN` is its own node rather than sharing one with `QUIT`, because `ON SHUTDOWN` runs first and
+that is a chance for code to run.
+
+The Foxbase menu system -- `MENU BAR mBar, 5`, `MENU TO lnChoice` and `READ MENU TO lnChoice` -- which
+predates `DEFINE POPUP` and still turns up in the oldest files. `MENU TO` puts the number of the chosen
+bar in the variable, so the symbol table now books that write and the array `MENU BAR` builds from as a
+read; before, both names were invisible.
+
+`RELEASE MENU mMain EXTENDED` and `RELEASE POPUP pFileMenu` were the only ones of the four that
+misparsed rather than reported: `RELEASE` read as far as the word, took `MENU` for the name of a
+variable to release and left the real name behind. Both spellings, singular and plural, now name the
+menu and keep `EXTENDED`.
+
+### Two misparses that nothing reported
+
+`USE customer ORDER TAG custid` parsed, and read every word of the `ORDER` clause as a connection
+handle with the last one winning, because `OrderSpec` was reachable only through `USE ... ?`. The clause
+now sits above the handle alternative, so the tag, its `OF` file and its direction all read, and the
+option after it is no longer lost.
+
+`SET HELP TO x.hlp` parsed too, and read the file as member access on a variable called `x` -- a read of
+a name that does not exist, booked against the symbol table and reported by nothing. The `SET`s whose
+argument is a file now read it as one. A bare name stays an expression, because `SET CLASSLIB TO mylib`
+may well be a variable holding the library, and so do `m.` and `&` and a parenthesised argument, none of
+which is ever a file.
+
 ## 1.3.1
 
 ### `RENAME`'s container forms

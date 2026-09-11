@@ -165,3 +165,15 @@ PROCEDURE Purging
 	DELETE FROM orders WHERE batch_id = m.tnBatch
 	DELETE FOR qty < m.lnFloor IN orders
 ENDPROC
+
+* The Foxbase menu system, whose two halves are both references the symbol table used to miss: MENU BAR
+* builds the bar from the array, which is a read of it, and MENU TO puts the number of the bar the user
+* chose in the variable, which is a write. Neither statement parsed at all, so both names were invisible.
+PROCEDURE LegacyMenu
+	LOCAL lnChoice
+	LOCAL ARRAY laBar(3)
+	laBar(1) = "Post"
+	MENU BAR laBar, 3
+	MENU TO lnChoice
+	RETURN m.lnChoice
+ENDPROC

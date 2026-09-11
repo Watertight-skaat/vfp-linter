@@ -19,6 +19,23 @@
     }
     return o;
   }
+  // The two SetSettingStatement alternatives differ only in how the argument after TO is read, so they share the node they build.
+  function setCommandNode(cmd, toPart, parts) {
+    const o = { state: null, additive: false, inTarget: null, into: null, alias: null, delimiters: null };
+    const args = (toPart && toPart.args) ? [...toPart.args.values] : [];
+    for (const p of parts.map(t => t[1])) {
+      switch (p.kind) {
+        case 'STATE': if (!o.state) o.state = p.value; break;
+        case 'ADDITIVE': o.additive = true; break;
+        case 'IN': if (!o.inTarget) o.inTarget = p.value; break;
+        case 'INTO': if (!o.into) o.into = p.value; break;
+        case 'ALIAS': if (!o.alias) o.alias = p.value; break;
+        case 'DELIMITERS': if (!o.delimiters) o.delimiters = p.value; break;
+        case 'ARG': args.push(p.value); break;
+      }
+    }
+    return node("SetCommand", { command: cmd, arguments: args, cleared: !!toPart && !toPart.args, file: !!(toPart && toPart.args && toPart.args.file), state: o.state, additive: o.additive, inTarget: o.inTarget, into: o.into, alias: o.alias, delimiters: o.delimiters });
+  }
   function flatten(list) {
     const out = [];
     for (const item of list) {
@@ -60,6 +77,8 @@ Statement "statement"
   / AddObjectStatement
   / DefineScreenStatement
   / ScreenCommandStatement
+  / MenuBarStatement
+  / MenuToStatement
   / LParameters
   / PrintStatement
   / WaitStatement
@@ -84,7 +103,9 @@ Statement "statement"
   / NoteComment
   / IterationStatement
   / ExitStatement
+  / ShutdownStatement
   / ContinueStatement
+  / CreateTriggerStatement
   / CreateViewStatement
   / CreateStatement
   / IndexOnStatement
@@ -94,6 +115,7 @@ Statement "statement"
   / UpdateOnStatement
   / UpdateStatement
   / DeleteTagStatement
+  / DeleteTriggerStatement
   / DeleteStatement
   / ZapStatement
   / GoToStatement
@@ -150,6 +172,7 @@ Statement "statement"
   / AssertStatement
   / PlayMacroStatement
   / AlterTableStatement
+  / ValidateDatabaseStatement
   / RunStatement
   / ExpressionStatement
   / UnknownStatement
@@ -338,7 +361,7 @@ UseStatement
     tgt:(!UseOptionWord t:UseTarget { return t; })? _
     parts:(UseOption _)*
     {
-      const opts = { inTarget:null, online:false, admin:false, again:false, norequery:false, dataSession:null, nodata:false, index:null, alias:null, exclusive:false, shared:false, noUpdate:false, connection:null };
+      const opts = { inTarget:null, online:false, admin:false, again:false, norequery:false, dataSession:null, nodata:false, index:null, order:null, alias:null, exclusive:false, shared:false, noUpdate:false, connection:null };
       for (const p of parts.map(t => t[0])) {
         switch (p.kind) {
           case 'IN': opts.inTarget = p.value; break;
@@ -348,6 +371,7 @@ UseStatement
           case 'NOREQUERY': opts.norequery = true; opts.dataSession = (p.value === true) ? null : p.value; break;
           case 'NODATA': opts.nodata = true; break;
           case 'INDEX': opts.index = p.value; break;
+          case 'ORDER': opts.order = p.value; break;
           case 'ALIAS': opts.alias = p.value; break;
           case 'EXCLUSIVE': opts.exclusive = true; break;
           case 'SHARED': opts.shared = true; break;
@@ -365,6 +389,7 @@ UseStatement
         dataSession: opts.dataSession,
         nodata: opts.nodata,
         index: opts.index,
+        order: opts.order,
         alias: opts.alias,
         exclusive: opts.exclusive,
         shared: opts.shared,
@@ -375,7 +400,7 @@ UseStatement
 
 // The words that can only be options, never the table.
 UseOptionWord
-  = ("IN"i / "ONLINE"i / "ADMIN"i / "AGAIN"i / "NOREQUERY"i / "NODATA"i / "INDEX"i / "ALIAS"i
+  = ("IN"i / "ONLINE"i / "ADMIN"i / "AGAIN"i / "NOREQUERY"i / "NODATA"i / "INDEX"i / "ORDER"i / "ALIAS"i
     / "EXCLUSIVE"i / "SHARED"i / "NOUPDATE"i / "CONNSTRING"i) WB
 
 UseTarget
@@ -391,6 +416,8 @@ UseOption
   / "NOREQUERY"i _ ds:Expression? { return { kind: 'NOREQUERY', value: ds || true }; }
   / "NODATA"i { return { kind: 'NODATA', value: true }; }
   / idx:UseIndexPart { return { kind: 'INDEX', value: idx }; }
+  // OrderSpec was reachable only through `USE ... ?`, so every word of `USE customer ORDER TAG custid` fell to UseConnPart and was read as a connection handle, the last one winning. It has to sit above that handle alternative, which matches any bare name.
+  / ord:OrderSpec { return { kind: 'ORDER', value: ord }; }
   / "ALIAS"i __ a:AliasRef { return { kind: 'ALIAS', value: a }; }
   / "EXCLUSIVE"i { return { kind: 'EXCLUSIVE', value: true }; }
   / "SHARED"i { return { kind: 'SHARED', value: true }; }
@@ -1456,12 +1483,41 @@ DoStatement "do statement"
 ExitStatement "exit"
   = ("EXIT"i / "QUIT"i) WB { return node("ExitStatement", {}); }
 
+// SHUTDOWN ends the session after running ON SHUTDOWN, which is what separates it from QUIT: the handler is a chance for code to run, so the two cannot share a node.
+ShutdownStatement
+  = "SHUTDOWN"i WB NotCallOrAssign { return node("ShutdownStatement", {}); }
+
 ContinueStatement "continue (LOOP)"
   = "LOOP"i WB { return node("ContinueStatement", {}); }
 
 // -----------------------------
 // CREATE TABLE/DBF/CURSOR/VIEW
 // -----------------------------
+
+// CREATE TRIGGER ON TableName FOR DELETE | INSERT | UPDATE AS lExpression
+// The expression is real code -- it is usually a call into a validation routine -- so it is parsed rather than kept as text.
+CreateTriggerStatement
+  = "CREATE"i WB _ "TRIGGER"i WB _ "ON"i WB __ tbl:IdentifierOrString _
+    "FOR"i WB _ ev:TriggerEvent _ "AS"i WB __ e:Expression {
+      return node('CreateTriggerStatement', { table: tbl, event: ev, expression: e });
+    }
+
+// DELETE TRIGGER ON TableName FOR DELETE | INSERT | UPDATE
+// It has to be claimed ahead of DeleteStatement, whose xbase form would read TRIGGER as the record scope and leave the rest of the line to the catch-all.
+DeleteTriggerStatement
+  = "DELETE"i WB _ "TRIGGER"i WB _ "ON"i WB __ tbl:IdentifierOrString _ "FOR"i WB _ ev:TriggerEvent {
+      return node('DeleteTriggerStatement', { table: tbl, event: ev });
+    }
+
+TriggerEvent
+  = kw:$("DELETE"i / "INSERT"i / "UPDATE"i) WB { return kw.toUpperCase(); }
+
+// VALIDATE DATABASE [RECOVER] [NOCONSOLE] [TO PRINTER [PROMPT] | TO FILE FileName [ADDITIVE]]
+// Nothing here reaches a table or a variable, so RECOVER -- the flag that makes it write -- is what is kept and the report tail stays raw source.
+ValidateDatabaseStatement
+  = "VALIDATE"i WB _ "DATABASE"i WB NotCallOrAssign _ recover:("RECOVER"i WB)? opts:RawOptions {
+      return node('ValidateDatabaseStatement', { recover: !!recover, options: opts });
+    }
 
 // CREATE [SQL] VIEW ViewName [REMOTE] [CONNECTION ConnectionName [SHARE]] AS SQLSELECTStatement
 CreateViewStatement
@@ -1843,6 +1899,18 @@ ScreenCommandStatement
       return node('ScreenCommandStatement', { command: cmd.toUpperCase(), what: what.toUpperCase(), options: opts });
     }
 
+// The Foxbase menu system, which predates DEFINE POPUP and still turns up in the oldest files.
+// MENU BAR builds the bar from an array; MENU TO activates it and puts the number of the chosen bar in the variable, which is a write the symbol table has to see. READ MENU TO is the same activation reached through READ.
+MenuBarStatement
+  = "MENU"i WB _ "BAR"i WB __ array:Identifier _ "," _ count:Expression {
+      return node('MenuBarStatement', { array, count });
+    }
+
+MenuToStatement
+  = read:("READ"i WB _)? "MENU"i WB _ "TO"i WB __ to:ParameterName {
+      return node('MenuToStatement', { to, read: !!read });
+    }
+
 // SET SKIP OF MENU | PAD | POPUP | BAR ... lExpression greys a menu item out. It is menu furniture rather than a setting, so SetSettingStatement -- which would read OF as the argument and leave the rest of the line to the catch-all -- has to be given it first.
 SetSkipOfStatement
   = "SET"i WB _ "SKIP"i WB _ "OF"i WB _ what:("MENU"i / "PAD"i / "POPUP"i / "BAR"i) WB _ target:(NumberLiteral / Identifier) _ of:OfParentClause? _ condition:Expression {
@@ -1959,24 +2027,13 @@ SetSettingStatement
   ="SET"i (Whitespace / LineContinuation)+ inner:(
     // The boundary is what keeps SET TOPIC TO "x" from reading as SET TO with a setting called PIC, which is a misparse rather than a gap: it produced a valid tree and reported nothing.
     ("TO"i WB __ setting:Expression { return node("SetTo", { setting }); })
+    // A SET whose argument is a file name reads it as one: `SET HELP TO x.hlp` was member access on a variable called x, which booked a read of a name that does not exist.
+    / (cmd:SetFileWord
+       toPart:(_ "TO"i WB args:(_ a:SetFileArguments { return a; })? { return { args }; })?
+       parts:(_ SetOption)* { return setCommandNode(cmd, toPart, parts); })
     / (cmd:KeywordOrIdentifier
        toPart:(_ "TO"i WB args:(_ a:SetArguments { return a; })? { return { args }; })?
-       parts:(_ SetOption)* {
-        const o = { state: null, additive: false, inTarget: null, into: null, alias: null, delimiters: null };
-        const args = (toPart && toPart.args) ? [...toPart.args.values] : [];
-        for (const p of parts.map(t => t[1])) {
-          switch (p.kind) {
-            case 'STATE': if (!o.state) o.state = p.value; break;
-            case 'ADDITIVE': o.additive = true; break;
-            case 'IN': if (!o.inTarget) o.inTarget = p.value; break;
-            case 'INTO': if (!o.into) o.into = p.value; break;
-            case 'ALIAS': if (!o.alias) o.alias = p.value; break;
-            case 'DELIMITERS': if (!o.delimiters) o.delimiters = p.value; break;
-            case 'ARG': args.push(p.value); break;
-          }
-        }
-        return node("SetCommand", { command: cmd, arguments: args, cleared: !!toPart && !toPart.args, file: !!(toPart && toPart.args && toPart.args.file), state: o.state, additive: o.additive, inTarget: o.inTarget, into: o.into, alias: o.alias, delimiters: o.delimiters });
-      })
+       parts:(_ SetOption)* { return setCommandNode(cmd, toPart, parts); })
   ) {
       // If TO form, inner is already a SetTo node and we return it directly.
       if (inner && inner.type === 'SetTo') return inner;
@@ -1989,6 +2046,20 @@ SetArguments
   = "FILE"i WB __ f:(StringLiteral / UnquotedPath) { return { file: true, values: [f] }; }
   / &([A-Za-z] ":" [\\/] / [\\/]) p:UnquotedPath { return { file: false, values: [p] }; }
   / a:ExpressionList { return { file: false, values: a }; }
+
+// The SETs whose TO takes a file rather than a value. Anything outside this list keeps the expression reader, because `SET FILTER TO customer.state = "NY"` is member access and has to stay that way.
+SetFileWord
+  = kw:$("ALTERNATE"i / "CLASSLIB"i / "DEFAULT"i / "FORMAT"i / "HELP"i / "LIBRARY"i / "PATH"i / "PROCEDURE"i / "RESOURCE"i) WB { return kw.toUpperCase(); }
+
+// The same argument shapes, with each item in the list read as a file name first and as an expression otherwise, so a mixed `SET PROCEDURE TO lib1.prg, (m.cLib)` reads both halves for what they are.
+SetFileArguments
+  = "FILE"i WB __ f:(StringLiteral / UnquotedPath) { return { file: true, values: [f] }; }
+  / head:SetFileArgument tail:(_ "," _ a:SetFileArgument { return a; })* { return { file: false, values: [head, ...tail] }; }
+
+// A name carrying a dot, a drive or a slash is the file; a bare name stays an expression, because `SET CLASSLIB TO mylib` may well be a variable holding one. The two prefixes excluded are the ones that are never a file: `m.` names a memvar and `&` is a macro, and reading either as a path would lose the variable it holds.
+SetFileArgument
+  = !("m"i "." / "&" / "this"i ".") &([A-Za-z0-9_]* [.:\\/]) p:UnquotedPath { return p; }
+  / Expression
 
 // The clauses a SET can carry after its argument. The bare value is last, so `OFF` reads as the state rather than as a setting named OFF.
 SetOption
@@ -2463,7 +2534,11 @@ ReleaseBody
   / "ALL"i WB _ ext:("EXTENDED"i WB)? {
       return { scope: 'ALL', extended: !!ext, mode: null, pattern: null, names: [], options: null };
     }
-  / kw:("WINDOWS"i / "PROCEDURE"i / "CLASSLIB"i / "LIBRARY"i / "MENUS"i / "POPUPS"i / "BAR"i / "PAD"i) WB opts:RawOptions {
+  // The singular forms are the ones the oldest files use, and RELEASE reached only as far as the word: MENU was taken for the name of a variable to release and the real name was left behind. The optional S covers both spellings.
+  / kw:$("MENU"i / "POPUP"i) "S"i? WB _ names:(!("EXTENDED"i WB) l:IdentifierList { return l; })? _ ext:("EXTENDED"i WB)? {
+      return { scope: kw.toUpperCase() + 'S', extended: !!ext, mode: null, pattern: null, names: names || [], options: null };
+    }
+  / kw:("WINDOWS"i / "PROCEDURE"i / "CLASSLIB"i / "LIBRARY"i / "BAR"i / "PAD"i) WB opts:RawOptions {
       return { scope: kw.toUpperCase(), extended: false, mode: null, pattern: null, names: [], options: opts };
     }
   / names:IdentifierList {
