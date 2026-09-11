@@ -4,8 +4,10 @@ const parser = require('../server/src/parser.js');
 const { runLinterRules } = require('../server/src/linter.ts');
 const { check, report } = require('./check.js');
 
-// Valid FoxPro the grammar does not cover, so it reaches UnknownStatement.
-const unsupported = 'THROW "boom"\n';
+// A statement the grammar does not cover, so it reaches UnknownStatement. Deliberately not a real
+// FoxPro command: this suite tests the severity mapping, and it should not need editing every time
+// the grammar learns another construct. test-files/diagnostics/still-unsupported.prg tracks the real ones.
+const unsupported = 'ZZNOTACOMMAND 1\n';
 // An unterminated block: the catch-all absorbs the opening line, so the parser never throws.
 const unterminated = 'IF .T.\n? 1\n';
 // A dangling terminator, which UnknownStatement refuses to match, so the parser does throw.

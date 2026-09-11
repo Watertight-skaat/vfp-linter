@@ -45,7 +45,10 @@ Statement "statement"
   / CopyStatement
   / EraseStatement
   / SetStatement
-  / OnKeyStatement
+  / OnStatement
+  / TextBlockStatement
+  / ThrowStatement
+  / AtStatement
   / PreprocessorStatement
   / IterationStatement
   / ExitStatement
@@ -75,6 +78,17 @@ Statement "statement"
   / EvalStatement
   / WithStatement
   / BrowseStatement
+  / ClearStatement
+  / CloseStatement
+  / ReleaseStatement
+  / PackStatement
+  / SeekStatement
+  / SuspendStatement
+  / ResumeStatement
+  / KeyboardStatement
+  / ReportFormStatement
+  / SortStatement
+  / ListStatement
   / ExpressionStatement
   / UnknownStatement
   ) { return s; }
@@ -294,7 +308,8 @@ IndexFileList
 
 OrderSpec
   = "ORDER"i __ sel:(
-      n:Expression { return { kind: 'NUMBER', value: n }; }
+      &("TAG"i WB) tag:TagSpec { return { kind: 'TAG', ...tag }; }
+      / n:Expression { return { kind: 'NUMBER', value: n }; }
       / f:(IdentifierOrString / UnquotedPath) { return { kind: 'FILE', value: f }; }
       / tag:TagSpec { return { kind: 'TAG', ...tag }; }
     ) { return sel; }
@@ -316,11 +331,92 @@ PreprocessorStatement
   / DefineStatement
   / PreprocessorIfStatement
 
-// ON KEY [ = expN] [command]
-OnKeyStatement
-  = "ON KEY"i WB _ eq:(_ "=" _ e:Expression { return e; })? _ cmd:Expression? _ LineTerminator? {
-      return node('OnKeyStatement', { keyExpression: eq ? eq[1] : null, command: cmd || null });
+// ON ERROR | ESCAPE | SHUTDOWN | READERROR | APLABOUT | PAGE | KEY [LABEL cLabel] [command]
+// The command is parsed as a statement, and `_` does not cross a newline, so a bare ON ERROR that
+// clears the handler cannot swallow the line below it.
+OnStatement
+  = "ON"i WB _ "KEY"i WB _ "LABEL"i WB _ label:$([^ \t\r\n]+) _ cmd:Statement? {
+      return node("OnStatement", { event: 'KEY LABEL', label, atLine: null, command: cmd || null });
     }
+  / "ON"i WB _ "KEY"i WB _ cmd:Statement? {
+      return node("OnStatement", { event: 'KEY', label: null, atLine: null, command: cmd || null });
+    }
+  / "ON"i WB _ "PAGE"i WB _ at:("AT"i WB _ "LINE"i WB _ n:Expression { return n; })? _ cmd:Statement? {
+      return node("OnStatement", { event: 'PAGE', label: null, atLine: at || null, command: cmd || null });
+    }
+  / "ON"i WB _ ev:("ERROR"i / "ESCAPE"i / "SHUTDOWN"i / "READERROR"i / "APLABOUT"i) WB _ cmd:Statement? {
+      return node("OnStatement", { event: ev.toUpperCase(), label: null, atLine: null, command: cmd || null });
+    }
+
+// TEXT [TO VarName [ADDITIVE]] [TEXTMERGE] [NOSHOW] [FLAGS nFlags] [PRETEXT nPretext] ... ENDTEXT
+// The body is raw output text, not code, so TextLine reads it verbatim up to the ENDTEXT line.
+TextBlockStatement "text block"
+  = "TEXT"i WB opts:(_ TextOption)* _ PartialLineComment? LineTerminatorSequence
+    lines:TextLine*
+    _ "ENDTEXT"i WB {
+      const o = { to: null, additive: false, textmerge: false, noshow: false, flags: null, pretext: null };
+      for (const part of opts.map(t => t[1])) {
+        switch (part.kind) {
+          case 'TO': o.to = part.value; o.additive = part.additive; break;
+          case 'TEXTMERGE': o.textmerge = true; break;
+          case 'NOSHOW': o.noshow = true; break;
+          case 'FLAGS': o.flags = part.value; break;
+          case 'PRETEXT': o.pretext = part.value; break;
+        }
+      }
+      return node("TextBlockStatement", {
+        to: o.to,
+        additive: o.additive,
+        textmerge: o.textmerge,
+        noshow: o.noshow,
+        flags: o.flags,
+        pretext: o.pretext,
+        content: lines.join('\n')
+      });
+    }
+
+TextOption
+  = "TO"i WB _ v:ParameterName _ add:("ADDITIVE"i WB)? { return { kind: 'TO', value: v, additive: !!add }; }
+  / "TEXTMERGE"i WB { return { kind: 'TEXTMERGE' }; }
+  / "NOSHOW"i WB { return { kind: 'NOSHOW' }; }
+  / "FLAGS"i WB _ n:Expression { return { kind: 'FLAGS', value: n }; }
+  / "PRETEXT"i WB _ n:Expression { return { kind: 'PRETEXT', value: n }; }
+
+TextLine
+  = !(_ "ENDTEXT"i WB) line:$((!LineTerminator .)*) LineTerminatorSequence { return line; }
+
+// THROW [eUserValue], which the grammar previously accepted only between a CATCH body and FINALLY.
+ThrowStatement
+  = "THROW"i WB _ e:Expression? {
+      return node("ThrowStatement", { argument: e || null });
+    }
+
+// @ nRow, nColumn SAY | GET | TO | CLEAR, the legacy screen commands.
+// Their option tails (PICTURE, FUNCTION, SIZE, FONT, VALID, WHEN, COLOR ...) are long and vary by
+// verb, so they are kept as raw source: recognising the statement is what stops the false positive.
+AtStatement "screen coordinate statement"
+  = "@" _ row:Expression _ "," _ col:Expression _ body:AtBody {
+      return node("AtStatement", {
+        row,
+        column: col,
+        verb: body.verb,
+        expression: body.expression,
+        target: body.target,
+        endRow: body.endRow,
+        endColumn: body.endColumn,
+        options: body.options
+      });
+    }
+
+AtBody
+  = "SAY"i WB _ e:Expression o:RawOptions { return { verb: 'SAY', expression: e, target: null, endRow: null, endColumn: null, options: o }; }
+  / "GET"i WB _ v:LValue o:RawOptions { return { verb: 'GET', expression: null, target: v, endRow: null, endColumn: null, options: o }; }
+  / "TO"i WB _ r:Expression _ "," _ c:Expression o:RawOptions { return { verb: 'TO', expression: null, target: null, endRow: r, endColumn: c, options: o }; }
+  / "CLEAR"i WB o:RawOptions { return { verb: 'CLEAR', expression: null, target: null, endRow: null, endColumn: null, options: o }; }
+
+// The rest of a command line, verbatim, for option tails the grammar does not model yet.
+RawOptions
+  = _ o:$((!(LineTerminator / PartialLineComment) .)*) { return o.trim() || null; }
 
 IncludeStatement
   = "#include"i _ path:(StringLiteral / UnquotedPath) {
@@ -438,6 +534,7 @@ Primary
   / NullLiteral
   / DateTimeLiteral
   / CastExpression
+  / CaseExpression
   / MacroSubstitute
   / id:Identifier { return (id && id.length && id.charAt(0) === '_') ? node("ImplicitGlobal", { name: id }) : node("Identifier", { name: id }); }
   / "(" _ e:Expression _ ")" { return e; }
@@ -468,6 +565,15 @@ TypeSpec
   }
   / id:IdentifierOrString { return { kind: 'simple', name: id }; }
 
+// SQL CASE [operand] WHEN ... THEN ... [ELSE ...] END, which is an expression rather than a statement.
+CaseExpression
+  = "CASE"i WB __ operand:(!("WHEN"i WB) e:Expression __ { return e; })?
+    whens:("WHEN"i WB __ w:Expression __ "THEN"i WB __ t:Expression __ { return { when: w, then: t }; })+
+    alt:("ELSE"i WB __ e:Expression __ { return e; })?
+    "END"i WB {
+      return node("CaseExpression", { operand: operand || null, whens, otherwise: alt || null });
+    }
+
 CastExpression
   = "CAST"i _ "(" _ e:Expression _ "AS"i _ t:TypeSpec _ ")" { return node("CastExpression", { expression: e, to: t }); }
 
@@ -478,7 +584,8 @@ ExistsExpression
 // Postfix expressions: allow chaining of member access (.prop) and call expressions (args)
 PostfixExpression
   = head:Primary tail:(
-      ("." / "->") _ prop:Identifier { return { type: 'member', prop } }
+      "::" _ prop:Identifier { return { type: 'scope', prop } }
+    / ("." / "->") _ prop:Identifier { return { type: 'member', prop } }
       / "(" _ args:ArgumentList? _ ")" { return { type: 'call', args: args || [] } }
       / "[" _ idxs:ExpressionList _ "]" { return { type: 'index', indexes: idxs }; }
     )*
@@ -487,6 +594,9 @@ PostfixExpression
       for (const t of tail) {
         if (t.type === 'member') {
           expr = node("MemberExpression", { object: expr, property: node("Identifier", { name: t.prop }) });
+        } else if (t.type === 'scope') {
+          // Base::Method() reaches a parent implementation explicitly, which DODEFAULT() does implicitly.
+          expr = node("ScopeResolution", { object: expr, property: node("Identifier", { name: t.prop }) });
         } else if (t.type === 'call') {
           expr = node("CallExpression", { callee: expr, arguments: t.args });
         } else if (t.type === 'index') {
@@ -1369,6 +1479,7 @@ UnknownStatement
     / "ENDCASE"i    ![A-Za-z0-9_]
     / "ENDWITH"i    ![A-Za-z0-9_]
     / "ENDSCAN"i    ![A-Za-z0-9_]
+    / "ENDTEXT"i    ![A-Za-z0-9_]
     / "OTHERWISE"i  ![A-Za-z0-9_]
     / "CATCH"i      ![A-Za-z0-9_]
     / "FINALLY"i    ![A-Za-z0-9_]
@@ -1735,6 +1846,145 @@ ProcedureStatement "procedure"
 ReturnStatement
   = "RETURN"i WB _ expr:Expression? _ LineTerminator? { return node("ReturnStatement", { argument: expr === undefined ? null : expr }); }
 
+
+// -----------------------------
+// Xbase housekeeping and output commands
+// -----------------------------
+
+// None of these command words is reserved, so each rule first refuses a call or an assignment: that
+// keeps a variable named `list` or a call to SEEK() parsing as what it is.
+NotCallOrAssign
+  = !(_ ("(" / "="))
+
+// CLEAR [ALL | CLASS cName | CLASSLIB cName | DLLS | EVENTS | FIELDS | GETS | MACROS | MEMORY
+//   | MENUS | POPUPS | PROGRAM | PROMPT | READ [ALL] | RESOURCES | TYPEAHEAD | WINDOWS | DEBUG]
+ClearStatement
+  = "CLEAR"i WB NotCallOrAssign _ opt:ClearOption? {
+      return node('ClearStatement', {
+        target: opt ? opt.target : null,
+        name: opt ? opt.name : null,
+        all: opt ? opt.all : false
+      });
+    }
+
+ClearOption
+  = kw:("CLASSLIB"i / "CLASS"i) WB _ n:IdentifierOrString { return { target: kw.toUpperCase(), name: n, all: false }; }
+  / "READ"i WB _ a:("ALL"i WB)? { return { target: 'READ', name: null, all: !!a }; }
+  / kw:("ALL"i / "DLLS"i / "EVENTS"i / "FIELDS"i / "GETS"i / "MACROS"i / "MEMORY"i / "MENUS"i
+      / "POPUPS"i / "PROGRAM"i / "PROMPT"i / "RESOURCES"i / "TYPEAHEAD"i / "WINDOWS"i / "DEBUG"i) WB {
+      return { target: kw.toUpperCase(), name: null, all: false };
+    }
+
+// CLOSE ALL | ALTERNATE | DATABASES [ALL] | DEBUGGER | FORMAT | INDEXES | PROCEDURE | TABLES [ALL]
+CloseStatement
+  = "CLOSE"i WB NotCallOrAssign _ opt:CloseOption? {
+      return node('CloseStatement', { target: opt ? opt.target : null, all: opt ? opt.all : false });
+    }
+
+CloseOption
+  = kw:("ALTERNATE"i / "DATABASES"i / "DEBUGGER"i / "FORMAT"i / "INDEXES"i / "PROCEDURE"i
+      / "TABLES"i / "ALL"i) WB _ a:("ALL"i WB)? {
+      return { target: kw.toUpperCase(), all: !!a };
+    }
+
+// RELEASE MemVarList | ALL [EXTENDED] | ALL LIKE | EXCEPT Skeleton | WINDOWS | PROCEDURE | CLASSLIB ...
+ReleaseStatement
+  = "RELEASE"i WB NotCallOrAssign _ body:ReleaseBody {
+      return node('ReleaseStatement', {
+        scope: body.scope,
+        extended: body.extended,
+        mode: body.mode,
+        pattern: body.pattern,
+        names: body.names,
+        options: body.options
+      });
+    }
+
+ReleaseBody
+  = "ALL"i WB _ m:("LIKE"i / "EXCEPT"i) WB _ pat:(StringLiteral / Pattern) {
+      return { scope: 'ALL', extended: false, mode: m.toUpperCase(), pattern: pat, names: [], options: null };
+    }
+  / "ALL"i WB _ ext:("EXTENDED"i WB)? {
+      return { scope: 'ALL', extended: !!ext, mode: null, pattern: null, names: [], options: null };
+    }
+  / kw:("WINDOWS"i / "PROCEDURE"i / "CLASSLIB"i / "LIBRARY"i / "MENUS"i / "POPUPS"i / "BAR"i / "PAD"i) WB opts:RawOptions {
+      return { scope: kw.toUpperCase(), extended: false, mode: null, pattern: null, names: [], options: opts };
+    }
+  / names:IdentifierList {
+      return { scope: null, extended: false, mode: null, pattern: null, names, options: null };
+    }
+
+// PACK [MEMO | DBF] [TableName] [IN nWorkArea | cTableAlias]
+PackStatement
+  = "PACK"i WB NotCallOrAssign _ what:(("MEMO"i / "DBF"i) WB)? _ tbl:IdentifierOrString? _
+    inTgt:("IN"i WB __ t:(NumberLiteral / Identifier / StringLiteral) { return t; })? {
+      return node('PackStatement', {
+        what: what ? what[0].toUpperCase() : null,
+        table: tbl || null,
+        inTarget: inTgt || null
+      });
+    }
+
+// SEEK eExpression [ORDER ...] [ASCENDING | DESCENDING] [IN nWorkArea | cTableAlias]
+SeekStatement
+  = "SEEK"i WB NotCallOrAssign _ e:Expression _ ord:OrderSpec? _ dir:(("ASCENDING"i / "DESCENDING"i) WB)? _
+    inTgt:("IN"i WB __ t:(NumberLiteral / Identifier / StringLiteral) { return t; })? {
+      return node('SeekStatement', {
+        expression: e,
+        order: ord || null,
+        direction: dir ? dir[0].toUpperCase() : null,
+        inTarget: inTgt || null
+      });
+    }
+
+SuspendStatement
+  = "SUSPEND"i WB NotCallOrAssign { return node('SuspendStatement', {}); }
+
+ResumeStatement
+  = "RESUME"i WB NotCallOrAssign { return node('ResumeStatement', {}); }
+
+// KEYBOARD cExpression [PLAIN] [CLEAR]
+KeyboardStatement
+  = "KEYBOARD"i WB NotCallOrAssign _ e:Expression flags:(_ ("PLAIN"i / "CLEAR"i) WB)* {
+      const names = flags.map(f => f[1].toUpperCase());
+      return node('KeyboardStatement', {
+        expression: e,
+        plain: names.includes('PLAIN'),
+        clear: names.includes('CLEAR')
+      });
+    }
+
+// REPORT FORM | LABEL FORM FileName ... The option tail is long and order-free, so it is kept as
+// raw source: recognising the statement is what stops the false positive.
+ReportFormStatement
+  = cmd:("REPORT"i / "LABEL"i) WB _ "FORM"i WB _ form:PathOrExpression opts:RawOptions {
+      return node('ReportFormStatement', { command: cmd.toUpperCase(), form, options: opts });
+    }
+
+// SORT TO TableName ON FieldName [/A | /D | /C] [, ...] ... Remaining options kept as raw source.
+SortStatement
+  = "SORT"i WB _ "TO"i WB _ target:PathOrExpression _ "ON"i WB _ first:SortField rest:(_ "," _ SortField)* opts:RawOptions {
+      return node('SortStatement', { target, fields: [first, ...rest.map(r => r[3])], options: opts });
+    }
+
+SortField
+  = name:ParameterName flags:("/" [ADCadc])* {
+      const f = flags.map(x => x[1].toUpperCase());
+      return { name, descending: f.includes('D'), ignoreCase: f.includes('C') };
+    }
+
+// LIST | DISPLAY [subject] ... Both have large, subject-dependent option tails, kept as raw source.
+ListStatement
+  = cmd:("LIST"i / "DISPLAY"i) WB NotCallOrAssign _ subj:ListSubject? opts:RawOptions {
+      return node('ListStatement', { command: cmd.toUpperCase(), subject: subj, options: opts });
+    }
+
+ListSubject
+  = kw:("MEMORY"i / "STATUS"i / "STRUCTURE"i / "FILES"i / "DATABASE"i / "TABLES"i / "OBJECTS"i
+      / "CONNECTIONS"i / "VIEWS"i / "PROCEDURES"i / "DLLS"i / "CLASSES"i / "FIELDS"i) WB {
+      return kw.toUpperCase();
+    }
+
 // -----------------------------
 // Lexical
 // -----------------------------
@@ -1826,6 +2076,7 @@ Keyword "keyword"
   / ("ZAP"i        ![a-zA-Z0-9_])
   / ("BROWSE"i     ![a-zA-Z0-9_])
   / ("ENDSCAN"i    ![a-zA-Z0-9_])
+  / ("ENDTEXT"i    ![a-zA-Z0-9_])
 
 NumberLiteral "number"
   = "SELECT(0)"i { return node("NumberLiteral", { value: 0, raw: "SELECT(0)", currency: false });}

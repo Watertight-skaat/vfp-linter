@@ -1,6 +1,0 @@
-4:1 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'SEEK lcKey'
-5:1 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'PACK'
-6:1 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'CLOSE DATABASES'
-7:1 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'RELEASE loObj'
-8:1 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'THROW "boom"'
-9:1 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'ON ERROR DO handler'

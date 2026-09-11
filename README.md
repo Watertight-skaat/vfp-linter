@@ -54,7 +54,9 @@ Fixtures live in two places. `test-files/*.prg` is the coverage corpus: the gram
 to read all of it, so a fixture there should have no `.expected` file at all. Anything recorded
 against one is a grammar gap, stated out loud instead of passing silently.
 `test-files/diagnostics/*.prg` is the opposite — fixtures written to make a rule fire, each paired
-with the diagnostics it must produce.
+with the diagnostics it must produce. One of them, `still-unsupported.prg`, is a deliberate ledger
+of constructs the grammar cannot read yet: when one is implemented, `test:update` drops its line and
+the diff shows coverage improving.
 
 A fixture with no `.expected` file must produce nothing. To accept a change, run
 `bun run test:update` and review the resulting diff: that diff is the point, because it makes a
@@ -110,6 +112,28 @@ git history and re-add `eslint`, `@eslint/js`, `@stylistic/eslint-plugin`,
         ├── scope.ts // Per-routine symbol table the scope-dependent rules read
         └── server.ts // Language Server entry point
 ```
+
+### Grammar coverage
+
+A statement the grammar cannot read is a statement no rule can check, so coverage is not cosmetic —
+every gap silently subtracts from every rule. Recently added: `TEXT ... ENDTEXT` (the body is held
+verbatim and never parsed as code), the `ON ERROR`/`ESCAPE`/`SHUTDOWN`/`READERROR`/`PAGE`/`KEY LABEL`
+handlers, `THROW` as a statement, the SQL `CASE WHEN` expression, the `::` scope-resolution operator,
+`@ ... SAY`/`GET`/`TO`/`CLEAR`, and the housekeeping commands `CLEAR`, `CLOSE`, `RELEASE`, `PACK`,
+`SEEK`, `SUSPEND`, `RESUME`, `KEYBOARD`, `LIST`/`DISPLAY`, `REPORT`/`LABEL FORM` and `SORT`.
+
+Two conventions worth knowing before adding more:
+
+**None of these command words is reserved.** `CLEAR`, `LIST`, `SEEK` and the rest are all legal
+variable and function names in FoxPro, so each rule starts with `NotCallOrAssign` and sits after
+`AssignmentStatement` in the `Statement` list. `list = 1` is an assignment and `SEEK(lcKey)` is a
+call, and there is a test that probes every keyword literal in the grammar as an identifier prefix.
+
+**Long option tails are kept as raw source, not modelled.** `@ ... SAY`, `LIST`, `REPORT FORM` and
+`SORT` have large, order-free option lists; those rules capture the remainder of the line into an
+`options` string. Recognising the statement is what stops the false positive, and the text is kept so
+a rule can look at it later. The operands that carry meaning — coordinates, the GET variable, the
+report name, the sort fields — are parsed properly.
 
 ### The typed AST
 

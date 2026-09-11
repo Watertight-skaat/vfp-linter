@@ -43,6 +43,8 @@ export type Expr =
   | ArrayIndexExpression
   | CastExpression
   | ExistsExpression
+  | CaseExpression
+  | ScopeResolution
   | SelectStatement
   | SelectStar;
 
@@ -199,6 +201,18 @@ export type ExportType =
   | { format: string; sheet?: IdentifierOrString | null }
   | { format: 'DELIMITED'; options: unknown };
 
+export interface CaseWhen {
+  when: Expr;
+  then: Expr;
+}
+
+/** One field of a SORT ... ON list, with its /D and /C flags resolved. */
+export interface SortFieldSpec {
+  name: string;
+  descending: boolean;
+  ignoreCase: boolean;
+}
+
 export interface DatabaseClause {
   database: IdentifierOrString;
   longName: IdentifierOrString | null;
@@ -312,6 +326,22 @@ export interface CastExpression extends NodeBase {
 export interface ExistsExpression extends NodeBase {
   type: 'ExistsExpression';
   argument: SelectStatement;
+}
+
+/** SQL CASE [operand] WHEN ... THEN ... [ELSE ...] END. An expression, not a statement. */
+export interface CaseExpression extends NodeBase {
+  type: 'CaseExpression';
+  /** The CASE <operand> WHEN <value> form; null for the CASE WHEN <condition> form. */
+  operand: Expr | null;
+  whens: CaseWhen[];
+  otherwise: Expr | null;
+}
+
+/** Base::Method(), which reaches a parent implementation explicitly where DODEFAULT() does it implicitly. */
+export interface ScopeResolution extends NodeBase {
+  type: 'ScopeResolution';
+  object: Expr;
+  property: Identifier;
 }
 
 // ---------------------------------------------------------------------------
@@ -857,6 +887,126 @@ export interface SetCommand extends NodeBase {
 export type Keyword = string | unknown[];
 
 // ---------------------------------------------------------------------------
+// Xbase housekeeping and output
+// ---------------------------------------------------------------------------
+
+/** TEXT ... ENDTEXT. The body is raw output text, held verbatim in `content` rather than parsed. */
+export interface TextBlockStatement extends NodeBase {
+  type: 'TextBlockStatement';
+  /** The TO variable, which is where the block is commonly used to build a SQL string. */
+  to: string | null;
+  additive: boolean;
+  textmerge: boolean;
+  noshow: boolean;
+  flags: Expr | null;
+  pretext: Expr | null;
+  content: string;
+}
+
+export interface ThrowStatement extends NodeBase {
+  type: 'ThrowStatement';
+  argument: Expr | null;
+}
+
+/** @ nRow, nColumn SAY | GET | TO | CLEAR. The per-verb option tail is kept as raw source in `options`. */
+export interface AtStatement extends NodeBase {
+  type: 'AtStatement';
+  row: Expr;
+  column: Expr;
+  verb: 'SAY' | 'GET' | 'TO' | 'CLEAR';
+  /** The SAY expression. */
+  expression: Expr | null;
+  /** The GET variable. */
+  target: Expr | null;
+  endRow: Expr | null;
+  endColumn: Expr | null;
+  /** Everything after the verb, verbatim and untrimmed of meaning: not modelled yet. */
+  options: string | null;
+}
+
+export interface ClearStatement extends NodeBase {
+  type: 'ClearStatement';
+  /** ALL, MEMORY, WINDOWS, CLASS, READ and so on; null for a bare CLEAR, which clears the screen. */
+  target: string | null;
+  /** The class or class library named by CLEAR CLASS / CLASSLIB. */
+  name: IdentifierOrString | null;
+  all: boolean;
+}
+
+export interface CloseStatement extends NodeBase {
+  type: 'CloseStatement';
+  target: string | null;
+  all: boolean;
+}
+
+export interface ReleaseStatement extends NodeBase {
+  type: 'ReleaseStatement';
+  /** ALL, WINDOWS, PROCEDURE and so on; null when the statement names variables directly. */
+  scope: string | null;
+  extended: boolean;
+  /** LIKE or EXCEPT, when RELEASE ALL was given a skeleton. */
+  mode: 'LIKE' | 'EXCEPT' | null;
+  pattern: StringLiteral | string | null;
+  names: string[];
+  options: string | null;
+}
+
+export interface PackStatement extends NodeBase {
+  type: 'PackStatement';
+  /** MEMO or DBF, when only one of the two was requested. */
+  what: 'MEMO' | 'DBF' | null;
+  table: IdentifierOrString | null;
+  inTarget: Expr | null;
+}
+
+export interface SeekStatement extends NodeBase {
+  type: 'SeekStatement';
+  expression: Expr;
+  order: OrderSelection | null;
+  direction: 'ASCENDING' | 'DESCENDING' | null;
+  inTarget: Expr | null;
+}
+
+export interface SuspendStatement extends NodeBase {
+  type: 'SuspendStatement';
+}
+
+export interface ResumeStatement extends NodeBase {
+  type: 'ResumeStatement';
+}
+
+export interface KeyboardStatement extends NodeBase {
+  type: 'KeyboardStatement';
+  expression: Expr;
+  plain: boolean;
+  clear: boolean;
+}
+
+/** REPORT FORM / LABEL FORM. The option tail is long and order-free, so it is kept as raw source. */
+export interface ReportFormStatement extends NodeBase {
+  type: 'ReportFormStatement';
+  command: 'REPORT' | 'LABEL';
+  form: Expr | Path;
+  options: string | null;
+}
+
+export interface SortStatement extends NodeBase {
+  type: 'SortStatement';
+  target: Expr | Path;
+  fields: SortFieldSpec[];
+  options: string | null;
+}
+
+/** LIST / DISPLAY. Their option tails depend on the subject, so they are kept as raw source. */
+export interface ListStatement extends NodeBase {
+  type: 'ListStatement';
+  command: 'LIST' | 'DISPLAY';
+  /** MEMORY, STATUS, STRUCTURE and so on; null when the command lists records. */
+  subject: string | null;
+  options: string | null;
+}
+
+// ---------------------------------------------------------------------------
 // Preprocessor and fallback
 // ---------------------------------------------------------------------------
 
@@ -877,10 +1027,16 @@ export interface PreprocessorIfStatement extends NodeBase {
   raw: string;
 }
 
-export interface OnKeyStatement extends NodeBase {
-  type: 'OnKeyStatement';
-  keyExpression: Expr | null;
-  command: Expr | null;
+/** ON ERROR | ESCAPE | SHUTDOWN | READERROR | APLABOUT | PAGE | KEY [LABEL cLabel] [command]. */
+export interface OnStatement extends NodeBase {
+  type: 'OnStatement';
+  event: 'ERROR' | 'ESCAPE' | 'SHUTDOWN' | 'READERROR' | 'APLABOUT' | 'PAGE' | 'KEY' | 'KEY LABEL';
+  /** The key name for ON KEY LABEL. */
+  label: string | null;
+  /** The line number for ON PAGE AT LINE n. */
+  atLine: Expr | null;
+  /** The handler, parsed as a statement. Null when the event is being cleared. */
+  command: Statement | null;
 }
 
 /** A statement the grammar does not cover. Advisory by default: see unsupportedSyntaxSeverity. */
@@ -896,11 +1052,14 @@ export interface UnknownStatement extends NodeBase {
 export type Statement =
   | AppendFromStatement
   | AppendStatement
+  | AtStatement
   | Assignment
   | BlockStatement
   | BrowseStatement
   | CalculateStatement
   | CaseClause
+  | ClearStatement
+  | CloseStatement
   | ColumnDefinition
   | ContinueStatement
   | CopyToStatement
@@ -923,11 +1082,14 @@ export type Statement =
   | IfStatement
   | IncludeStatement
   | IndexOnStatement
+  | KeyboardStatement
+  | ListStatement
   | InsertStatement
   | LocalArrayDeclaration
   | LocalDeclaration
   | LocateStatement
-  | OnKeyStatement
+  | OnStatement
+  | PackStatement
   | ParametersDeclaration
   | PreprocessorIfStatement
   | PrintStatement
@@ -939,6 +1101,9 @@ export type Statement =
   | Program
   | PublicDeclaration
   | RecallStatement
+  | ReleaseStatement
+  | ReportFormStatement
+  | ResumeStatement
   | ReplaceStatement
   | ReturnStatement
   | ScanStatement
@@ -948,10 +1113,15 @@ export type Statement =
   | SetOrder
   | SetRelation
   | SetTo
+  | SeekStatement
   | SkipStatement
+  | SortStatement
   | StoreStatement
   | SumStatement
+  | SuspendStatement
   | TableConstraint
+  | TextBlockStatement
+  | ThrowStatement
   | TryStatement
   | UnknownStatement
   | UnlockStatement

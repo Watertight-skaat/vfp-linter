@@ -41,7 +41,8 @@ const blockOpeners = [
   { opener: /^DO\s+CASE\b/i, terminator: 'ENDCASE' },
   { opener: /^TRY\b/i, terminator: 'ENDTRY' },
   { opener: /^WITH\b/i, terminator: 'ENDWITH' },
-  { opener: /^DEFINE\s+CLASS\b/i, terminator: 'ENDDEFINE' }
+  { opener: /^DEFINE\s+CLASS\b/i, terminator: 'ENDDEFINE' },
+  { opener: /^TEXT\b/i, terminator: 'ENDTEXT' }
 ];
 
 export function runLinterRules(ast: Program | null | undefined, options: LinterOptions = {}): LintDiagnostic[] {

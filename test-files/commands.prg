@@ -1,0 +1,41 @@
+* Xbase housekeeping, output and event-handler commands. All of these used to reach the catch-all
+* and report as unsupported; they are here so the corpus fails if that regresses.
+CLEAR
+CLEAR ALL
+CLEAR MEMORY
+CLEAR CLASS myclass
+CLOSE DATABASES
+CLOSE DATABASES ALL
+CLOSE ALL
+RELEASE loObj
+RELEASE loA, loB
+RELEASE ALL
+RELEASE ALL EXTENDED
+RELEASE ALL LIKE g*
+RELEASE WINDOWS myform
+PACK
+PACK MEMO
+PACK DBF customer IN 2
+SEEK lcKey
+SEEK lcKey ORDER TAG custid DESCENDING IN customer
+SUSPEND
+RESUME
+KEYBOARD "{ENTER}"
+KEYBOARD lcKeys PLAIN CLEAR
+LIST
+LIST STATUS
+LIST STRUCTURE TO PRINTER
+DISPLAY MEMORY LIKE g*
+REPORT FORM myrep TO PRINTER NOCONSOLE
+LABEL FORM mylabels TO PRINTER
+SORT TO newfile ON field1
+SORT TO newfile ON last/A, first/D /C FOR active
+THROW
+THROW "boom"
+ON ERROR DO errhand WITH ERROR(), MESSAGE()
+ON ERROR
+ON ESCAPE DO cleanup
+ON SHUTDOWN DO bye
+ON READERROR DO oops
+ON KEY LABEL F5 DO refresh
+ON PAGE AT LINE 55 DO footer
