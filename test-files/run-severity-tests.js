@@ -7,7 +7,7 @@ const { check, report } = require('./check.js');
 const unsupported = 'ZZNOTACOMMAND 1\n';
 // An unterminated block: the catch-all absorbs the opening line, so the parser never throws.
 const unterminated = 'IF .T.\n? 1\n';
-// A dangling terminator, which UnknownStatement refuses to match, so the parser does throw.
+// A dangling terminator: a block terminator with nothing open for it to close. The parser absorbs it rather than throwing, so it is a rule's finding like any other.
 const broken = 'ENDIF\n';
 
 const codes = (src, options) => lint(src, options).diagnostics.map(d => `${d.severity} ${d.code}`);
@@ -24,9 +24,12 @@ for (const severity of ['information', 'error', 'hint', 'off']) {
 		codes(unterminated, { unsupportedSyntaxSeverity: severity }), ['1 unterminated-block']);
 }
 
-// A real syntax error never reaches the rules at all: the parser throws, and lint() turns that into the one diagnostic no setting can quiet.
+// Broken code rather than syntax the grammar has not learned, so no setting can quiet it.
 check('a dangling terminator is a syntax error', codes(broken, { rules: { 'unsupported-syntax': 'off' } }), ['1 syntax-error']);
-check('the syntax error carries the parser position', lint(broken).diagnostics[0].range.start, { line: 0, character: 0 });
+check('the syntax error carries the position of the terminator', lint(broken).diagnostics[0].range.start, { line: 0, character: 0 });
+check('it stays an error whatever the settings say', codes(broken, { rules: { 'syntax-error': 'off' }, unsupportedSyntaxSeverity: 'off' }), ['1 syntax-error']);
+// The point of absorbing it rather than throwing: the rest of the file is still checked while the line is being typed.
+check('the rest of the file is still checked', codes(broken + 'LOCAL lcUnused\n'), ['1 syntax-error', '2 unused-local']);
 
 // --- per-rule severities -----------------------------------------------------
 const twoRules = 'LOCAL lcUnused\nlnUndeclared = 1\n';

@@ -612,13 +612,18 @@ export interface PrintStatement extends NodeBase {
   arguments: Expr[];
 }
 
-export interface WaitWindowStatement extends NodeBase {
-  type: 'WaitWindowStatement';
+/** WAIT, with or without WINDOW. `to` names the variable the key pressed is put into. */
+export interface WaitStatement extends NodeBase {
+  type: 'WaitStatement';
+  message: Expr | null;
+  to: string | null;
+  window: boolean;
+  /** WINDOW AT nRow, nColumn. */
+  at: { row: Expr; column: Expr } | null;
   nowait: boolean;
   noclear: boolean;
   clear: boolean;
   timeout: Expr | null;
-  message: Expr | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -662,6 +667,13 @@ export interface InsertStatement extends NodeBase {
   source: InsertSource;
 }
 
+/** The pre-SQL INSERT, which adds a record to the current work area rather than running a query. */
+export interface InsertRecordStatement extends NodeBase {
+  type: 'InsertRecordStatement';
+  blank: boolean;
+  before: boolean;
+}
+
 export interface UpdateStatement extends NodeBase {
   type: 'UpdateStatement';
   target: IdentifierOrString;
@@ -694,6 +706,15 @@ export interface CreateStatement extends NodeBase {
   columns: ColumnDefinition[];
   constraints: TableConstraint[];
   fromArray: string | null;
+}
+
+/** CREATE [SQL] VIEW ... AS SELECT. */
+export interface CreateViewStatement extends NodeBase {
+  type: 'CreateViewStatement';
+  name: Expr | string;
+  remote: boolean;
+  connection: { name: IdentifierOrString; share: boolean } | null;
+  query: SelectStatement;
 }
 
 export interface ColumnDefinition extends NodeBase {
@@ -945,6 +966,32 @@ export interface RestoreFromStatement extends NodeBase {
   additive: boolean;
 }
 
+/** SAVE WINDOW ... TO. `windows` is the literal 'ALL' when the whole set is written out. */
+export interface SaveWindowStatement extends NodeBase {
+  type: 'SaveWindowStatement';
+  windows: 'ALL' | string[];
+  destination: MemoryStore;
+}
+
+/** RESTORE WINDOW ... FROM, the other half of SAVE WINDOW. */
+export interface RestoreWindowStatement extends NodeBase {
+  type: 'RestoreWindowStatement';
+  windows: 'ALL' | string[];
+  source: MemoryStore;
+}
+
+/** FIND cText. The text is written unquoted and unparsed, so it is kept as written. */
+export interface FindStatement extends NodeBase {
+  type: 'FindStatement';
+  text: string;
+}
+
+/** DEBUGOUT eExpression. */
+export interface DebugOutStatement extends NodeBase {
+  type: 'DebugOutStatement';
+  expression: Expr;
+}
+
 export interface AssertStatement extends NodeBase {
   type: 'AssertStatement';
   condition: Expr;
@@ -1069,6 +1116,13 @@ export interface CopyToStatement extends NodeBase {
   codepage: Expr | null;
 }
 
+/** COPY INDEXES, which folds standalone .idx files into a compound index. `files` is the literal 'ALL' for every open index. */
+export interface CopyIndexesStatement extends NodeBase {
+  type: 'CopyIndexesStatement';
+  files: 'ALL' | (IdentifierOrString | Path)[];
+  to: IdentifierOrString | Path | null;
+}
+
 export interface EraseStatement extends NodeBase {
   type: 'EraseStatement';
   target: Expr | Path | '?';
@@ -1118,11 +1172,17 @@ export interface SetRelation extends NodeBase {
 export interface SetCommand extends NodeBase {
   type: 'SetCommand';
   command: string | Keyword;
-  argument: Expr | null;
+  /** The setting, as a list: `SET PROCEDURE TO lib1, lib2` loads both. A SET with no TO puts its bare value here too. */
+  arguments: Expr[];
   /** `SET FILTER TO` with nothing after it, which clears the setting rather than leaving it alone. */
   cleared: boolean;
   state: 'ON' | 'OFF' | null;
   additive: boolean;
+  /** IN: the work area the setting applies to. */
+  inTarget: Expr | null;
+  /** INTO: the work area the setting relates this one to. */
+  into: Expr | null;
+  alias: Expr | null;
 }
 
 /** A reserved word, which KeywordOrIdentifier can return in place of a name. */
@@ -1263,10 +1323,13 @@ export interface DefineStatement extends NodeBase {
   value: string | null;
 }
 
-/** #IF / #ELSE / #ENDIF, kept as raw text rather than evaluated. */
+/** #IF | #IFDEF | #IFNDEF ... [#ELIF ...] [#ELSE ...] #ENDIF. The body is parsed; the condition is raw, because the preprocessor evaluates it against #DEFINE constants rather than variables. An #ELIF link is an ELIF-directive node standing alone in the branch above it. */
 export interface PreprocessorIfStatement extends NodeBase {
   type: 'PreprocessorIfStatement';
-  raw: string;
+  directive: 'IF' | 'IFDEF' | 'IFNDEF' | 'ELIF';
+  test: string;
+  consequent: BlockStatement;
+  alternate: BlockStatement | null;
 }
 
 /** ON ERROR | ESCAPE | SHUTDOWN | READERROR | APLABOUT | PAGE | KEY [LABEL cLabel] [command]. */
@@ -1285,6 +1348,12 @@ export interface OnStatement extends NodeBase {
 export interface UnknownStatement extends NodeBase {
   type: 'UnknownStatement';
   raw: string;
+}
+
+/** A block terminator with nothing open for it to close, absorbed at file level so one stray ENDIF does not cost the file its parse. Always reported as a syntax error. */
+export interface DanglingTerminator extends NodeBase {
+  type: 'DanglingTerminator';
+  keyword: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -1306,7 +1375,9 @@ export type Statement =
   | ContinueStatement
   | CopyToStatement
   | CopyStructureStatement
+  | CopyIndexesStatement
   | CreateStatement
+  | CreateViewStatement
   | DeclareStatement
   | DefineClass
   | DefineStatement
@@ -1329,6 +1400,7 @@ export type Statement =
   | KeyboardStatement
   | ListStatement
   | InsertStatement
+  | InsertRecordStatement
   | LocalArrayDeclaration
   | LocalDeclaration
   | LocateStatement
@@ -1377,6 +1449,10 @@ export type Statement =
   | BlankStatement
   | SaveToStatement
   | RestoreFromStatement
+  | SaveWindowStatement
+  | RestoreWindowStatement
+  | FindStatement
+  | DebugOutStatement
   | AssertStatement
   | PlayMacroStatement
   | DefineScreenStatement
@@ -1391,12 +1467,13 @@ export type Statement =
   | TextBlockStatement
   | ThrowStatement
   | TryStatement
+  | DanglingTerminator
   | UnknownStatement
   | UnlockStatement
   | UpdateStatement
   | UpdateOnStatement
   | UseStatement
-  | WaitWindowStatement
+  | WaitStatement
   | WithStatement
   | ZapStatement;
 

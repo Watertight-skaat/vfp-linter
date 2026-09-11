@@ -4,7 +4,7 @@
 	"description": "Diagnostics for Visual FoxPro: a real grammar, and rules that stay quiet unless there is evidence",
 	"author": "Sean Kaat",
 	"license": "MIT",
-	"version": "1.2.2",
+	"version": "1.2.3",
 	"publisher": "Watertight",
 	"icon": "images/icon.png",
 	"categories": [
@@ -186,7 +186,7 @@
 		"watch:bundle": "node ./scripts/build.mjs --watch",
 		"typecheck": "tsc -p client/tsconfig.json && tsc -p server/tsconfig.json",
 		"postinstall": "bun run build:parser",
-		"test": "bun ./test-files/run-all-tests.js && bun ./test-files/run-ast-tests.js && bun ./test-files/run-scope-tests.js && bun ./test-files/run-severity-tests.js && bun ./test-files/run-keyword-tests.js && bun ./test-files/run-fix-tests.js",
+		"test": "bun ./test-files/run-all-tests.js && bun ./test-files/run-ast-tests.js && bun ./test-files/run-parse-tests.js && bun ./test-files/run-scope-tests.js && bun ./test-files/run-severity-tests.js && bun ./test-files/run-keyword-tests.js && bun ./test-files/run-fix-tests.js",
 		"test:update": "bun ./test-files/run-all-tests.js --update",
 		"release": "node ./scripts/publish.mjs",
 		"e2e": "bun run compile && node ./scripts/build.mjs --tests && node client/out/test/runTest.js"

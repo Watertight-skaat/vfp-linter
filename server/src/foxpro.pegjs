@@ -36,10 +36,15 @@ Start "start of program"
   { return node("Program", { body: statements ? statements.body : [] }); }
 
 SourceElements "statement list"
-  = head:Statement tail:(__ Statement)* {
+  = head:TopLevelStatement tail:(__ TopLevelStatement)* {
       // Flattened like every block body: a LOCAL list is several declarations, not one statement holding an array.
       return node("BlockStatement", { body: flatten([head, ...tail.map(t => t[1])]) });
     }
+
+// Only at file level: inside a block the terminator words have to stay unmatched, because that is how each block rule finds its own end.
+TopLevelStatement
+  = Statement
+  / DanglingTerminator
 
 // A Statement returns either a single AST node or an Array of nodes (e.g. multiple LOCAL vars)
 Statement "statement"
@@ -54,7 +59,7 @@ Statement "statement"
   / ScreenCommandStatement
   / LParameters
   / PrintStatement
-  / WaitWindowStatement
+  / WaitStatement
   / UseStatement
   / AppendStatement
   / CalculateStatement
@@ -71,12 +76,15 @@ Statement "statement"
   / ThrowStatement
   / AtStatement
   / PreprocessorStatement
+  / NoteComment
   / IterationStatement
   / ExitStatement
   / ContinueStatement
+  / CreateViewStatement
   / CreateStatement
   / IndexOnStatement
   / InsertStatement
+  / InsertRecordStatement
   / SelectStatement
   / UpdateOnStatement
   / UpdateStatement
@@ -122,8 +130,12 @@ Statement "statement"
   / PushPopStatement
   / ExternalStatement
   / ModifyStatement
+  / SaveWindowStatement
+  / RestoreWindowStatement
   / SaveToStatement
   / RestoreFromStatement
+  / FindStatement
+  / DebugOutStatement
   / AssertStatement
   / PlayMacroStatement
   / AlterTableStatement
@@ -273,24 +285,28 @@ PrintStatement // todo: Wait window probably should be separate
 
 // WAIT [cMessageText] [TO VarName] [WINDOW [AT nRow, nColumn]] [NOWAIT]
 //    [CLEAR | NOCLEAR] [TIMEOUT nSeconds]
-// The flags may sit on either side of the message, and every call site in the app writes them after it.
-// The leading list is greedy, so a flag is never mistaken for the message.
-WaitWindowStatement
-  = "WAIT WINDOW"i WB lead:(_ WaitOption)* msg:(_ e:Expression { return e; })? trail:(_ WaitOption)* {
-      const o = { nowait: false, noclear: false, clear: false, timeout: null };
+// WINDOW is an option rather than part of the command word: WAIT "" TO lcKey puts the key pressed into a variable and shows no window at all, and reading only the WAIT WINDOW form lost both the statement and the name it creates.
+// The flags may sit on either side of the message, and every call site in the app writes them after it. The leading list is greedy, so a flag is never mistaken for the message.
+WaitStatement
+  = "WAIT"i WB NotNameReference lead:(_ WaitOption)* msg:(_ e:Expression { return e; })? trail:(_ WaitOption)* {
+      const o = { to: null, window: false, at: null, nowait: false, noclear: false, clear: false, timeout: null };
       for (const part of [...lead, ...trail].map(t => t[1])) {
         switch (part.kind) {
+          case 'TO': if (!o.to) o.to = part.value; break;
+          case 'WINDOW': o.window = true; if (part.value) o.at = part.value; break;
           case 'NOWAIT': o.nowait = true; break;
           case 'NOCLEAR': o.noclear = true; break;
           case 'CLEAR': o.clear = true; break;
           case 'TIMEOUT': o.timeout = part.value; break;
         }
       }
-      return node("WaitWindowStatement", { nowait: o.nowait, noclear: o.noclear, clear: o.clear, timeout: o.timeout, message: msg });
+      return node("WaitStatement", { message: msg, to: o.to, window: o.window, at: o.at, nowait: o.nowait, noclear: o.noclear, clear: o.clear, timeout: o.timeout });
     }
 
 WaitOption
-  = "NOWAIT"i WB { return { kind: 'NOWAIT' }; }
+  = "TO"i WB _ v:ParameterName { return { kind: 'TO', value: v }; }
+  / "WINDOW"i WB at:(_ "AT"i WB _ r:Expression _ "," _ c:Expression { return { row: r, column: c }; })? { return { kind: 'WINDOW', value: at }; }
+  / "NOWAIT"i WB { return { kind: 'NOWAIT' }; }
   / "NOCLEAR"i WB { return { kind: 'NOCLEAR' }; }
   / "CLEAR"i WB { return { kind: 'CLEAR' }; }
   / "TIMEOUT"i WB _ n:Expression { return { kind: 'TIMEOUT', value: n }; }
@@ -393,6 +409,15 @@ TagSpec
 UseConnPart
   = "CONNSTRING"i __ cs:(StringLiteral / Identifier) { return { kind: 'CONNSTRING', value: cs }; }
   / h:(NumberLiteral / Identifier) { return { kind: 'HANDLE', value: h }; }
+
+// NOTE is the oldest comment form: everything after it on the logical line is text, and a trailing semicolon carries it onto the next line the way it does for code. It returns nothing rather than a node, because a comment is not a statement -- every block body flattens its list, so the null falls out.
+// The word is not reserved, so the guard refuses the shapes a variable or an object of that name would take in command position -- `note = x`, `note.caption = x`, `note(1)` -- exactly as the other unreserved command words do. A comment whose text opens with one of those characters is the cost, and it announces itself as unsupported rather than disappearing.
+NoteComment
+  = "NOTE"i WB !(_ ("(" / "=" / "." / "->" / "[")) NoteText (LineContinuation NoteText)* { return null; }
+
+// The semicolon has to be refused here rather than left to the greedy run, or the run eats it and the continuation never matches.
+NoteText
+  = (!(LineTerminator / LineContinuation) .)*
 
 // Preprocessor directives
 PreprocessorStatement
@@ -498,12 +523,32 @@ DefineStatement
       return node("DefineStatement", { name, value: value.trim() });
     }
 
-// Preprocessor if/else/endif
+// #IF | #IFDEF | #IFNDEF ... [#ELIF ...] [#ELSE ...] #ENDIF
+// The body is code, so it is parsed as statements: kept as raw text, everything inside a #IF was invisible to the symbol table and to every rule, and a nested #IF ended at the first #ENDIF. The condition stays raw -- it is evaluated by the preprocessor against #DEFINE constants, so the names in it are not variables.
 PreprocessorIfStatement
-  = start:"#if"i rest:$((!"#endif"i .)*) end:"#endif"i {
-      // capture raw preprocessor block (including any #elif/#else lines)
-      return node("PreprocessorIfStatement", { raw: (start + rest + end).trim() });
+  = directive:("#ifdef"i / "#ifndef"i / "#if"i) ![a-zA-Z0-9_] test:PreprocessorCondition __
+    consequent:PreprocessorBody
+    alternate:PreprocessorAlternate?
+    "#endif"i {
+      return node("PreprocessorIfStatement", { directive: directive.slice(1).toUpperCase(), test, consequent, alternate: alternate || null });
     }
+
+// An #ELIF chain shares the one #ENDIF, so it cannot be the whole rule recursing: each link is its own PreprocessorIfStatement standing alone in the branch above it, which is the shape IfStatement already has.
+PreprocessorAlternate
+  = "#elif"i ![a-zA-Z0-9_] test:PreprocessorCondition __ body:PreprocessorBody alt:PreprocessorAlternate? {
+      const chained = node("PreprocessorIfStatement", { directive: 'ELIF', test, consequent: body, alternate: alt || null });
+      return node("BlockStatement", { body: [chained] });
+    }
+  / "#else"i ![a-zA-Z0-9_] __ body:PreprocessorBody { return body; }
+
+PreprocessorCondition
+  = c:$((!(LineTerminator / PartialLineComment) .)*) PartialLineComment? { return c.trim(); }
+
+PreprocessorBody
+  = body:(!PreprocessorBoundary s:Statement __ { return s; })* { return node("BlockStatement", { body: flatten(body) }); }
+
+PreprocessorBoundary
+  = ("#elif"i / "#else"i / "#endif"i) ![a-zA-Z0-9_]
 
 // DEFINE CLASS ClassName AS ParentClass [OF ClassLibrary] [OLEPUBLIC]
 DefineClass
@@ -516,8 +561,12 @@ DefineClass
     }
 
 // DECLARE [cFunctionType] FunctionName IN LibraryName [AS AliasName] [cParamType1 [@] ParamName1, cParamType2 [@] ParamName2, ...]
+// DECLARE is also the older spelling of DIMENSION, and it is the one statement in this group that names a variable, so it returns the node DIMENSION returns and reaches the symbol table by the same path. The array subscript is what tells the two apart: a DLL declaration never has one.
 DeclareStatement
-  = "DECLARE"i WB _
+  = "DECLARE"i WB __ first:DimensionItem tail:(_ "," _ DimensionItem)* {
+      return node("DimensionStatement", { items: [first, ...tail.map(t => t[3])] });
+    }
+  / "DECLARE"i WB _
     cFunctionType:("SHORT"i / "LONG"i / "INTEGER"i / "SINGLE"i / "DOUBLE"i / "STRING"i / "OBJECT"i)? _
     functionName:Identifier _ 
     "IN"i _ 
@@ -605,8 +654,13 @@ Primary
   / CastExpression
   / CaseExpression
   / MacroSubstitute
+  / name:KeywordFunction { return node("Identifier", { name }); }
   / id:Identifier { return (id && id.length && id.charAt(0) === '_') ? node("ImplicitGlobal", { name: id }) : node("Identifier", { name: id }); }
   / "(" _ e:Expression _ ")" { return e; }
+
+// A VFP function whose name is also a command word, which Identifier refuses. The opening parenthesis with nothing between is what tells the two apart: `SELECT("customer")` is the function, `SELECT customer` the command. Without this the whole expression falls to the catch-all, and `lnArea = SELECT(0)` then reports lnArea as an unused local.
+KeywordFunction
+  = name:$("SELECT"i) &"(" { return name; }
 
 // Argument list for call expressions (Allow empty arguments (i.e. consecutive commas) which are represented as null)
 ArgumentList
@@ -907,7 +961,14 @@ PreferenceClause
 // COPY/RENAME
 // -----------------------------
 CopyStatement "copy/rename statement"
-  = CopyFileStatement / CopyStructureStatement / CopyToStatement
+  = CopyFileStatement / CopyIndexesStatement / CopyStructureStatement / CopyToStatement
+
+// COPY INDEXES IDXFileList | ALL [TO CDXFileName], which folds standalone .idx files into a compound index.
+CopyIndexesStatement
+  = "COPY"i WB _ "INDEXES"i WB _ files:("ALL"i WB { return 'ALL'; } / IndexFileList) _
+    to:("TO"i WB __ f:(IdentifierOrString / UnquotedPath) { return f; })? {
+      return node('CopyIndexesStatement', { files, to: to || null });
+    }
 
 CopyFileStatement
   = action:("COPY FILE"i / "RENAME"i) WB _ src:PathOrExpression _ "TO"i _ dst:PathOrExpression {
@@ -1091,6 +1152,13 @@ InsertStatement
         columns: cols ? cols[2] : null,
         source: src
       });
+    }
+
+// INSERT [BLANK] [BEFORE], the pre-SQL record insert. Both orders are written, so the two words are read as a set.
+InsertRecordStatement
+  = "INSERT"i WB !(_ "INTO"i WB) words:(_ ("BLANK"i / "BEFORE"i) WB)* {
+      const given = words.map(w => w[1].toUpperCase());
+      return node('InsertRecordStatement', { blank: given.includes('BLANK'), before: given.includes('BEFORE') });
     }
 
 // UPDATE Target
@@ -1323,8 +1391,17 @@ ContinueStatement "continue (LOOP)"
   = "LOOP"i WB { return node("ContinueStatement", {}); }
 
 // -----------------------------
-// CREATE TABLE/DBF/CURSOR
+// CREATE TABLE/DBF/CURSOR/VIEW
 // -----------------------------
+
+// CREATE [SQL] VIEW ViewName [REMOTE] [CONNECTION ConnectionName [SHARE]] AS SQLSELECTStatement
+CreateViewStatement
+  = "CREATE"i WB _ ("SQL"i WB _)? "VIEW"i WB _ name:CreateTarget _
+    remote:("REMOTE"i WB _)?
+    conn:("CONNECTION"i WB _ c:IdentifierOrString _ share:("SHARE"i WB _)? { return { name: c, share: !!share }; })?
+    "AS"i WB __ query:SelectStatement {
+      return node('CreateViewStatement', { name, remote: !!remote, connection: conn || null, query });
+    }
 CreateStatement "create statement"
   = "CREATE"i WB _ 
     kind:("TABLE"i / "DBF"i / "CURSOR"i) _ 
@@ -1612,6 +1689,23 @@ RestoreFromStatement
       return node('RestoreFromStatement', { source: src, additive: !!additive });
     }
 
+// SAVE WINDOW WindowNameList | ALL TO FileName | TO MEMO MemoFieldName
+SaveWindowStatement
+  = "SAVE"i WB _ "WINDOW"i WB _ names:WindowNameList _ "TO"i WB _ dest:MemoryStore {
+      return node('SaveWindowStatement', { windows: names, destination: dest });
+    }
+
+// RESTORE WINDOW WindowNameList | ALL FROM FileName | FROM MEMO MemoFieldName
+RestoreWindowStatement
+  = "RESTORE"i WB _ "WINDOW"i WB _ names:WindowNameList _ "FROM"i WB _ src:MemoryStore {
+      return node('RestoreWindowStatement', { windows: names, source: src });
+    }
+
+// ALL is the whole set rather than a window of that name, so it is kept as the word.
+WindowNameList
+  = "ALL"i WB { return 'ALL'; }
+  / IdentifierList
+
 // MEMO first: the file form is a bare path, so it would otherwise read the word MEMO as the filename.
 MemoryStore
   = "MEMO"i WB _ field:ParameterName { return { kind: 'MEMO', name: field }; }
@@ -1627,6 +1721,18 @@ MemvarSkeleton
 AssertStatement
   = "ASSERT"i WB Whitespace _ condition:Expression _ msg:("MESSAGE"i WB __ m:Expression { return m; })? {
       return node('AssertStatement', { condition, message: msg || null });
+    }
+
+// FIND cText searches the master index for text that is written unquoted and unparsed, so it is kept as written.
+FindStatement
+  = "FIND"i WB NotNameReference _ text:$((!(LineTerminator / PartialLineComment) .)*) {
+      return node('FindStatement', { text: text.trim() });
+    }
+
+// DEBUGOUT eExpression writes to the debug output window.
+DebugOutStatement
+  = "DEBUGOUT"i WB NotCallOrAssign _ e:Expression {
+      return node('DebugOutStatement', { expression: e });
     }
 
 // PLAY MACRO KeyLabelName | ALL [TIMES nTimes]
@@ -1672,6 +1778,14 @@ OnSelectionStatement
 // -----------------------------
 // Unknown/catch-all statement
 // -----------------------------
+// A block terminator with nothing open for it to close. The catch-all refuses these words -- it has to, or no block could find its own end -- so before this rule one stray ENDIF made the whole file unparseable and the user lost every other diagnostic in it until the line was fixed. Absorbing it here keeps the rest live while typing; the rule that reads this node reports it as a syntax error, which it is.
+DanglingTerminator
+  = kw:$("ENDIF"i / "ELSE"i / "ENDDO"i / "ENDFOR"i / "NEXT"i / "ENDTRY"i / "ENDDEFINE"i
+    / "ENDPROC"i / "ENDFUNC"i / "ENDCASE"i / "ENDWITH"i / "ENDSCAN"i / "ENDTEXT"i
+    / "OTHERWISE"i / "CATCH"i / "FINALLY"i) ![A-Za-z0-9_] RawOptions {
+      return node("DanglingTerminator", { keyword: kw.toUpperCase() });
+    }
+
 // Captures a single logical line (respecting semicolon continuations) that didn't match any known statement. Protects block delimiters so structured constructs (IF/DO WHILE/FOR/TRY/DEFINE/WITH) can still recognize their endings.
 UnknownStatement
   = !("ENDIF"i      ![A-Za-z0-9_]
@@ -1744,17 +1858,44 @@ SetOrderToStatement
         return { expr, into };
       }
 
-// SET [cSetCommand] [ON | OFF | TO [eSetting]]
+// SET [cSetCommand] [TO [eSetting [, eSetting2 ...]]] [ON | OFF] [IN nWorkArea | cTableAlias] [INTO cTableAlias] [ALIAS cAlias] [ADDITIVE]
+// The argument is a list and the tail can carry clauses of its own: `SET PROCEDURE TO lib1, lib2 ADDITIVE`, `SET CLASSLIB TO x IN y ALIAS z`, `SET RELATION OFF INTO y`, `SET SKIP TO x INTO y`. Reading one argument and stopping left the rest of each of those lines to the catch-all, so the statement was half read and the tail reported as unsupported.
 SetSettingStatement
   ="SET"i (Whitespace / LineContinuation)+ inner:(
-    ("TO"i __ setting:Expression { return node("SetTo", { setting }); })
-    / (cmd:KeywordOrIdentifier toPart:(_ "TO"i WB s:(_ e:Expression { return e; })? { return { setting: s }; })? argPart:(_ (StringLiteral / Identifier / NumberLiteral))? additive:(_ "ADDITIVE"i)? state:(_ ("ON"i / "OFF"i))? { const argument = toPart ? toPart.setting : (argPart ? argPart[1] : null); const st = state ? state[1] : null; return node("SetCommand", { command: cmd, argument: argument, cleared: !!toPart && !toPart.setting, state: st ? st.toUpperCase() : null, additive: !!additive }); })
+    // The boundary is what keeps SET TOPIC TO "x" from reading as SET TO with a setting called PIC, which is a misparse rather than a gap: it produced a valid tree and reported nothing.
+    ("TO"i WB __ setting:Expression { return node("SetTo", { setting }); })
+    / (cmd:KeywordOrIdentifier
+       toPart:(_ "TO"i WB args:(_ a:ExpressionList { return a; })? { return { args }; })?
+       parts:(_ SetOption)* {
+        const o = { state: null, additive: false, inTarget: null, into: null, alias: null };
+        const args = (toPart && toPart.args) ? [...toPart.args] : [];
+        for (const p of parts.map(t => t[1])) {
+          switch (p.kind) {
+            case 'STATE': if (!o.state) o.state = p.value; break;
+            case 'ADDITIVE': o.additive = true; break;
+            case 'IN': if (!o.inTarget) o.inTarget = p.value; break;
+            case 'INTO': if (!o.into) o.into = p.value; break;
+            case 'ALIAS': if (!o.alias) o.alias = p.value; break;
+            case 'ARG': args.push(p.value); break;
+          }
+        }
+        return node("SetCommand", { command: cmd, arguments: args, cleared: !!toPart && !toPart.args, state: o.state, additive: o.additive, inTarget: o.inTarget, into: o.into, alias: o.alias });
+      })
   ) {
       // If TO form, inner is already a SetTo node and we return it directly.
       if (inner && inner.type === 'SetTo') return inner;
       // Otherwise inner is a SetCommand node; return it as the captured command node.
       return inner;
     }
+
+// The clauses a SET can carry after its argument. The bare value is last, so `OFF` reads as the state rather than as a setting named OFF.
+SetOption
+  = "INTO"i WB __ t:AliasRef { return { kind: 'INTO', value: t }; }
+  / "IN"i WB __ t:AliasRef { return { kind: 'IN', value: t }; }
+  / "ALIAS"i WB __ a:AliasRef { return { kind: 'ALIAS', value: a }; }
+  / "ADDITIVE"i WB { return { kind: 'ADDITIVE' }; }
+  / st:$("ON"i / "OFF"i) WB { return { kind: 'STATE', value: st.toUpperCase() }; }
+  / a:(StringLiteral / NumberLiteral / n:Identifier { return node("Identifier", { name: n }); }) { return { kind: 'ARG', value: a }; }
 
 // APPEND FROM FileName | ? [FIELDS FieldList] [FOR lExpression]
 //   [[TYPE] [DELIMITED [WITH Delimiter | WITH BLANK | WITH TAB | WITH CHARACTER Delimiter]
@@ -1852,11 +1993,21 @@ BrowseStatement "browse statement"
       return node('BrowseStatement', { fields: fields || [], for: cond || null, norm, nowait });
     }
 
+// Only the four the AST models are kept; the rest are recognised so that the statement ends where it ends. Reading one option and stopping left everything after it to the catch-all.
 BrowseOption
   = "FIELDS"i __ list:IdentifierList { return { kind: 'FIELDS', value: list }; }
-  / "FOR"i __ e:Expression { return { kind: 'FOR', value: e }; }
-  / "NORM"i { return { kind: 'NORM' }; }
-  / "NOWAIT"i { return { kind: 'NOWAIT' }; }
+  / "FOR"i WB __ e:Expression (_ "REST"i WB)? { return { kind: 'FOR', value: e }; }
+  / ("NORMAL"i / "NORM"i) WB { return { kind: 'NORM' }; }
+  / "NOWAIT"i WB { return { kind: 'NOWAIT' }; }
+  / ("FONT"i / "KEY"i) WB __ ExpressionList { return null; }
+  / "VALID"i WB (":F"i)? __ Expression (_ "ERROR"i WB __ Expression)? { return null; }
+  / "PARTITION"i WB __ Expression (_ ("LEDIT"i / "REDIT"i) WB)* { return null; }
+  / "COLOR"i WB _ "SCHEME"i WB __ Expression { return null; }
+  / "IN"i WB _ ("WINDOW"i WB _)? AliasRef { return null; }
+  / ("STYLE"i / "FREEZE"i / "LOCK"i / "NAME"i / "PREFERENCE"i / "TIMEOUT"i / "TITLE"i / "WHEN"i / "WIDTH"i / "WINDOW"i) WB __ Expression { return null; }
+  / ("FORMAT"i / "LAST"i / "NOINIT"i / "LPARTITION"i / "NOAPPEND"i / "NOCAPTIONS"i / "NODELETE"i
+    / "NOEDIT"i / "NOMODIFY"i / "NOLGRID"i / "NORGRID"i / "NOLINK"i / "NOMENU"i / "NOOPTIMIZE"i
+    / "NOREFRESH"i / "SAVE"i) WB { return null; }
 
 // REPLACE [ALL | REST] FieldName1 WITH eExpression1 [ADDITIVE] [, FieldName2 WITH eExpression2 [ADDITIVE]] ... [Scope] [FOR lExpression1] [WHILE lExpression2] [IN nWorkArea | cTableAlias] [NOOPTIMIZE]
 ReplaceStatement
@@ -2146,6 +2297,10 @@ ReturnStatement
 NotCallOrAssign
   = !(_ ("(" / "="))
 
+// A command whose tail is free text, or a whole expression, has to refuse every shape a variable or an object of that name would take in command position rather than just a call and an assignment: the tail swallows the rest of the line either way, and a statement that misparses into a valid tree costs more than one that reports itself.
+NotNameReference
+  = !(_ ("(" / "=" / "." / "->" / "["))
+
 // CLEAR [ALL | CLASS cName | CLASSLIB cName | DLLS | EVENTS | FIELDS | GETS | MACROS | MEMORY
 //   | MENUS | POPUPS | PROGRAM | PROMPT | READ [ALL] | RESOURCES | TYPEAHEAD | WINDOWS | DEBUG]
 ClearStatement
@@ -2373,9 +2528,12 @@ Keyword "keyword"
   / ("ENDSCAN"i    ![a-zA-Z0-9_])
   / ("ENDTEXT"i    ![a-zA-Z0-9_])
 
+// Hex first: the decimal form would read `0x1F` as the literal zero and leave `x1F` to the catch-all. The exponent is part of the same token for the same reason -- `1E5` read as `1` left `E5` behind as an unknown statement.
 NumberLiteral "number"
-  = "SELECT(0)"i { return node("NumberLiteral", { value: 0, raw: "SELECT(0)", currency: false });}
-    / value:$("$"? ( [0-9]+ ("." [0-9]+)? / "." [0-9]+ ) ) {
+  = raw:$("0" [xX] [0-9a-fA-F]+) {
+      return node("NumberLiteral", { value: parseInt(raw.slice(2), 16), raw, currency: false });
+    }
+  / value:$("$"? ( [0-9]+ ("." [0-9]+)? / "." [0-9]+ ) ([eE] [+-]? [0-9]+)? ) {
       const raw = value;
       const isCurrency = raw.charAt(0) === '$';
       const num = parseFloat(isCurrency ? raw.slice(1) : raw);
@@ -2424,9 +2582,9 @@ LineTerminatorSequence "end of line"
   / "\u2028"
   / "\u2029"
 
-// Visual FoxPro boolean literals like .T. and .F.
+// Visual FoxPro boolean literals are .T. and .F. only. Bare TRUE and FALSE were accepted here and are not VFP: they are ordinary names, and reading them as literals made a variable of either name vanish from the symbol table.
 BooleanLiteral "boolean"
-  = b:(".T."i / ".F."i / "TRUE"i / "FALSE"i) { return node("BooleanLiteral", { value: (b.toUpperCase() === ".T.") }); }
+  = b:(".T."i / ".F."i) { return node("BooleanLiteral", { value: (b.toUpperCase() === ".T.") }); }
 
 NullLiteral "null"
   = ".NULL."i / "NULL"i { return node("NullLiteral", { }); }

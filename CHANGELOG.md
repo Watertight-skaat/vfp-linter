@@ -1,6 +1,76 @@
 # Changelog
 
-## Unreleased
+## 1.2.3
+
+Grammar coverage: every gap the roadmap had measured is closed, two silent misparses found while
+verifying them are fixed, and a stray block terminator no longer costs the file its parse.
+
+### A dangling terminator no longer throws
+
+A stray `ENDIF` used to make the parser give up on the whole file, so the user lost every other
+diagnostic in it until the line was fixed -- and while typing, that line is usually the one being
+written. A terminator with nothing open for it to close is now absorbed at file level and reported
+as `syntax-error` in place, which is what it is, and everything below it is still checked. Twenty
+thousand random token soups now parse without throwing.
+
+### `SELECT()` as a function
+
+`SELECT` is in the keyword list, so `lnArea = SELECT("customer")` fell to the catch-all and `lnArea`
+was then reported as an unused local: a false positive on a very common idiom. The opening
+parenthesis is what tells the function from the command. The `"SELECT(0)"` special case inside
+`NumberLiteral` went with it -- it turned a function call into the literal zero.
+
+### Hex and scientific literals
+
+`x = 0x1F` read as `x = 0` followed by an unknown statement `x1F`, and `1E5` the same way. Both are
+one token now, and both carry their real value.
+
+### `#IF ... #ENDIF` bodies
+
+The whole block was kept as raw text, so code inside `#IF .T.` was invisible to the symbol table and
+to every rule, and a nested `#IF` ended at the first `#ENDIF`. The body is parsed, `#ELSE` and
+`#ELIF` fill the branch below the way `IfStatement` does, `#IFDEF` and `#IFNDEF` are read, and the
+condition stays raw because the preprocessor evaluates it against `#DEFINE` constants rather than
+variables.
+
+### Bare `TRUE` and `FALSE` are names again
+
+VFP has `.T.` and `.F.` only. Read as boolean literals, a variable of either name vanished from the
+symbol table.
+
+### `NOTE`
+
+The oldest comment form. It returns nothing rather than a node, because a comment is not a
+statement, and it refuses the shapes a variable or an object of that name would take in command
+position, so `note = x` and `note.caption = x` are untouched.
+
+### `SET` argument lists and clauses
+
+`SET PROCEDURE TO lib1, lib2 ADDITIVE`, `SET CLASSLIB TO x IN y ALIAS z`, `SET RELATION OFF INTO y`,
+`SET SKIP TO x INTO y`. The argument is a list rather than one expression, and `IN`, `INTO`, `ALIAS`,
+`ADDITIVE` and `ON`/`OFF` are read after it; `SetCommand` carries `arguments`, `inTarget`, `into` and
+`alias` for them. Found while doing it: `SET TOPIC TO "x"` read as `SET TO` with a setting called
+`PIC`, because the `TO` literal had no word boundary -- a valid tree that reported nothing.
+
+### `BROWSE` options past the first
+
+The whole documented option set is recognised, so the statement ends where it ends instead of
+leaving everything after the first option to the catch-all.
+
+### The rest of the ledger
+
+`SAVE WINDOW` / `RESTORE WINDOW`, `INSERT [BLANK] [BEFORE]`, `FIND`, `COPY INDEXES`, `CREATE VIEW`,
+`DECLARE laArr[3]`, `WAIT ... TO` and `DEBUGOUT`. `DECLARE` of an array is the older spelling of
+`DIMENSION` and returns the same node, so it reaches the symbol table by the same path; `WAIT` is no
+longer `WAIT WINDOW` only, and its `TO` clause books the variable it creates.
+
+### A suite that asserts what the parser returns
+
+`run-parse-tests.js` asserts the tree for each construct directly. A diagnostics fixture can only say
+that nothing was reported, which a misparse satisfies as well as a correct parse -- both of the
+misparses fixed above had been sitting behind a fully passing corpus.
+
+## 1.2.2
 
 The editor side: every rule gets a severity setting, any finding can be suppressed in place, three
 rules fix themselves, and the file gets an Outline, folding and a language configuration. Underneath,

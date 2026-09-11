@@ -2,10 +2,11 @@
 
 import type { Rule } from '../rule.js';
 import { havingWithoutGroupBy, selectWithoutInto, unlinkedTables } from './sql.js';
-import { duplicateCase, emptyBranch, privateAll, tryWithoutCatch, unreachableCode, unsupportedSyntax, unterminatedBlock } from './structure.js';
+import { danglingTerminator, duplicateCase, emptyBranch, privateAll, tryWithoutCatch, unreachableCode, unsupportedSyntax, unterminatedBlock } from './structure.js';
 import { implicitPrivate, missingMemvarPrefix, unusedLocal } from './symbols.js';
 
 export const rules: Rule[] = [
+  danglingTerminator,
   unterminatedBlock,
   unsupportedSyntax,
   implicitPrivate,

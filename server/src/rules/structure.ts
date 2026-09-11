@@ -115,6 +115,32 @@ export const unterminatedBlock = onNode({
   }
 });
 
+// The opener each terminator belongs to, for the message. ELSE, OTHERWISE, CATCH and FINALLY are branch words rather than closers, so the wording has to fit both.
+const openerFor: Record<string, string> = {
+  ENDIF: 'IF', ELSE: 'IF',
+  ENDDO: 'DO WHILE',
+  ENDFOR: 'FOR', NEXT: 'FOR',
+  ENDCASE: 'DO CASE', OTHERWISE: 'DO CASE',
+  ENDTRY: 'TRY', CATCH: 'TRY', FINALLY: 'TRY',
+  ENDWITH: 'WITH',
+  ENDSCAN: 'SCAN',
+  ENDTEXT: 'TEXT',
+  ENDDEFINE: 'DEFINE CLASS',
+  ENDPROC: 'PROCEDURE', ENDFUNC: 'FUNCTION'
+};
+
+// A terminator with nothing open for it to close. The parser used to throw on one, which cost the user every other diagnostic in the file until the line was fixed -- and while typing, that line is usually the one being written. It carries the code a thrown parse failure carries, because it is the same kind of finding, and is locked for the same reason.
+export const danglingTerminator = onNode({
+  code: 'syntax-error',
+  severity: Severity.Error,
+  locked: true,
+  on: ['DanglingTerminator'],
+  check(node, ctx) {
+    const opener = openerFor[node.keyword] ?? 'block';
+    ctx.report(node.location, `There is no ${opener} open here for this ${node.keyword} to belong to.`);
+  }
+});
+
 // A construct the grammar does not cover yet is not the same thing as a construct that is wrong, so unsupported syntax is advisory by default: valid FoxPro the grammar has not learned should not look like a mistake. The test harness raises it to error so the probe corpus still fails on any construct the grammar cannot read.
 export const unsupportedSyntax = onNode({
   code: 'unsupported-syntax',

@@ -1,3 +1,7 @@
 BROWSE FIELDS fieldA, fieldB, fieldC ;
 	FOR conditionA and !conditionB ;
 	norm NOWAIT 
+
+BROWSE FIELDS custid, name NOEDIT
+BROWSE FIELDS custid TITLE "Customers" NOAPPEND NODELETE NOMENU IN WINDOW wMain
+BROWSE LAST NOWAIT TIMEOUT 30 WHEN lOk VALID lStillOk ERROR "no"

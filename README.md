@@ -8,7 +8,7 @@ The extension parses your code with a real grammar instead of matching patterns,
 
 | Code | Severity | What it reports |
 | ---- | -------- | --------------- |
-| `syntax-error` | Error | The parser could not read the file |
+| `syntax-error` | Error | A block terminator with nothing open for it to close, or code the parser could not read |
 | `unterminated-block` | Error | A block opener whose terminator is missing |
 | `unsupported-syntax` | Information | Valid FoxPro the grammar has not learned yet (configurable) |
 | `implicit-private` | Warning | An assignment to an undeclared name, which FoxPro creates as a PRIVATE |

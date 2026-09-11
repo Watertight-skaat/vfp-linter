@@ -1,1 +1,3 @@
-2:1 error syntax-error Expected end of input but "E" found.
+2:1 error syntax-error There is no IF open here for this ENDIF to belong to.
+5:7 warning unused-local 'lcUnused' is declared LOCAL in this file and then never read or written. Either it is left over and can go, or the name it was meant to be used under is misspelled somewhere below -- in which case that spelling is creating a PRIVATE of its own.
+6:1 warning implicit-private 'lnUndeclared' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything this file calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.

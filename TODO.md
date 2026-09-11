@@ -14,18 +14,15 @@
 
 ## Grammar coverage
 
-These announce themselves as `unsupported-syntax` rather than producing a wrong tree, so none of them block a rule. Measured by probing the parser, not by reading the grammar; `test-files/diagnostics/still-unsupported.prg` holds the same list as a fixture, so implementing one makes the ledger shorter.
+These announce themselves as `unsupported-syntax` rather than producing a wrong tree, so none of them block a rule; where one costs more than its own statement, or misparses instead, the bullet says so. Measured by probing the parser, not by reading the grammar; `test-files/diagnostics/still-unsupported.prg` holds the same list as a fixture, so implementing one makes the ledger shorter.
 
-- **`SELECT()` as a function** — `lnArea = SELECT("customer")` falls to the catch-all because `SELECT` is in the `Keyword` list and `Identifier` refuses it. The lost assignment then makes `lnArea` an `unused-local`: a false positive on a very common idiom. The `"SELECT(0)"` special case inside `NumberLiteral` is a band-aid for exactly this, and is itself wrong, since it turns a function call into the literal zero.
-- **Hex and scientific literals** — `x = 0x1F` reads as `x = 0` followed by an unknown statement `x1F`; `1E5` likewise. Both are valid VFP, and this one is a misparse rather than a gap.
-- **`#IF … #ENDIF` bodies** — the whole block is kept as raw text, so code inside `#IF .T.` is invisible to the symbol table and every rule, and a nested `#IF` ends at the first `#ENDIF`.
-- **Bare `TRUE` / `FALSE`** — accepted as boolean literals, which VFP does not have. A variable of that name silently vanishes from the symbol table.
-- **`NOTE`** — the oldest comment form, reported as unsupported.
-- **Dangling terminators** — a stray `ENDIF` throws, so the user loses every other diagnostic in the file until it is fixed. Absorbing it into a `syntax-error` diagnostic instead of throwing would keep the rest live while typing.
-- **`SET` commands whose argument is a list or has a clause of its own** — `SET SKIP TO x INTO y`, `SET RELATION OFF INTO y`, `SET PROCEDURE TO a, b ADDITIVE`, `SET CLASSLIB TO x IN y ALIAS z`. The bare `SET x TO y` form reads them, so each leaves a `SetCommand` behind and only the tail is lost. The largest group left, and the one most likely to hold something a rule wants.
-- **`BROWSE` options past the first** — the statement is recognised, so the work area is known; the field list is not.
-- **`SAVE WINDOW` / `RESTORE WINDOW`** — window definitions written to and read back from a file. The screen commands proper are read now; these two sit beside `SAVE TO` and `RESTORE FROM` and are not.
-- **The remainder, each costing only its own statement** — `INSERT BEFORE`, `FIND`, `COPY INDEXES`, `CREATE VIEW`, `DECLARE laArr[3]`, `WAIT ... TO`, `DEBUGOUT`. `DECLARE` of an array is the one of these that names a variable.
+- **`DEFINE CLASS` member declarations** — `PROTECTED`, `HIDDEN`, `IMPLEMENTS` and `ADD OBJECT`. The largest group left. On a property each costs only its own line and the class around it still reads, but `PROTECTED PROCEDURE Foo` leaves the whole class unreadable, so every method in it leaves the outline and the symbol table together. That makes it the one to do first: it is the only gap left that costs more than its own statement.
+- **The output commands** — `??`, which prints without the leading newline, and a `\` or `\\` line, which is TEXTMERGE output written one line at a time.
+- **`APPEND MEMO` / `COPY MEMO`** — a memo field read from and written to a text file. These sit beside `APPEND FROM` and `COPY TO`, which are read.
+- **`ON PAD` / `ON BAR`** — the menu handlers that open a submenu. `ON SELECTION`, which runs a command, is read; these two are not.
+- **`SET` commands whose argument is a file path, or that carry a second clause of their own** — `SET DEFAULT TO c:\temp`, `SET PRINTER TO FILE x.txt`, `SET TEXTMERGE ON DELIMITERS TO "<<", ">>"`. Each leaves a `SetCommand` behind and only the tail is lost. The path case is the expression reader meeting a bare Windows path; a file name without a drive letter, `SET HELP TO x.hlp`, parses but reads as member access.
+- **A quoted class library in an `AS ... OF` clause** — `LOCAL loX AS Poster OF "poster.vcx"`. The bare name reads, so the declaration is already in the symbol table and only the library is lost.
+- **The remainder, each costing only its own statement** — `RETURN TO MASTER`, `CANCEL`, `READ EVENTS`, `COMPILE`, `BUILD APP`.
 
 ## Cleanup
 
@@ -34,6 +31,6 @@ These announce themselves as `unsupported-syntax` rather than producing a wrong 
 ## Practices
 
 - Count a rule's hits over the corpus before writing it. The `=` rule: 42 hits, ~2 real. `unused-local`: six for six.
-- Verify a grammar change by asking the parser what it returns, not by reading the grammar. Find the shape with a script, parse a sample, print the field, compare. Reading finds only what you're already looking for — a sweep verified by reading missed fifteen misparses, four in constructs a careful reader had signed off.
+- Verify a grammar change by asking the parser what it returns, not by reading the grammar. Find the shape with a script, parse a sample, print the field, compare, then leave the comparison behind in `run-parse-tests.js`. Reading finds only what you're already looking for — a sweep verified by reading missed fifteen misparses, four in constructs a careful reader had signed off.
 - Show each new test a broken version of what it guards and confirm it fails. The keyword-boundary probe passed against a grammar with the boundary deliberately removed.
 - A fixture that passes can still be misparsing. `startup-settings.prg` passed the whole time its line 5 was wrong; the e2e suite was red for two releases with nothing running it. Coverage that nothing executes is a claim, not a check.

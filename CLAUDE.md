@@ -1,4 +1,4 @@
-This is a vscode Foxpro linter extension repository. The extension is available publicly. The linter works, but doesn't currently support all Foxpro syntax (yet), and useful linting rules are a work-in-progress.
+This is a vscode Foxpro linter extension repository. The extension is available publicly, but mainly used by the Watertight internal team, so we cater to their codebase
 
 Conventions:
 - Be as concise as you can in your code and comments

@@ -96,6 +96,9 @@ check('IF keeps ENDIF visible', folds('IF .T.\n? 1\n? 2\nENDIF\n'), ['0-2']);
 check('every CASE folds', folds('DO CASE\nCASE x = 1\n\t? 1\nCASE x = 2\n\t? 2\nENDCASE\n'), ['0-4', '1-2', '3-4']);
 check('a one-line block does not fold', folds('FOR i = 1 TO 3\nENDFOR\n'), []);
 check('a query over several lines folds', folds('SELECT a ;\n\tFROM b ;\n\tINTO CURSOR c\n? 1\n'), ['0-1']);
-check('a file that does not parse has no outline', lint('ENDIF\n').ast, null);
+// A stray terminator used to throw, which cost the file its outline and its folding along with every diagnostic below the line. lint() still returns a null ast if the parser ever does throw and server.ts guards for it, but no input reaches that path now.
+const strayOutline = 'ENDIF\nPROCEDURE Foo\n? 1\nENDPROC\n';
+check('a stray terminator no longer costs the file its outline',
+	documentSymbols(lint(strayOutline).ast, strayOutline.split('\n')).map(s => s.name), ['Foo']);
 
 report('Fix, outline and folding checks');

@@ -19,7 +19,7 @@
 | `bun run compile`   | Regenerates the parser, type-checks, and bundles client + server       |
 | `bun run dev`       | Watches the grammar, the bundles and both type-check projects          |
 | `bun run typecheck` | Type-checks only (esbuild does not type-check)                         |
-| `bun run test`        | Runs the five suites below                                           |
+| `bun run test`        | Runs the suites below                                           |
 | `bun run test:update` | Re-records the expected diagnostics for every fixture                |
 | `bun run e2e`       | Launches VS Code and runs the end-to-end suite in `client/src/test`    |
 
@@ -29,6 +29,7 @@
 | ------------------------- | -------------------------------------------------------------------------------------- |
 | `run-all-tests.js`        | Each fixture's diagnostics match its recorded `.expected` file, exactly                 |
 | `run-ast-tests.js`        | `ast.ts` declares exactly the node types and properties the grammar emits               |
+| `run-parse-tests.js`      | The tree the parser returns for one construct, asserted directly                        |
 | `run-scope-tests.js`      | The contents of the symbol table built from `test-files/scope.prg`                       |
 | `run-severity-tests.js`   | Each rule follows `foxpro.rules`; locked rules and syntax errors ignore it; suppression comments; `package.json` and the README name every rule |
 | `run-keyword-tests.js`    | Every keyword literal in the grammar still allows an identifier that starts with it       |
@@ -59,9 +60,10 @@ changed severity or message visible rather than silently absorbed.
 
 **A diagnostics fixture cannot catch a statement that parses into the wrong tree.** It asserts what
 the linter *reports*, and a misparse that still produces a valid tree reports nothing -- several have
-hidden behind a fully passing corpus. When a grammar change alters what a node carries, assert the
-shape in `run-scope-tests.js` as well: counting the symbol table's reads and writes is the only check
-that sees it.
+hidden behind a fully passing corpus, and `SET TOPIC TO "x"` read as `SET TO` with a setting called
+`PIC` for as long as the rule existed. When a grammar change alters what a node carries, assert the
+tree in `run-parse-tests.js`, and the symbol table's reads and writes in `run-scope-tests.js` when the
+change reaches a name.
 
 ### CI
 

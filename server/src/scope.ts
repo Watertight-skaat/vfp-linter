@@ -315,6 +315,11 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
         // TEXT TO builds the variable's contents, so it is a write. The body is output text rather than code, so a name that appears only inside a <<...>> merge is invisible here -- which cannot produce a false 'unused' because a variable worth merging has to have been assigned somewhere first.
         reference(scope, node.to, 'write', at);
         return;
+      case 'WaitStatement':
+        // WAIT ... TO puts the key the user pressed into the variable, so it creates the name like any other write.
+        reference(scope, node.to, 'write', at);
+        visitChildren(node, scope);
+        return;
       case 'DoFormStatement':
         // NAME creates the form object and TO receives what the form returns. Both create the name.
         reference(scope, node.name, 'write', at);
