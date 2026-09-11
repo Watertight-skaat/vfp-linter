@@ -1,0 +1,7 @@
+8:2 warning unreachable-code This cannot run: the RETURN above it leaves the block first.
+27:2 warning duplicate-case This condition is identical to the CASE on line 23, so this branch can never be reached.
+36:2 information empty-branch This IF branch is empty, so the test decides nothing.
+38:2 information empty-branch This ELSE branch is empty and can be removed.
+43:2 information empty-branch This CASE branch is empty, so matching it does nothing.
+51:2 information try-without-catch This TRY has neither CATCH nor FINALLY, so it handles nothing and any error still propagates to the caller.
+66:10 warning private-all PRIVATE ALL hides every variable of the caller from this routine and everything it calls. Name the variables it needs to hide, or declare the ones this routine owns as LOCAL.

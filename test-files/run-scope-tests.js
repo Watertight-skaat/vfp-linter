@@ -29,7 +29,8 @@ check('scopes found', table.scopes.map(s => `${s.name}:${s.kind}`), [
 	'Describe:function',
 	'Widget:class',
 	'Widget.Init:method',
-	'Widget.Label:method'
+	'Widget.Label:method',
+	'Branching:function'
 ]);
 check('main is the root', table.main.name, '(main)');
 check('methods hang off the class', scope('Widget').children.map(c => c.name), ['Widget.Init', 'Widget.Label']);
@@ -79,6 +80,13 @@ check('an ordinary read is not in SQL context',
 check('THIS and its properties are not symbols', names('Widget.Label'), ['LCLABEL']);
 check('class-body assignments are properties', [sym('Widget', 'CNAME').kind, sym('Widget', 'NCOUNT').kind], ['property', 'property']);
 check('a method body does not leak into the class', names('Widget.Init'), []);
+
+// A DO CASE used to drop every branch it had, contents and all, so nothing inside one reached the
+// symbol table. These assertions fail again if that regresses.
+check('a variable written inside both CASE branches', shape('Branching', 'LCBRANCH'),
+	{ kind: 'local', type: null, array: false, declared: true, reads: 1, writes: 2 });
+check('a parameter read inside a CASE condition', shape('Branching', 'TNTYPE'),
+	{ kind: 'parameter', type: null, array: false, declared: true, reads: 1, writes: 0 });
 
 // --- work area -------------------------------------------------------------
 check('main work area', scope('(main)').workArea.map(e => `${e.kind}:${e.alias}:${e.targeted ? 'in' : 'current'}`),

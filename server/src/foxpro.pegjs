@@ -1189,7 +1189,7 @@ ForLoop "for loop"
     varName:ParameterName _ "=" _ init:Expression _ "TO"i _ final:Expression _ 
     step:("STEP"i _ inc:Expression)? __
     // Avoid consuming ENDFOR/NEXT as part of the body when NEXT isn't reserved globally
-    body:((!("ENDFOR"i / "NEXT"i) Statement) __)*
+    body:(!("ENDFOR"i WB / "NEXT"i WB) s:Statement __ { return s; })*
     ("ENDFOR"i / "NEXT"i) _ endVar:ParameterName?
     {
       return node("ForStatement", {
@@ -1198,7 +1198,7 @@ ForLoop "for loop"
         final,
         step: step ? step[2] : null,
         endVariable: endVar || null,
-        body: node("BlockStatement", { body: flatten(body.map(s => s[0])) })
+        body: node("BlockStatement", { body: flatten(body) })
       });
     }
 
@@ -1214,7 +1214,7 @@ ForEachLoop "for-each loop"
     })?
     "IN"i _ group:Expression foxobj:(_ "FOXOBJECT"i)? __
     // Avoid consuming ENDFOR/NEXT as part of the body when NEXT isn't reserved globally
-    body:((!("ENDFOR"i / "NEXT"i) Statement) __)*
+    body:(!("ENDFOR"i WB / "NEXT"i WB) s:Statement __ { return s; })*
     ("ENDFOR"i / "NEXT"i) _ endVar:ParameterName? 
     {
       const asType = typePart ? typePart.typing : null;
@@ -1226,7 +1226,7 @@ ForEachLoop "for-each loop"
         collection: group,
         foxObject: !!foxobj,
         endVariable: endVar || null,
-        body: node("BlockStatement", { body: flatten(body.map(s => s[0])) })
+        body: node("BlockStatement", { body: flatten(body) })
       });
     }
 
@@ -1247,20 +1247,27 @@ DoCaseStatement "do case statement"
   cases:(CaseClause)*
   otherwise:("OTHERWISE"i __ othBody:(Statement __)* { return node('BlockStatement', { body: flatten(othBody.map(s => s[0])) }); })?
   "ENDCASE"i {
-      return node('DoCaseStatement', { 
-        cases: cases.map(c => c[0]), 
-        otherwise: otherwise ? otherwise : null 
+      // (CaseClause)* yields the clauses themselves, not [clause] pairs: indexing them dropped every
+      // branch of every DO CASE, contents and all, so nothing downstream could see inside one.
+      return node('DoCaseStatement', {
+        cases,
+        otherwise: otherwise ? otherwise : null
       });
     }
 
 CaseClause
-  = "CASE"i _ test:Expression __ 
-    consequent:(Statement __)* {
-      return node('CaseClause', { 
-        test, 
-        consequent: node('BlockStatement', { body: flatten(consequent.map(s => s[0])) }) 
+  = "CASE"i _ test:Expression __
+    consequent:(!CaseBoundary s:Statement __ { return s; })* {
+      return node('CaseClause', {
+        test,
+        consequent: node('BlockStatement', { body: flatten(consequent) })
       });
     }
+
+// A CASE body ends at the next branch or at ENDCASE. Without this guard the catch-all swallows the
+// next CASE line into this body, and only the first branch of a DO CASE is ever parsed.
+CaseBoundary
+  = ("CASE"i / "OTHERWISE"i / "ENDCASE"i) WB
 
 // DO FORM FormName | ? [NAME VarName [LINKED]] [WITH cParameterList]
 //  [TO VarName] [NOREAD] [NOSHOW]

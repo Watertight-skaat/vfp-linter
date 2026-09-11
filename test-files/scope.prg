@@ -45,3 +45,14 @@ DEFINE CLASS Widget AS Custom
 		RETURN lcLabel
 	ENDFUNC
 ENDDEFINE
+
+FUNCTION Branching(tnType)
+	LOCAL lcBranch
+	DO CASE
+	CASE tnType = 1
+		lcBranch = "one"
+	OTHERWISE
+		lcBranch = "other"
+	ENDCASE
+	RETURN lcBranch
+ENDFUNC

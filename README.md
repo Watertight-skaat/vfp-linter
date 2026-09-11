@@ -113,6 +113,37 @@ git history and re-add `eslint`, `@eslint/js`, `@stylistic/eslint-plugin`,
         └── server.ts // Language Server entry point
 ```
 
+### Rules
+
+| Code | Severity | What it reports |
+| ---- | -------- | --------------- |
+| `syntax-error` | Error | The parser could not read the file at all |
+| `unterminated-block` | Error | A block opener whose terminator is missing |
+| `unsupported-syntax` | configurable | Valid FoxPro the grammar has not learned |
+| `missing-memvar-prefix` | Warning | A variable referenced without `m.` that is also used as a field name |
+| `unreachable-code` | Warning | A statement after `RETURN` / `EXIT` / `LOOP` in the same block |
+| `duplicate-case` | Warning | A `CASE` condition identical to an earlier one in the same `DO CASE` |
+| `private-all` | Warning | `PRIVATE ALL`, which hides every variable of the caller |
+| `having-without-group-by` | Information | `HAVING` with no `GROUP BY`, so it is only a post-filter |
+| `try-without-catch` | Information | A `TRY` with neither `CATCH` nor `FINALLY` |
+| `empty-branch` | Information | An `IF`, `ELSE`, `CASE` or `OTHERWISE` branch with no statements |
+
+Two of these deserve a note on what they deliberately do *not* do.
+
+**`missing-memvar-prefix`** is the rule with the most potential to become a false-positive wall. When a
+memory variable and a field of an open table share a name, a bare reference resolves to *the field* —
+so `lcName = "x"` can update the record instead of the variable. Which names are fields cannot be
+known without opening the table, so rather than flag every bare reference while a table is open (which
+in real FoxPro code is nearly all of them), the rule reports only names the file itself shows being
+used as a field: a column in a `CREATE`, a `REPLACE` target, an `INSERT` column list, or a reference
+qualified by an alias the file opens. No evidence of a collision, no report. It also skips references
+inside SQL statements, where a bare name is expected to be a column.
+
+**`empty-branch`** cannot tell an empty branch from one holding only a comment, because comments are
+not part of the syntax tree. That is why it is advisory. An empty `ELSE` is also reported at the `IF`
+line rather than at the `ELSE`: the block's location spans the whole statement, so there is no more
+precise anchor to point at.
+
 ### Grammar coverage
 
 A statement the grammar cannot read is a statement no rule can check, so coverage is not cosmetic —
