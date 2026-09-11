@@ -221,9 +221,7 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
     visit(target, scope);
   }
 
-  // Inside WITH, the chain after the dot hangs off the WITH target: `.Objects(m.n).Caption` names two
-  // properties and reads one variable. Walk it for the arguments and subscripts, but never book the
-  // root identifier -- that is a property name.
+  // Inside WITH, the chain after the dot hangs off the WITH target: `.Objects(m.n).Caption` names two properties and reads one variable. Walk it for the arguments and subscripts, but never book the root identifier -- that is a property name.
   function visitWithMember(expr: Expr | null | undefined, scope: Scope) {
     if (!expr || typeof expr !== 'object') return;
     switch (expr.type) {

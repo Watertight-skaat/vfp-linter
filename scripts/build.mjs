@@ -1,9 +1,7 @@
 /**
  * Bundles the extension client and the language server with esbuild.
  *
- * Both entry points are bundled to a single self-contained CommonJS file, so the
- * packaged VSIX carries no node_modules at all. `vscode` is the one module that must
- * stay external -- it is injected by the extension host at runtime and cannot be bundled.
+ * Both entry points are bundled to a single self-contained CommonJS file, so the packaged VSIX carries no node_modules at all. `vscode` is the one module that must stay external -- it is injected by the extension host at runtime and cannot be bundled.
  */
 import * as esbuild from 'esbuild';
 import * as fs from 'node:fs';

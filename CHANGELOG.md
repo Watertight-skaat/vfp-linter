@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.1
+
+Packaging only — no change to the grammar or the rules. The extension now ships an icon, so it has a
+face in the marketplace listing and the installed-extensions list instead of the default placeholder.
+
 ## 1.2.0
 
 The release that finishes the symbol table's first pair of rules, and closes every grammar gap the

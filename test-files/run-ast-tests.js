@@ -1,6 +1,4 @@
-// Re-derives the node types and property names the grammar actually emits, and asserts server/src/ast.ts
-// declares exactly those. A hand-written union is only useful while it is true, so the grammar is the
-// source of truth and this suite fails the build when the two drift apart.
+// Re-derives the node types and property names the grammar actually emits, and asserts server/src/ast.ts declares exactly those. A hand-written union is only useful while it is true, so the grammar is the source of truth and this suite fails the build when the two drift apart.
 const fs = require('fs');
 const { check, report } = require('./check.js');
 

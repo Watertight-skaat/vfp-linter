@@ -88,16 +88,13 @@ check('THIS and its properties are not symbols', names('Widget.Label'), ['LCLABE
 check('class-body assignments are properties', [sym('Widget', 'CNAME').kind, sym('Widget', 'NCOUNT').kind], ['property', 'property']);
 check('a method body does not leak into the class', names('Widget.Init'), []);
 
-// A DO CASE used to drop every branch it had, contents and all, so nothing inside one reached the
-// symbol table. These assertions fail again if that regresses.
+// A DO CASE used to drop every branch it had, contents and all, so nothing inside one reached the symbol table. These assertions fail again if that regresses.
 check('a variable written inside both CASE branches', shape('Branching', 'LCBRANCH'),
 	{ kind: 'local', type: null, array: false, declared: true, reads: 1, writes: 2 });
 check('a parameter read inside a CASE condition', shape('Branching', 'TNTYPE'),
 	{ kind: 'parameter', type: null, array: false, declared: true, reads: 1, writes: 0 });
 
-// SCAN and REPLACE dropped their FOR and WHILE conditions, DIMENSION its column count and SET its
-// argument, each by reading the wrong index of a PEG sequence. The statements still parsed, so no
-// diagnostic could have caught it -- only counting the reads does.
+// SCAN and REPLACE dropped their FOR and WHILE conditions, DIMENSION its column count and SET its argument, each by reading the wrong index of a PEG sequence. The statements still parsed, so no diagnostic could have caught it -- only counting the reads does.
 check('a parameter read in SCAN FOR and REPLACE WITH', shape('Filtering', 'TNLIMIT'),
 	{ kind: 'parameter', type: null, array: false, declared: true, reads: 2, writes: 0 });
 check('a parameter read in DIMENSION, SET, SCAN WHILE and REPLACE FOR', shape('Filtering', 'TNCOLS'),
@@ -105,11 +102,7 @@ check('a parameter read in DIMENSION, SET, SCAN WHILE and REPLACE FOR', shape('F
 check('a field in a scoped condition is not a declared variable', shape('Filtering', 'INVBAL'),
 	{ kind: 'implicit', type: null, array: false, declared: false, reads: 3, writes: 0 });
 
-// The ARRAY keyword used to be read as the first variable name on all three of these, a parenthesised
-// subscript split an assignment into a call plus a stray literal, and STORE matched the bare name and
-// dropped the subscript. All four parsed, so no diagnostic could have caught any of them; a symbol
-// with the wrong kind, or a missing write, is the only visible trace. The scope names alone are the
-// assertion for the first three -- a variable named ARRAY would appear here instead.
+// The ARRAY keyword used to be read as the first variable name on all three of these, a parenthesised subscript split an assignment into a call plus a stray literal, and STORE matched the bare name and dropped the subscript. All four parsed, so no diagnostic could have caught any of them; a symbol with the wrong kind, or a missing write, is the only visible trace. The scope names alone are the assertion for the first three -- a variable named ARRAY would appear here instead.
 check('Subscripts declares only the three arrays', names('Subscripts'),
 	['LABRACKETS', 'LAPRIVATE', 'LAPUBLIC']);
 check('LOCAL ARRAY with brackets, written through both subscript forms', shape('Subscripts', 'LABRACKETS'),
@@ -119,9 +112,7 @@ check('PUBLIC ARRAY, written by STORE to an element', shape('Subscripts', 'LAPUB
 check('PRIVATE ARRAY, two-dimensional', shape('Subscripts', 'LAPRIVATE'),
 	{ kind: 'private', type: null, array: true, declared: true, reads: 0, writes: 1 });
 
-// Inside WITH, the leading dot is the only thing separating a property from a memory variable, and the
-// grammar used to drop it. The names list is the assertion: CAPTION, COLUMNS and WIDTH appearing here
-// would mean every property assignment in every WITH block is being booked as an implicit PRIVATE.
+// Inside WITH, the leading dot is the only thing separating a property from a memory variable, and the grammar used to drop it. The names list is the assertion: CAPTION, COLUMNS and WIDTH appearing here would mean every property assignment in every WITH block is being booked as an implicit PRIVATE.
 check('WITH properties are not variables', names('Styling'), ['LCHEADING', 'TNCOLUMN', 'TOGRID']);
 check('an argument inside a WITH member is still a read', shape('Styling', 'TNCOLUMN'),
 	{ kind: 'parameter', type: null, array: false, declared: true, reads: 1, writes: 0 });
@@ -139,10 +130,7 @@ check('alias after USE customer', aliasInEffectAt(scope('(main)'), 5), 'CUSTOMER
 check('SELECT 0 makes the alias unknowable', aliasInEffectAt(scope('(main)'), 6), undefined);
 check('USE ... IN leaves the current area alone', aliasInEffectAt(scope('(main)'), 7), undefined);
 
-// SCATTER, GATHER, CATCH TO, TEXT TO, DO FORM and &macro each name a variable that reached the symbol
-// table as nothing at all: the statement either did not parse or parsed with the name thrown away. A
-// missing reference here is invisible to every diagnostics fixture, because a statement that quietly
-// drops its operand still reports nothing -- so the counts are the assertion.
+// SCATTER, GATHER, CATCH TO, TEXT TO, DO FORM and &macro each name a variable that reached the symbol table as nothing at all: the statement either did not parse or parsed with the name thrown away. A missing reference here is invisible to every diagnostics fixture, because a statement that quietly drops its operand still reports nothing -- so the counts are the assertion.
 check('SCATTER NAME writes the object, GATHER NAME reads it', shape('Records', 'LOROW'),
 	{ kind: 'local', type: null, array: false, declared: true, reads: 1, writes: 1 });
 check('a macro substitution is a read of the variable being run', shape('Records', 'LCCOMMAND'),
@@ -155,24 +143,19 @@ check('DO FORM ... TO receives into the variable', shape('Records', 'LOPICKED'),
 	{ kind: 'local', type: null, array: false, declared: true, reads: 1, writes: 1 });
 check('COUNT TO writes an undeclared name', shape('Records', 'LNSEEN'),
 	{ kind: 'implicit', type: null, array: false, declared: false, reads: 0, writes: 1 });
-// A name inside a <<...>> merge is output text rather than code, so it is not a reference. That cannot
-// produce a false 'unused': a variable worth merging has to have been assigned somewhere first.
+// A name inside a <<...>> merge is output text rather than code, so it is not a reference. That cannot produce a false 'unused': a variable worth merging has to have been assigned somewhere first.
 check('a name inside a TEXTMERGE body is not a reference', sym('Records', 'INVNUM'), null);
 
-// SCAN takes FOR and WHILE in either order. The fixed order left the second clause to the catch-all,
-// which reported a missing ENDFOR for a block that was never opened; both operands must reach the tree.
+// SCAN takes FOR and WHILE in either order. The fixed order left the second clause to the catch-all, which reported a missing ENDFOR for a block that was never opened; both operands must reach the tree.
 check('SCAN reads both clauses with WHILE written first',
 	[shape('Reordered', 'TNCOLS').reads, shape('Reordered', 'TNLIMIT').reads], [1, 1]);
 
-// A keyword after the dot is a property name. TO, FROM and CLASS appearing in this list would mean each
-// reference had been cut at the dot and the keyword booked as a memory variable of its own.
+// A keyword after the dot is a property name. TO, FROM and CLASS appearing in this list would mean each reference had been cut at the dot and the keyword booked as a memory variable of its own.
 check('keyword members are not variables', names('KeywordMembers'), ['LCJOINED', 'TOMESSAGE']);
 check('the object is read once per member reference', shape('KeywordMembers', 'TOMESSAGE'),
 	{ kind: 'parameter', type: null, array: false, declared: true, reads: 4, writes: 0 });
 
-// `USE IN cust` is the normal way to close a work area, and it read as opening a table named IN --
-// every work-area event in the corpus was wrong. The alias of a computed one cannot be known, but the
-// event is a targeted close either way, so the current area is left alone.
+// `USE IN cust` is the normal way to close a work area, and it read as opening a table named IN -- every work-area event in the corpus was wrong. The alias of a computed one cannot be known, but the event is a targeted close either way, so the current area is left alone.
 check('USE IN closes a targeted area', scope('ComputedAreas').workArea.map(e => `${e.kind}:${e.alias}:${e.targeted ? 'in' : 'current'}`),
 	['close:null:in']);
 check('the variable naming a computed area is read', shape('ComputedAreas', 'TCALIAS'),

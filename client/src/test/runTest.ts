@@ -8,17 +8,13 @@ import { runTests } from '@vscode/test-electron';
 
 async function main() {
 	try {
-		// The folder containing the Extension Manifest package.json
-		// Passed to `--extensionDevelopmentPath`
+		// The folder containing the Extension Manifest package.json, passed to `--extensionDevelopmentPath`
 		const extensionDevelopmentPath = path.resolve(__dirname, '../../../');
 
-		// The path to test runner
-		// Passed to --extensionTestsPath
+		// The path to test runner, passed to --extensionTestsPath
 		const extensionTestsPath = path.resolve(__dirname, './index');
 
-		// Run against the oldest VS Code the extension claims to support, so the suite
-		// actually exercises the floor declared in `engines.vscode` rather than whatever
-		// `stable` happens to be today.
+		// Run against the oldest VS Code the extension claims to support, so the suite actually exercises the floor declared in `engines.vscode` rather than whatever `stable` happens to be today.
 		await runTests({ version: '1.101.0', extensionDevelopmentPath, extensionTestsPath });
 	} catch (err) {
 		console.error('Failed to run tests', err);

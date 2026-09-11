@@ -1,9 +1,6 @@
-// A discriminated union over every node the Peggy grammar emits, so rules narrow on `type` instead of
-// indexing into untyped bags. `parse()` still returns `any`, so cast its result to Program at the boundary.
-// test-files/run-ast-tests.js re-derives the node names and property names from foxpro.pegjs and asserts
-// they match this file exactly, so the two cannot drift apart silently.
-// Properties are typed from the grammar where its shape is fixed. A few option bags vary by which clause
-// matched and are typed `unknown` on purpose: that forces a rule to narrow rather than trust a guess.
+// A discriminated union over every node the Peggy grammar emits, so rules narrow on `type` instead of indexing into untyped bags. `parse()` still returns `any`, so cast its result to Program at the boundary.
+// test-files/run-ast-tests.js re-derives the node names and property names from foxpro.pegjs and asserts they match this file exactly, so the two cannot drift apart silently.
+// Properties are typed from the grammar where its shape is fixed. A few option bags vary by which clause matched and are typed `unknown` on purpose: that forces a rule to narrow rather than trust a guess.
 
 // Parser positions are 1-based on both axes; LSP ranges are 0-based, so every consumer subtracts.
 export interface Position {
@@ -50,8 +47,7 @@ export type Expr =
   | SelectStar;
 
 // ---------------------------------------------------------------------------
-// Plain objects the grammar returns alongside nodes. These have no `location`, and where they carry a
-// `type` field (StoreTarget) it is not a node type -- do not feed them to a node-type switch.
+// Plain objects the grammar returns alongside nodes. These have no `location`, and where they carry a `type` field (StoreTarget) it is not a node type -- do not feed them to a node-type switch.
 // ---------------------------------------------------------------------------
 
 export interface QualifiedTable {

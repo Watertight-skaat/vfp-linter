@@ -9,8 +9,7 @@ export function activate(context: ExtensionContext) {
 		path.join('server', 'out', 'server.js')
 	);
 
-	// If the extension is launched in debug mode then the debug server options are used
-	// Otherwise the run options are used
+	// If the extension is launched in debug mode then the debug server options are used, otherwise the run options are used
 	const serverOptions: ServerOptions = {
 		run: { module: serverModule, transport: TransportKind.ipc },
 		debug: {

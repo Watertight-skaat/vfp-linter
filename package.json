@@ -4,7 +4,7 @@
 	"description": "Diagnostics for Visual FoxPro: a real grammar, and rules that stay quiet unless there is evidence",
 	"author": "Sean Kaat",
 	"license": "MIT",
-	"version": "1.2.0",
+	"version": "1.2.1",
 	"publisher": "Watertight",
 	"icon": "images/icon.png",
 	"categories": [
@@ -102,11 +102,13 @@
 		"postinstall": "cd client && bun install && cd ../server && bun install && cd .. && bun run build:parser",
 		"test": "bun ./test-files/run-all-tests.js && bun ./test-files/run-ast-tests.js && bun ./test-files/run-scope-tests.js && bun ./test-files/run-severity-tests.js && bun ./test-files/run-keyword-tests.js",
 		"test:update": "bun ./test-files/run-all-tests.js --update",
+		"release": "node ./scripts/publish.mjs",
 		"e2e": "bun run compile && node ./scripts/build.mjs --tests && node client/out/test/runTest.js"
 	},
 	"devDependencies": {
 		"@types/mocha": "^10.0.10",
 		"@types/node": "^22",
+		"@vscode/vsce": "^3.9.2",
 		"concurrently": "^10.0.5",
 		"esbuild": "^0.28.2",
 		"mocha": "^12.0.0",

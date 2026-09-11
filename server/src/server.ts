@@ -86,16 +86,13 @@ documents.onDidClose(e => {
 	connection.sendDiagnostics({ uri: e.document.uri, diagnostics: [] });
 });
 
-// The content of a text document has changed. This event is emitted
-// when the text document first opened or when its content has changed.
+// The content of a text document has changed. This event is emitted when the text document first opened or when its content has changed.
 documents.onDidChangeContent(change => {
 	scheduleValidation(change.document.uri);
 });
 
 // How long a document has to stop changing before it is re-linted.
-// Parsing is not a bottleneck -- a 27,000-line file takes about 250 ms, and linting it under 9 ms --
-// but without this every keystroke queues a parse of the whole file, and on a large one the editor
-// spends the whole typing burst doing work that the next keystroke throws away.
+// Parsing is not a bottleneck -- a 27,000-line file takes about 250 ms, and linting it under 9 ms -- but without this every keystroke queues a parse of the whole file, and on a large one the editor spends the whole typing burst doing work that the next keystroke throws away.
 const debounceDelay = 300;
 
 // Per document, so typing in one file does not hold back diagnostics for another.

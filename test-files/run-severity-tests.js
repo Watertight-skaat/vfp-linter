@@ -4,9 +4,7 @@ const parser = require('../server/src/parser.js');
 const { runLinterRules } = require('../server/src/linter.ts');
 const { check, report } = require('./check.js');
 
-// A statement the grammar does not cover, so it reaches UnknownStatement. Deliberately not a real
-// FoxPro command: this suite tests the severity mapping, and it should not need editing every time
-// the grammar learns another construct. test-files/diagnostics/still-unsupported.prg tracks the real ones.
+// A statement the grammar does not cover, so it reaches UnknownStatement. Deliberately not a real FoxPro command: this suite tests the severity mapping, and it should not need editing every time the grammar learns another construct. test-files/diagnostics/still-unsupported.prg tracks the real ones.
 const unsupported = 'ZZNOTACOMMAND 1\n';
 // An unterminated block: the catch-all absorbs the opening line, so the parser never throws.
 const unterminated = 'IF .T.\n? 1\n';
@@ -56,15 +54,13 @@ for (const [src, terminator] of openers) {
 const closed = [
 	'IF .T.\n? 1\nENDIF\n',
 	'IF .T.\n? 1\nELSE\n? 2\nENDIF\n',
-	// The loop variables are declared so that "clean" can keep meaning no diagnostic at all: an
-	// undeclared one is a real implicit-private finding and has nothing to do with block terminators.
+	// The loop variables are declared so that "clean" can keep meaning no diagnostic at all: an undeclared one is a real implicit-private finding and has nothing to do with block terminators.
 	'LOCAL lnI\nFOR lnI = 1 TO 3\n? lnI\nENDFOR\n',
 	'LOCAL lnI\nFOR lnI = 1 TO 3\n? lnI\nNEXT\n',
 	'LOCAL x\nFOR EACH x IN y\n? x\nENDFOR\n',
 	'DO WHILE .T.\n? 1\nENDDO\n',
 	'DO CASE\nCASE .T.\n? 1\nOTHERWISE\n? 2\nENDCASE\n',
-	// Declared for the same reason as the loop variables above: CATCH TO creates the variable,
-	// so an undeclared one is a real implicit-private finding and not a block-terminator problem.
+	// Declared for the same reason as the loop variables above: CATCH TO creates the variable, so an undeclared one is a real implicit-private finding and not a block-terminator problem.
 	'LOCAL oErr\nTRY\n? 1\nCATCH TO oErr\n? 2\nENDTRY\n',
 	'TRY\n? 1\nFINALLY\n? 2\nENDTRY\n',
 	'WITH oX\n.a = 1\nENDWITH\n',

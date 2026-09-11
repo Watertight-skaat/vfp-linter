@@ -164,9 +164,7 @@ PublicStatement
       return vars.map(v => node("PublicDeclaration", { name: v, isArray: false }));
     }
 
-// The singular spellings are the older ones and the app still uses them. These declare a routine's
-// inputs, so missing one leaves the symbol table without the parameters of the whole routine. Longest
-// first: PARAMETERS has to be tried before PARAMETER, and PARAMETER before PARAM.
+// The singular spellings are the older ones and the app still uses them. These declare a routine's inputs, so missing one leaves the symbol table without the parameters of the whole routine. Longest first: PARAMETERS has to be tried before PARAMETER, and PARAMETER before PARAM.
 LParameters
   = ("LPARAMETERS"i / "LPARAMETER"i / "PARAMETERS"i / "PARAMETER"i / "PARAM"i) WB _ vars:ParameterList {
       return node("ParametersDeclaration", { names: vars });
@@ -189,8 +187,7 @@ IdentifierList
       return [head, ...tail.map(t => t[3])];
     }
 
-// Parameter names can be dotted (e.g. m.UserName). Allow an optional leading
-// @ or & immediately before the identifier (e.g. @var, &var or @m.User).
+// Parameter names can be dotted (e.g. m.UserName). Allow an optional leading @ or & immediately before the identifier (e.g. @var, &var or @m.User).
 // Capture as a single name string (including the prefix when present).
 ParameterName
   = name:$([@&]? [a-zA-Z_][a-zA-Z0-9_]* (("." / "->") [a-zA-Z_][a-zA-Z0-9_]*)*) { return name; }
@@ -373,8 +370,7 @@ PreprocessorStatement
   / PreprocessorIfStatement
 
 // ON ERROR | ESCAPE | SHUTDOWN | READERROR | APLABOUT | PAGE | KEY [LABEL cLabel] [command]
-// The command is parsed as a statement, and `_` does not cross a newline, so a bare ON ERROR that
-// clears the handler cannot swallow the line below it.
+// The command is parsed as a statement, and `_` does not cross a newline, so a bare ON ERROR that clears the handler cannot swallow the line below it.
 OnStatement
   = "ON"i WB _ "KEY"i WB _ "LABEL"i WB _ label:$([^ \t\r\n]+) _ cmd:Statement? {
       return node("OnStatement", { event: 'KEY LABEL', label, atLine: null, command: cmd || null });
@@ -436,8 +432,7 @@ ThrowStatement
     }
 
 // @ nRow, nColumn SAY | GET | TO | CLEAR, the legacy screen commands.
-// Their option tails (PICTURE, FUNCTION, SIZE, FONT, VALID, WHEN, COLOR ...) are long and vary by
-// verb, so they are kept as raw source: recognising the statement is what stops the false positive.
+// Their option tails (PICTURE, FUNCTION, SIZE, FONT, VALID, WHEN, COLOR ...) are long and vary by verb, so they are kept as raw source: recognising the statement is what stops the false positive.
 AtStatement "screen coordinate statement"
   = "@" _ row:Expression _ "," _ col:Expression _ body:AtBody {
       return node("AtStatement", {
@@ -561,8 +556,7 @@ Unary
     }
   / Exponentiation
 
-// Exponentiation (^) - right-associative and tighter than unary so that
-// -2^2 parses as -(2^2) which matches typical VFP/SQL semantics.
+// Exponentiation (^) - right-associative and tighter than unary so that -2^2 parses as -(2^2) which matches typical VFP/SQL semantics.
 Exponentiation
   = head:PostfixExpression tail:(M_ "^" _ rhs:(Exponentiation / Unary))? {
       if (!tail) return head;
@@ -1086,10 +1080,7 @@ GoToStatement "go/goto statement"
 InClause
   = "IN"i WB _ target:(AliasRef / SelectCore) { return target; }
 
-// A work area can be named by an expression in parentheses wherever an alias is expected:
-// `USE IN (D_MTPC)`, `SET ORDER TO (m.cTag) IN (m.cAlias)`, `GO TOP IN (m.cAlias)`. That is how the
-// alias travels when it is held in a variable. Accepting the parenthesised form only where a *table*
-// was expected is what left the rest of each of those lines to the catch-all.
+// A work area can be named by an expression in parentheses wherever an alias is expected: `USE IN (D_MTPC)`, `SET ORDER TO (m.cTag) IN (m.cAlias)`, `GO TOP IN (m.cAlias)`. That is how the alias travels when it is held in a variable. Accepting the parenthesised form only where a *table* was expected is what left the rest of each of those lines to the catch-all.
 AliasRef
   = "(" _ e:Expression _ ")" { return e; }
   / Identifier
@@ -1318,8 +1309,7 @@ CaseClause
       });
     }
 
-// A CASE body ends at the next branch or at ENDCASE. Without this guard the catch-all swallows the
-// next CASE line into this body, and only the first branch of a DO CASE is ever parsed.
+// A CASE body ends at the next branch or at ENDCASE. Without this guard the catch-all swallows the next CASE line into this body, and only the first branch of a DO CASE is ever parsed.
 CaseBoundary
   = ("CASE"i / "OTHERWISE"i / "ENDCASE"i) WB
 
@@ -1524,9 +1514,7 @@ DotAssignment
 // -----------------------------
 // Xbase housekeeping
 // -----------------------------
-// None of these command words are reserved, so each opens with NotCallOrAssign and keeps only the
-// operands a rule could want. A long option tail is captured as raw source: recognising the statement
-// is what stops the false positive, and pretending to model the tail would buy nothing.
+// None of these command words are reserved, so each opens with NotCallOrAssign and keeps only the operands a rule could want. A long option tail is captured as raw source: recognising the statement is what stops the false positive, and pretending to model the tail would buy nothing.
 
 FlushStatement
   = "FLUSH"i WB NotCallOrAssign force:(_ "FORCE"i WB)? {
@@ -1538,15 +1526,13 @@ ReindexStatement
       return node('ReindexStatement', { compact: !!compact });
     }
 
-// MD/RD/CD and their long spellings. Whitespace before the path is required rather than optional:
-// these are two letters long, and without it `CD.Value` would read as a command rather than a member.
+// MD/RD/CD and their long spellings. Whitespace before the path is required rather than optional: these are two letters long, and without it `CD.Value` would read as a command rather than a member.
 DirectoryStatement
   = cmd:("MKDIR"i / "RMDIR"i / "CHDIR"i / "MD"i / "RD"i / "CD"i) WB NotCallOrAssign Whitespace _ target:PathOrExpression {
       return node('DirectoryStatement', { command: cmd.toUpperCase(), target });
     }
 
-// CONTINUE resumes the last LOCATE. It is not LOOP -- that is ContinueStatement -- and unlike LOOP it
-// does not end the block, so it must stay a separate node or unreachable-code would misread it.
+// CONTINUE resumes the last LOCATE. It is not LOOP -- that is ContinueStatement -- and unlike LOOP it does not end the block, so it must stay a separate node or unreachable-code would misread it.
 ContinueLocateStatement
   = "CONTINUE"i WB NotCallOrAssign { return node('ContinueLocateStatement', {}); }
 
@@ -1559,8 +1545,7 @@ PushPopStatement
       return node('PushPopStatement', { command: cmd.toUpperCase(), what: what.toUpperCase(), options: opts });
     }
 
-// EXTERNAL declares nothing at run time -- it tells the compiler a name resolves elsewhere -- but the
-// names in it are deliberate rather than typos, so they are kept.
+// EXTERNAL declares nothing at run time -- it tells the compiler a name resolves elsewhere -- but the names in it are deliberate rather than typos, so they are kept.
 ExternalStatement
   = "EXTERNAL"i WB _ kind:("ARRAY"i / "PROCEDURE"i / "FUNCTION"i / "CLASS"i / "FORM"i / "LABEL"i / "MENU"i / "QUERY"i / "REPORT"i / "SCREEN"i) WB _ names:IdentifierList {
       return node('ExternalStatement', { kind: kind.toUpperCase(), names });
@@ -1586,9 +1571,7 @@ RunStatement
 // -----------------------------
 // Unknown/catch-all statement
 // -----------------------------
-// Captures a single logical line (respecting semicolon continuations) that didn't
-// match any known statement. Protects block delimiters so structured constructs
-// (IF/DO WHILE/FOR/TRY/DEFINE/WITH) can still recognize their endings.
+// Captures a single logical line (respecting semicolon continuations) that didn't match any known statement. Protects block delimiters so structured constructs (IF/DO WHILE/FOR/TRY/DEFINE/WITH) can still recognize their endings.
 UnknownStatement
   = !("ENDIF"i      ![A-Za-z0-9_]
     / "ELSE"i       ![A-Za-z0-9_]
@@ -1793,8 +1776,7 @@ ReplaceStatement
 
 // SCATTER [FIELDS FieldList | FIELDS LIKE Skeleton | FIELDS EXCEPT Skeleton] [MEMO]
 //   TO ArrayName [BLANK] | TO ArrayName AUTOMEM | MEMVAR [BLANK] | NAME ObjectName [BLANK | ADDITIVE]
-// This is how a record becomes an object or a set of variables, so the destination is the part the
-// rules need: TO and NAME both create the name they are handed, which makes SCATTER a write of it.
+// This is how a record becomes an object or a set of variables, so the destination is the part the rules need: TO and NAME both create the name they are handed, which makes SCATTER a write of it.
 ScatterStatement
   = "SCATTER"i WB NotCallOrAssign opts:(_ ScatterOption)* {
       const o = { destination: null, name: null, fields: null, memo: false, blank: false, additive: false, autoMem: false };
@@ -1883,10 +1865,7 @@ LocateStatement
 //   [LOOP]
 //   [EXIT]
 // ENDSCAN
-// The clauses are order-free in VFP, and the app writes WHILE before FOR because the WHILE bounds the
-// walk and the FOR is the extra filter. Reading them in a fixed order left `FOR ...` to the catch-all,
-// which then reported a missing ENDFOR for a block that was never opened -- a false positive at error
-// severity. `_` keeps the option list on the logical line, so the body below is never mistaken for one.
+// The clauses are order-free in VFP, and the app writes WHILE before FOR because the WHILE bounds the walk and the FOR is the extra filter. Reading them in a fixed order left `FOR ...` to the catch-all, which then reported a missing ENDFOR for a block that was never opened -- a false positive at error severity. `_` keeps the option list on the logical line, so the body below is never mistaken for one.
 ScanStatement
   = "SCAN"i WB opts:(_ ScanOption)* __
     body:(Statement __)*
@@ -1943,10 +1922,8 @@ CalculateStatement
 
 // SUM [eExpressionList]   [Scope] [FOR lExpression1] [WHILE lExpression2]
 //    [TO MemVarNameList | TO ARRAY ArrayName]   [NOOPTIMIZE]
-// SUM, AVERAGE and COUNT are one command with three names: the same scope, FOR/WHILE and TO tail that
-// CALCULATE takes. COUNT simply brings no expression list, which the option loop already allows.
-// `_` rather than `__` keeps the tail on the logical line, so a bare COUNT cannot reach down and read
-// the next line's assignment as its expression list.
+// SUM, AVERAGE and COUNT are one command with three names: the same scope, FOR/WHILE and TO tail that CALCULATE takes. COUNT simply brings no expression list, which the option loop already allows.
+// `_` rather than `__` keeps the tail on the logical line, so a bare COUNT cannot reach down and read the next line's assignment as its expression list.
 AggregateStatement
   = cmd:("SUM"i / "AVERAGE"i / "COUNT"i) WB NotCallOrAssign parts:(
       _ (
@@ -2046,8 +2023,7 @@ ReturnStatement
 // Xbase housekeeping and output commands
 // -----------------------------
 
-// None of these command words is reserved, so each rule first refuses a call or an assignment: that
-// keeps a variable named `list` or a call to SEEK() parsing as what it is.
+// None of these command words is reserved, so each rule first refuses a call or an assignment: that keeps a variable named `list` or a call to SEEK() parsing as what it is.
 NotCallOrAssign
   = !(_ ("(" / "="))
 
@@ -2189,10 +2165,7 @@ Identifier
 KeywordOrIdentifier
   = Keyword / Identifier
 
-// After a dot a keyword is just a name: .To, .From, .Class and .Select are all real properties, and
-// refusing them cut the reference short and left the rest of the line to the catch-all. The dot
-// operators are the exception, and the closing dot is what tells them apart -- `.AND.`, `.T.` and
-// `.NULL.` are the operator or the literal, never a member, while `.Additive` and `.Note` are members.
+// After a dot a keyword is just a name: .To, .From, .Class and .Select are all real properties, and refusing them cut the reference short and left the rest of the line to the catch-all. The dot operators are the exception, and the closing dot is what tells them apart -- `.AND.`, `.T.` and `.NULL.` are the operator or the literal, never a member, while `.Additive` and `.Note` are members.
 MemberName
   = !(DotOperatorWord ".") pref:([@&])? name:$([a-zA-Z_][a-zA-Z0-9_]*) { return (pref ? pref : '') + name; }
 
@@ -2320,8 +2293,7 @@ DateTimeLiteral "datetime"
 UnquotedPath
   = p:$([^ \t\f\v\r\n,;()+]+) { return node("Path", { path: p }); }
 
-// If the upcoming token (up to a line terminator or , or ;) contains a plus or any
-// spacing characters, prefer parsing an Expression instead of treating it as a path.
+// If the upcoming token (up to a line terminator or , or ;) contains a plus or any spacing characters, prefer parsing an Expression instead of treating it as a path.
 PathOrExpression
   = !("\"" / "'") p:UnquotedPath !(_ ("+" / "-" / "*" / "/")) { return p; }
   / "(" _ e:Expression _ ")" { return e; }
@@ -2369,9 +2341,7 @@ ContSpace
   = (Whitespace / MacroSubstitute)* (LineContinuation (Whitespace / MacroSubstitute / Comment / LineTerminatorSequence)*)*
 
 // Macro-aware lightweight spacer used inside expressions BEFORE an operator.
-// Include macros so something like "expr &m OR ..." doesn't break parsing even if &m
-// expands to an operator. We keep '_' (above) used AFTER operators so that "OR &c"
-// still treats &c as an operand rather than being swallowed as spacing.
+// Include macros so something like "expr &m OR ..." doesn't break parsing even if &m expands to an operator. We keep '_' (above) used AFTER operators so that "OR &c" still treats &c as an operand rather than being swallowed as spacing.
 M_ 
   = (Whitespace / LineContinuation / MacroSubstitute)*
 

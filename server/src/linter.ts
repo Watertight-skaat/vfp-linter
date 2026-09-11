@@ -52,8 +52,7 @@ const blockOpeners = [
 // Statements after one of these in the same block can never run.
 const terminators = new Set(['ReturnStatement', 'ExitStatement', 'ContinueStatement']);
 
-// A nested routine is not unreachable code: the grammar nests PROCEDURE and DEFINE CLASS inside the
-// previous routine's body whenever ENDPROC is left off, which is common and legal.
+// A nested routine is not unreachable code: the grammar nests PROCEDURE and DEFINE CLASS inside the previous routine's body whenever ENDPROC is left off, which is common and legal.
 const routineTypes = new Set(['ProcedureStatement', 'DefineClass']);
 
 export function runLinterRules(ast: Program | null | undefined, options: LinterOptions = {}): LintDiagnostic[] {
@@ -122,11 +121,9 @@ function havingWithoutGroupBy(node: SelectStatement, out: LintDiagnostic[]) {
 }
 
 /**
- * A query with no INTO or TO sends its result set to a Browse window at run time, which inside a .prg
- * is nearly always an unfinished query rather than an intention.
+ * A query with no INTO or TO sends its result set to a Browse window at run time, which inside a .prg is nearly always an unfinished query rather than an intention.
  *
- * Only a SELECT standing on its own as a statement is reported. In an expression it is a subquery, and
- * in an INSERT ... SELECT the INSERT is the destination, so neither has anywhere to put a result.
+ * Only a SELECT standing on its own as a statement is reported. In an expression it is a subquery, and in an INSERT ... SELECT the INSERT is the destination, so neither has anywhere to put a result.
  */
 function undirectedSelects(ast: Program): LintDiagnostic[] {
   const out: LintDiagnostic[] = [];
@@ -159,13 +156,9 @@ function undirectedSelects(ast: Program): LintDiagnostic[] {
 }
 
 /**
- * Tables in FROM with nothing relating them are a Cartesian product: every row of each against every
- * row of the others. VFP builds it happily, and at real table sizes it reads as a hang, not an error.
+ * Tables in FROM with nothing relating them are a Cartesian product: every row of each against every row of the others. VFP builds it happily, and at real table sizes it reads as a hang, not an error.
  *
- * Each table is a node and each condition that mentions two of them is an edge; if the graph comes out
- * in more than one piece, something is unrelated. A condition holding a name this query cannot
- * attribute to a table could be the missing link, so it silences the rule rather than risk a false
- * report -- which is why `WHERE cust_id = o_custid` is left alone while `WHERE c.id = 5` is not.
+ * Each table is a node and each condition that mentions two of them is an edge; if the graph comes out in more than one piece, something is unrelated. A condition holding a name this query cannot attribute to a table could be the missing link, so it silences the rule rather than risk a false report -- which is why `WHERE cust_id = o_custid` is left alone while `WHERE c.id = 5` is not.
  */
 function unlinkedTables(node: SelectStatement, out: LintDiagnostic[]) {
   const from = node.from;
@@ -188,8 +181,7 @@ function unlinkedTables(node: SelectStatement, out: LintDiagnostic[]) {
   };
   const link = (a: string, b: string) => parent.set(find(a), find(b));
 
-  // Two tables compared to the same value are related through it, which is the usual way a parent and
-  // its children are fetched by a key held in a variable.
+  // Two tables compared to the same value are related through it, which is the usual way a parent and its children are fetched by a key held in a variable.
   const byValue = new Map<string, string>();
 
   for (const condition of [...from.joins.map(j => j.condition), node.where]) {
@@ -372,8 +364,7 @@ function emptyBranches(node: IfStatement, out: LintDiagnostic[]) {
     out.push(problem(Severity.Information, node.location, 'empty-branch', emptyBranchMessage('ELSE')));
 }
 
-// Comments are not part of the AST, so a branch holding only a comment reads as empty. That is why
-// this is advisory rather than a warning.
+// Comments are not part of the AST, so a branch holding only a comment reads as empty. That is why this is advisory rather than a warning.
 const emptyBranchMessages: Record<string, string> = {
   IF: 'This IF branch is empty, so the test decides nothing.',
   ELSE: 'This ELSE branch is empty and can be removed.',
@@ -394,18 +385,11 @@ function tryWithoutHandler(node: TryStatement, out: LintDiagnostic[]) {
 // --- the m. prefix ---------------------------------------------------------
 
 /**
- * When a memory variable and a field of an open table share a name, a bare reference resolves to the
- * field, so `lcName = "x"` can update the record instead of the variable.
+ * When a memory variable and a field of an open table share a name, a bare reference resolves to the field, so `lcName = "x"` can update the record instead of the variable.
  *
- * Which names are fields cannot be known without the table, so this reports only names the file
- * itself shows being used as a field: a column in a CREATE, a REPLACE target, an INSERT column list,
- * or a reference qualified by an alias the file opens. That keeps it quiet unless there is real
- * evidence of a collision.
+ * Which names are fields cannot be known without the table, so this reports only names the file itself shows being used as a field: a column in a CREATE, a REPLACE target, an INSERT column list, or a reference qualified by an alias the file opens. That keeps it quiet unless there is real evidence of a collision.
  */
-// VFP has no declaration requirement: assigning to a name nothing declared creates a PRIVATE at run
-// time, which every routine called from here can see and assign. So a mistyped name silently becomes
-// a new variable, and state leaks downstream instead of staying where it was written. Reported once
-// per name, at the first write -- the missing declaration is the finding, not each use of it.
+// VFP has no declaration requirement: assigning to a name nothing declared creates a PRIVATE at run time, which every routine called from here can see and assign. So a mistyped name silently becomes a new variable, and state leaks downstream instead of staying where it was written. Reported once per name, at the first write -- the missing declaration is the finding, not each use of it.
 function implicitPrivates(table: SymbolTable): LintDiagnostic[] {
   const out: LintDiagnostic[] = [];
   for (const scope of table.scopes) {
@@ -423,12 +407,7 @@ function implicitPrivates(table: SymbolTable): LintDiagnostic[] {
   return out;
 }
 
-// The other half of the pair: implicit-private reports an entry with no declaration, this one a
-// declaration with no reference. LOCAL only -- PUBLIC and PRIVATE exist to be seen by the routines
-// this one calls, so silence here says nothing about them, and an unused parameter is usually a
-// signature the caller still passes. A reference inside SQL counts: a bare name there may be a column
-// rather than the variable, which is not enough to claim the variable was touched but is enough to
-// stop calling it unused.
+// The other half of the pair: implicit-private reports an entry with no declaration, this one a declaration with no reference. LOCAL only -- PUBLIC and PRIVATE exist to be seen by the routines this one calls, so silence here says nothing about them, and an unused parameter is usually a signature the caller still passes. A reference inside SQL counts: a bare name there may be a column rather than the variable, which is not enough to claim the variable was touched but is enough to stop calling it unused.
 function unusedLocals(table: SymbolTable): LintDiagnostic[] {
   const out: LintDiagnostic[] = [];
   for (const scope of table.scopes) {
@@ -473,8 +452,7 @@ function missingMemvarPrefix(ast: Program, table: SymbolTable): LintDiagnostic[]
   return out;
 }
 
-// Work areas are shared across routines, so a table opened elsewhere still shadows a name here. The
-// alias is only named when this routine is the one that selected it.
+// Work areas are shared across routines, so a table opened elsewhere still shadows a name here. The alias is only named when this routine is the one that selected it.
 function openTableSuffix(scope: Scope, line: number) {
   const alias = aliasInEffectAt(scope, line);
   return alias ? ` while ${alias} is open` : '';
@@ -531,9 +509,7 @@ function toRange(loc: Loc | undefined) {
 }
 
 /**
- * A canonical string for an expression, so two CASE conditions can be compared by structure rather
- * than by source text. Identifiers are upper-cased because FoxPro names are case-insensitive; string
- * literals are left alone because their contents are not.
+ * A canonical string for an expression, so two CASE conditions can be compared by structure rather than by source text. Identifiers are upper-cased because FoxPro names are case-insensitive; string literals are left alone because their contents are not.
  */
 function expressionKey(value: unknown): string {
   if (value === null || value === undefined) return '';
