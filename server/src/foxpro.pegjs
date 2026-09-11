@@ -55,6 +55,9 @@ Statement "statement"
   / DeclareStatement
   / TryStatement
   / DefineClass
+  / ClassAccessStatement
+  / ImplementsStatement
+  / AddObjectStatement
   / DefineScreenStatement
   / ScreenCommandStatement
   / LParameters
@@ -71,8 +74,10 @@ Statement "statement"
   / EraseStatement
   / SetStatement
   / OnSelectionStatement
+  / OnMenuOpenStatement
   / OnStatement
   / TextBlockStatement
+  / TextMergeLine
   / ThrowStatement
   / AtStatement
   / PreprocessorStatement
@@ -118,6 +123,10 @@ Statement "statement"
   / SeekStatement
   / SuspendStatement
   / ResumeStatement
+  / CancelStatement
+  / ReadEventsStatement
+  / CompileStatement
+  / BuildStatement
   / KeyboardStatement
   / ReportFormStatement
   / SortStatement
@@ -166,7 +175,7 @@ LocalEntry
 
 // Variable declaration: name [ AS type [ OF ClassLib ] ]
 VarDecl
-  = name:ParameterName _ asPart:(_ "AS"i __ t:Identifier _ ofPart:(_ "OF"i _ cl:Identifier { return cl; })? { return { type: t, of: ofPart }; })? {
+  = name:ParameterName _ asPart:(_ "AS"i __ t:IdentifierOrString _ ofPart:(_ "OF"i WB _ cl:IdentifierOrString { return cl; })? { return { type: t, of: ofPart }; })? {
       return node("LocalDeclaration", { name, asType: asPart ? asPart.type : null, ofClass: asPart ? asPart.of : null });
     }
 
@@ -176,7 +185,7 @@ ArrayDims
   / "[" _ rows:Expression _ cols:(_ "," _ c:Expression { return c; })? _ "]" { return { rows, columns: cols }; }
 
 ArrayDecl
-  = name:Identifier _ dims:ArrayDims _ asPart:(_ "AS"i __ t:Identifier _ ofPart:(_ "OF"i _ cl:Identifier { return cl; })? { return { type: t, of: ofPart }; })? {
+  = name:Identifier _ dims:ArrayDims _ asPart:(_ "AS"i __ t:IdentifierOrString _ ofPart:(_ "OF"i WB _ cl:IdentifierOrString { return cl; })? { return { type: t, of: ofPart }; })? {
       return node("LocalArrayDeclaration", { name, rows: dims.rows, columns: dims.columns, asType: asPart ? asPart.type : null, ofClass: asPart ? asPart.of : null });
     }
 
@@ -278,9 +287,13 @@ AssignmentStatement
     }
 
 // Shorthand print statement: ? <expression> or PRINT <expression>
+// ? opens a new line first, ?? writes at the cursor and ??? goes straight to the printer. Longest first, or ?? reads as ? followed by a statement starting with ?.
 PrintStatement // todo: Wait window probably should be separate
-  = ("?" / ("PRINT"i WB)) _ args:ExpressionList {
-      return node("PrintStatement", { arguments: args });
+  = style:$("???" / "??" / "?") _ args:ExpressionList? {
+      return node("PrintStatement", { style, arguments: args || [] });
+    }
+  / "PRINT"i WB _ args:ExpressionList {
+      return node("PrintStatement", { style: "?", arguments: args });
     }
 
 // WAIT [cMessageText] [TO VarName] [WINDOW [AT nRow, nColumn]] [NOWAIT]
@@ -481,6 +494,12 @@ TextOption
 TextLine
   = !(_ "ENDTEXT"i WB) line:$((!LineTerminator .)*) LineTerminatorSequence { return line; }
 
+// A \ or \\ line is TEXTMERGE output written one line at a time: \ starts a new line, \\ appends to the one before it. The rest of the line is text rather than code, so it is kept verbatim -- the <<...>> expressions in it are the preprocessor's, not the compiler's.
+TextMergeLine
+  = style:$("\\\\" / "\\") content:$((!LineTerminator .)*) {
+      return node("TextMergeLine", { newline: style === "\\", content: content });
+    }
+
 // THROW [eUserValue], which the grammar previously accepted only between a CATCH body and FINALLY.
 ThrowStatement
   = "THROW"i WB _ e:Expression? {
@@ -559,6 +578,35 @@ DefineClass
     "ENDDEFINE"i {
       return node("DefineClass", { name, base: base || null, ofClass: ofPart || null, olePublic: !!olePublic, body: flatten(statements.map(s => s[0])) });
     }
+
+// PROTECTED | HIDDEN PropertyList, the visibility of a class's own properties. The same two words in front of a PROCEDURE or FUNCTION are the method form, which ProcedureStatement reads, so they are refused here: matched as a property list the method's name was consumed and the class ran on unterminated to the end of the file.
+// Neither word is reserved, so a variable of that name has to keep parsing as one -- IdentifierList refuses the `=` and the `(`, which is what leaves `protected = .T.` an assignment.
+ClassAccessStatement
+  = access:("PROTECTED"i / "HIDDEN"i) WB !(_ ("PROCEDURE"i / "FUNCTION"i) WB) _ names:IdentifierList {
+      return node("ClassAccessStatement", { access: access.toUpperCase(), names });
+    }
+
+// IMPLEMENTS InterfaceName [EXCLUDE] IN TypeLibrary, which binds the class to a COM interface.
+ImplementsStatement
+  = "IMPLEMENTS"i WB _ name:Identifier _ exclude:("EXCLUDE"i WB _)? "IN"i WB _ library:(StringLiteral / UnquotedPath) {
+      return node("ImplementsStatement", { name, exclude: !!exclude, library });
+    }
+
+// ADD OBJECT [PROTECTED] ObjectName AS ClassName [NOINIT] [WITH PropertyList] puts a member object on the class.
+AddObjectStatement
+  = "ADD"i WB _ "OBJECT"i WB _ prot:("PROTECTED"i WB _)? name:Identifier _ "AS"i WB __ base:Identifier
+    ofPart:(_ "OF"i WB _ lib:(StringLiteral / UnquotedPath) { return lib; })?
+    noinit:(_ "NOINIT"i WB)?
+    props:(_ "WITH"i WB __ p:PropertyAssignmentList { return p; })? {
+      return node("AddObjectStatement", { name, base, ofClass: ofPart || null, protected: !!prot, noinit: !!noinit, properties: props || [] });
+    }
+
+// The WITH tail of ADD OBJECT: Caption = "Post", Top = 1. MemberName rather than Identifier, because a property may well be spelled like a command word -- Class, Value and Name all are.
+PropertyAssignmentList
+  = head:PropertyAssignment tail:(_ "," _ PropertyAssignment)* { return [head, ...tail.map(t => t[3])]; }
+
+PropertyAssignment
+  = name:MemberName _ "=" _ value:Expression { return { name, value }; }
 
 // DECLARE [cFunctionType] FunctionName IN LibraryName [AS AliasName] [cParamType1 [@] ParamName1, cParamType2 [@] ParamName2, ...]
 // DECLARE is also the older spelling of DIMENSION, and it is the one statement in this group that names a variable, so it returns the node DIMENSION returns and reaches the symbol table by the same path. The array subscript is what tells the two apart: a DLL declaration never has one.
@@ -961,7 +1009,13 @@ PreferenceClause
 // COPY/RENAME
 // -----------------------------
 CopyStatement "copy/rename statement"
-  = CopyFileStatement / CopyIndexesStatement / CopyStructureStatement / CopyToStatement
+  = CopyFileStatement / CopyIndexesStatement / CopyMemoStatement / CopyStructureStatement / CopyToStatement
+
+// COPY MEMO MemoFieldName TO FileName [ADDITIVE], the memo-field twin of COPY TO.
+CopyMemoStatement
+  = "COPY"i WB _ "MEMO"i WB _ field:Identifier _ "TO"i WB _ file:PathOrExpression _ additive:("ADDITIVE"i WB)? {
+      return node('CopyMemoStatement', { field, file, additive: !!additive });
+    }
 
 // COPY INDEXES IDXFileList | ALL [TO CDXFileName], which folds standalone .idx files into a compound index.
 CopyIndexesStatement
@@ -1526,7 +1580,7 @@ TryStatement "try-catch statement"
 // ENDWITH
 WithStatement
   = "WITH"i WB _ target:(LValue / PostfixExpression)
-    asPart:(_ "AS"i __ t:Identifier _ ofPart:(_ "OF"i _ cl:Identifier { return cl; })? { return { type: t, of: ofPart }; })? __
+    asPart:(_ "AS"i __ t:IdentifierOrString _ ofPart:(_ "OF"i WB _ cl:IdentifierOrString { return cl; })? { return { type: t, of: ofPart }; })? __
     body:(WithBodyEntry __)*
     "ENDWITH"i {
       return node("WithStatement", {
@@ -1775,6 +1829,14 @@ OnSelectionStatement
       return node('OnSelectionStatement', { what: what.toUpperCase(), target, of: of || null, command: cmd || null });
     }
 
+// ON PAD PadName OF MenuName | ON BAR nBar OF PopupName [ACTIVATE POPUP | MENU Name]
+// These open a submenu rather than run a command, which is what separates them from ON SELECTION; with the clause omitted the item stops opening anything.
+OnMenuOpenStatement
+  = "ON"i WB _ what:("PAD"i / "BAR"i) WB _ target:(NumberLiteral / Identifier) _ of:OfParentClause? _
+    activate:("ACTIVATE"i WB _ k:("POPUP"i / "MENU"i) WB _ n:Identifier { return { what: k.toUpperCase(), name: n }; })? {
+      return node('OnMenuOpenStatement', { what: what.toUpperCase(), target, of: of || null, activate: activate || null });
+    }
+
 // -----------------------------
 // Unknown/catch-all statement
 // -----------------------------
@@ -1865,10 +1927,10 @@ SetSettingStatement
     // The boundary is what keeps SET TOPIC TO "x" from reading as SET TO with a setting called PIC, which is a misparse rather than a gap: it produced a valid tree and reported nothing.
     ("TO"i WB __ setting:Expression { return node("SetTo", { setting }); })
     / (cmd:KeywordOrIdentifier
-       toPart:(_ "TO"i WB args:(_ a:ExpressionList { return a; })? { return { args }; })?
+       toPart:(_ "TO"i WB args:(_ a:SetArguments { return a; })? { return { args }; })?
        parts:(_ SetOption)* {
-        const o = { state: null, additive: false, inTarget: null, into: null, alias: null };
-        const args = (toPart && toPart.args) ? [...toPart.args] : [];
+        const o = { state: null, additive: false, inTarget: null, into: null, alias: null, delimiters: null };
+        const args = (toPart && toPart.args) ? [...toPart.args.values] : [];
         for (const p of parts.map(t => t[1])) {
           switch (p.kind) {
             case 'STATE': if (!o.state) o.state = p.value; break;
@@ -1876,10 +1938,11 @@ SetSettingStatement
             case 'IN': if (!o.inTarget) o.inTarget = p.value; break;
             case 'INTO': if (!o.into) o.into = p.value; break;
             case 'ALIAS': if (!o.alias) o.alias = p.value; break;
+            case 'DELIMITERS': if (!o.delimiters) o.delimiters = p.value; break;
             case 'ARG': args.push(p.value); break;
           }
         }
-        return node("SetCommand", { command: cmd, arguments: args, cleared: !!toPart && !toPart.args, state: o.state, additive: o.additive, inTarget: o.inTarget, into: o.into, alias: o.alias });
+        return node("SetCommand", { command: cmd, arguments: args, cleared: !!toPart && !toPart.args, file: !!(toPart && toPart.args && toPart.args.file), state: o.state, additive: o.additive, inTarget: o.inTarget, into: o.into, alias: o.alias, delimiters: o.delimiters });
       })
   ) {
       // If TO form, inner is already a SetTo node and we return it directly.
@@ -1888,9 +1951,16 @@ SetSettingStatement
       return inner;
     }
 
+// What follows a SET's TO. FILE marks a destination -- `SET PRINTER TO FILE output.txt` -- and a bare Windows path is one the expression reader cannot hold: `SET DEFAULT TO c:\temp` read as the name c and left `:\temp` to the catch-all. Both are tried before the expression list, which would match and stop short.
+SetArguments
+  = "FILE"i WB __ f:(StringLiteral / UnquotedPath) { return { file: true, values: [f] }; }
+  / &([A-Za-z] ":" [\\/] / [\\/]) p:UnquotedPath { return { file: false, values: [p] }; }
+  / a:ExpressionList { return { file: false, values: a }; }
+
 // The clauses a SET can carry after its argument. The bare value is last, so `OFF` reads as the state rather than as a setting named OFF.
 SetOption
-  = "INTO"i WB __ t:AliasRef { return { kind: 'INTO', value: t }; }
+  = "DELIMITERS"i WB _ "TO"i WB d:(__ e:ExpressionList { return e; })? { return { kind: 'DELIMITERS', value: d || [] }; }
+  / "INTO"i WB __ t:AliasRef { return { kind: 'INTO', value: t }; }
   / "IN"i WB __ t:AliasRef { return { kind: 'IN', value: t }; }
   / "ALIAS"i WB __ a:AliasRef { return { kind: 'ALIAS', value: a }; }
   / "ADDITIVE"i WB { return { kind: 'ADDITIVE' }; }
@@ -1902,7 +1972,11 @@ SetOption
 //     | DIF | FW2 | MOD | PDOX | RPD | SDF | SYLK | WK1 | WK3 | WKS | WR1 | WRK | CSV | XLS | XL5 [SHEET cSheetName] | XL8 [SHEET cSheetName]]]
 //   [AS nCodePage]
 AppendStatement
-  = "APPEND FROM"i WB _
+  // APPEND MEMO MemoFieldName FROM FileName [OVERWRITE] has to come first: the bare APPEND form below matches the word on its own and leaves the rest of the line to the catch-all.
+  = "APPEND"i WB _ "MEMO"i WB _ field:Identifier _ "FROM"i WB _ file:PathOrExpression _ overwrite:("OVERWRITE"i WB)? {
+      return node('AppendMemoStatement', { field, file, overwrite: !!overwrite });
+    }
+  / "APPEND FROM"i WB _
     src:("?" { return { kind: 'PROMPT' }; } / PathOrExpression) _
     parts:(AppendFromOption _)* {
       let fields = null;
@@ -2249,11 +2323,12 @@ ExpressionList
 // 1) PROCEDURE Name [ LPARAMETERS p1, p2, ... ]   Commands [ RETURN expr ] [ ENDPROC ]
 // 2) PROCEDURE Name( [ p1 [ AS type ] [, p2 [ AS type ] ... ] ) [ AS returntype ]  Commands [ RETURN expr ] [ ENDPROC ]
 ProcedureStatement "procedure"
-  = cw:("PROCEDURE"i / "FUNCTION"i) WB __ name:Identifier _ proc:(
+  = access:(a:("PROTECTED"i / "HIDDEN"i) WB _ { return a.toUpperCase(); })? cw:("PROCEDURE"i / "FUNCTION"i) WB __ name:Identifier _ proc:(
       // function-style parameter list with optional typed params and optional return type
       "(" _ params:ProcedureParamList? _ ")" _ retPart:(_ "AS"i __ rt:IdentifierOrString)? __ statements:RoutineBody end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
         return node("ProcedureStatement", {
           name,
+          access: access || null,
           isFunction: (typeof cw === 'string') ? (cw.toUpperCase() === 'FUNCTION') : false,
           parameters: params || [],
           returnType: retPart ? retPart[3] : null,
@@ -2265,6 +2340,7 @@ ProcedureStatement "procedure"
     lparams:LParameters? __ statements:RoutineBody end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
         return node("ProcedureStatement", {
           name,
+          access: access || null,
           isFunction: (typeof cw === 'string') ? (cw.toUpperCase() === 'FUNCTION') : false,
           parameters: lparams ? (lparams.names || []) : [],
           returnType: null,
@@ -2283,10 +2359,12 @@ RoutineBody
   = body:(!RoutineBoundary s:Statement __ { return s; })* { return flatten(body); }
 
 RoutineBoundary
-  = ("PROCEDURE"i / "FUNCTION"i / "DEFINE CLASS"i) WB
+  = (("PROTECTED"i / "HIDDEN"i) WB _)? ("PROCEDURE"i / "FUNCTION"i / "DEFINE CLASS"i) WB
 
+// RETURN TO MASTER unwinds to the top-level program, and RETURN TO Routine to a named one. The TO form has to be claimed first: RETURN on its own already parses, so the tail read as a statement after it and reported as unreachable code as well.
 ReturnStatement
-  = "RETURN"i WB _ expr:Expression? _ LineTerminator? { return node("ReturnStatement", { argument: expr === undefined ? null : expr }); }
+  = "RETURN"i WB _ "TO"i WB _ to:("MASTER"i { return 'MASTER'; } / Identifier) _ LineTerminator? { return node("ReturnStatement", { argument: null, to }); }
+  / "RETURN"i WB _ expr:Expression? _ LineTerminator? { return node("ReturnStatement", { argument: expr === undefined ? null : expr, to: null }); }
 
 
 // -----------------------------
@@ -2387,6 +2465,27 @@ SuspendStatement
 
 ResumeStatement
   = "RESUME"i WB NotCallOrAssign { return node('ResumeStatement', {}); }
+
+// CANCEL ends the program. Like RETURN it leaves nothing after it reachable, which is the one thing a rule asks about.
+CancelStatement
+  = "CANCEL"i WB NotCallOrAssign { return node('CancelStatement', {}); }
+
+// READ EVENTS hands control to the event loop until CLEAR EVENTS. The bare READ is the obsolete screen command and is not this.
+ReadEventsStatement
+  = "READ"i WB _ "EVENTS"i WB NotCallOrAssign { return node('ReadEventsStatement', {}); }
+
+// COMPILE [DATABASE | FORM | LABEL | REPORT] FileSkeleton [options]. The file is the part a rule would ask about; the flag tail stays raw source.
+CompileStatement
+  = "COMPILE"i WB NotCallOrAssign _ what:(w:("DATABASE"i / "FORM"i / "LABEL"i / "REPORT"i) WB _ { return w; })? target:PathOrExpression opts:RawOptions {
+      return node('CompileStatement', { what: what ? what.toUpperCase() : null, target, options: opts });
+    }
+
+// BUILD APP | EXE | DLL | MTDLL | PROJECT OutputName FROM ProjectName [options]. MTDLL is tried before DLL so the longer word is not read as the shorter one plus a stray M.
+BuildStatement
+  = "BUILD"i WB _ what:("APP"i / "EXE"i / "MTDLL"i / "DLL"i / "PROJECT"i) WB _ target:PathOrExpression _
+    from:("FROM"i WB __ f:PathOrExpression { return f; })? opts:RawOptions {
+      return node('BuildStatement', { what: what.toUpperCase(), target, from: from || null, options: opts });
+    }
 
 // KEYBOARD cExpression [PLAIN] [CLEAR]
 KeyboardStatement

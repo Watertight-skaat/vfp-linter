@@ -30,6 +30,11 @@ function classSymbol(node: DefineClass, lines: string[]): DocumentSymbol {
     if (statement?.type === 'ProcedureStatement') children.push(routine(statement, lines, SymbolKind.Method));
     else if (statement?.type === 'Assignment' && statement.target.type === 'Identifier')
       children.push(symbol(statement.target.name, SymbolKind.Property, statement.location, lines));
+    // The member declarations name properties too: a PROTECTED or HIDDEN list, and the member object ADD OBJECT puts on the class.
+    else if (statement?.type === 'ClassAccessStatement')
+      for (const name of statement.names) children.push(symbol(name, SymbolKind.Property, statement.location, lines, statement.access));
+    else if (statement?.type === 'AddObjectStatement')
+      children.push(symbol(statement.name, SymbolKind.Object, statement.location, lines, `AS ${statement.base}`));
   }
   return { ...symbol(node.name, SymbolKind.Class, node.location, lines, node.base ? `AS ${node.base}` : undefined), children };
 }

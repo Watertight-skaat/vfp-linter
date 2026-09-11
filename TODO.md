@@ -3,7 +3,7 @@
 ## Editor
 
 - **Go to definition and hover** — a `DO x` or `x()` whose routine is in the same file can jump to it, and hovering a variable can show its declaration and type. Both come off the symbol table; cross-file needs a workspace index and a `SET PROCEDURE` reading, which is a larger step.
-- **Quick fixes for the rest** — `empty-branch` (remove the branch), `try-without-catch` (add `CATCH TO loErr`), `select-without-into` (append `INTO CURSOR`, naming it after the first table). Same shape as the three that exist: a title and the edits, carried on the diagnostic.
+- **Misc "Quick fixes"** — `empty-branch` (remove the branch), `try-without-catch` (add `CATCH TO loErr`), `select-without-into` (append `INTO CURSOR`, naming it after the first table). Same shape as the three that exist: a title and the edits, carried on the diagnostic.
 
 ## Rules
 
@@ -14,15 +14,11 @@
 
 ## Grammar coverage
 
-These announce themselves as `unsupported-syntax` rather than producing a wrong tree, so none of them block a rule; where one costs more than its own statement, or misparses instead, the bullet says so. Measured by probing the parser, not by reading the grammar; `test-files/diagnostics/still-unsupported.prg` holds the same list as a fixture, so implementing one makes the ledger shorter.
+Reported as `unsupported-syntax`. `test-files/diagnostics/still-unsupported.prg` holds a list.
 
-- **`DEFINE CLASS` member declarations** — `PROTECTED`, `HIDDEN`, `IMPLEMENTS` and `ADD OBJECT`. The largest group left. On a property each costs only its own line and the class around it still reads, but `PROTECTED PROCEDURE Foo` leaves the whole class unreadable, so every method in it leaves the outline and the symbol table together. That makes it the one to do first: it is the only gap left that costs more than its own statement.
-- **The output commands** — `??`, which prints without the leading newline, and a `\` or `\\` line, which is TEXTMERGE output written one line at a time.
-- **`APPEND MEMO` / `COPY MEMO`** — a memo field read from and written to a text file. These sit beside `APPEND FROM` and `COPY TO`, which are read.
-- **`ON PAD` / `ON BAR`** — the menu handlers that open a submenu. `ON SELECTION`, which runs a command, is read; these two are not.
-- **`SET` commands whose argument is a file path, or that carry a second clause of their own** — `SET DEFAULT TO c:\temp`, `SET PRINTER TO FILE x.txt`, `SET TEXTMERGE ON DELIMITERS TO "<<", ">>"`. Each leaves a `SetCommand` behind and only the tail is lost. The path case is the expression reader meeting a bare Windows path; a file name without a drive letter, `SET HELP TO x.hlp`, parses but reads as member access.
-- **A quoted class library in an `AS ... OF` clause** — `LOCAL loX AS Poster OF "poster.vcx"`. The bare name reads, so the declaration is already in the symbol table and only the library is lost.
-- **The remainder, each costing only its own statement** — `RETURN TO MASTER`, `CANCEL`, `READ EVENTS`, `COMPILE`, `BUILD APP`.
+- **`SAVE SCREEN` / `RESTORE SCREEN`** — the screen buffer saved to and restored from a variable. `SAVE TO` and `RESTORE FROM` do the same for memory variables and are read, as are `SAVE WINDOW` and `RESTORE WINDOW`; these two are the pair in between.
+- **The `TO` clause of `SET MARK OF`** — which puts a tick beside a menu item. The `OF` form reads as far as the item, so only the clause is lost. `SET SKIP OF`, which greys one out, is read in full.
+- **An index file named with its extension in an `OF` clause** — `INDEX ON custid TAG custid OF cust.cdx`. The tag is already known and only the file is lost: the expression reader meets `cust.cdx` and takes it for member access. Same shape as `SET HELP TO x.hlp`, which parses but reads as member access rather than a file.
 
 ## Cleanup
 

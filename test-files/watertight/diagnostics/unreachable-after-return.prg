@@ -28,3 +28,13 @@ PROCEDURE CountOpenItems
 	ENDSCAN
 	RETURN m.nCount
 ENDPROC
+
+
+* CANCEL ends the program outright, so like RETURN it leaves nothing below it in the block able to run.
+PROCEDURE AbortOnBadLicence
+	IF NOT licenceok()
+		WAIT WINDOW "This copy is not licensed." NOWAIT
+		CANCEL
+		? "never printed"
+	ENDIF
+ENDPROC

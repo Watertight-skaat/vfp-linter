@@ -88,6 +88,12 @@ check('outline', documentSymbols(ast, lines).map(brief), [
 ]);
 check('a selection range sits on the first line', documentSymbols(ast, lines)[1].selectionRange, { start: { line: 1, character: 0 }, end: { line: 1, character: 'PROCEDURE Alpha'.length } });
 
+// The member declarations name properties too, and a method carrying PROTECTED used to leave the outline with the rest of the class.
+const memberSource = ['DEFINE CLASS Poster AS Custom', '\tPROTECTED cName, nAge', '\tADD OBJECT cmdPost AS CommandButton', '\tPROTECTED PROCEDURE Post', '\tENDPROC', 'ENDDEFINE', ''].join('\n');
+check('class members reach the outline',
+	documentSymbols(lint(memberSource).ast, memberSource.split('\n'))[0].children.map(brief),
+	['cName:7:PROTECTED:1-1', 'nAge:7:PROTECTED:1-1', 'cmdPost:19:AS CommandButton:2-2', 'Post:6:PROCEDURE:3-4']);
+
 // --- folding --------------------------------------------------------------------
 const folds = src => foldingRanges(lint(src).ast, src.split('\n')).map(r => `${r.startLine}-${r.endLine}`);
 check('a routine without ENDPROC folds to its last statement; one with it keeps the terminator visible',

@@ -233,6 +233,12 @@ export interface SortFieldSpec {
   ignoreCase: boolean;
 }
 
+/** One `Property = value` pair of an ADD OBJECT ... WITH tail. */
+export interface PropertyAssignment {
+  name: string;
+  value: Expr;
+}
+
 export interface DatabaseClause {
   database: IdentifierOrString;
   longName: IdentifierOrString | null;
@@ -388,6 +394,8 @@ export interface BlockStatement extends NodeBase {
 export interface ProcedureStatement extends NodeBase {
   type: 'ProcedureStatement';
   name: string;
+  /** PROTECTED or HIDDEN in front of the word, which only a method of a DEFINE CLASS carries. */
+  access: 'PROTECTED' | 'HIDDEN' | null;
   isFunction: boolean;
   /** Typed objects for the `f(a AS Integer)` form, bare strings for the LPARAMETERS form. */
   parameters: ProcedureParam[] | string[];
@@ -406,6 +414,32 @@ export interface DefineClass extends NodeBase {
   body: Statement[];
 }
 
+/** PROTECTED | HIDDEN PropertyList inside a DEFINE CLASS. The same words on a method are ProcedureStatement's `access` instead. */
+export interface ClassAccessStatement extends NodeBase {
+  type: 'ClassAccessStatement';
+  access: 'PROTECTED' | 'HIDDEN';
+  names: string[];
+}
+
+/** IMPLEMENTS binds the class to a COM interface. */
+export interface ImplementsStatement extends NodeBase {
+  type: 'ImplementsStatement';
+  name: string;
+  exclude: boolean;
+  library: StringLiteral | Path;
+}
+
+/** ADD OBJECT puts a member object on the class. The WITH tail sets its properties. */
+export interface AddObjectStatement extends NodeBase {
+  type: 'AddObjectStatement';
+  name: string;
+  base: string;
+  ofClass: StringLiteral | Path | null;
+  protected: boolean;
+  noinit: boolean;
+  properties: PropertyAssignment[];
+}
+
 export interface DeclareStatement extends NodeBase {
   type: 'DeclareStatement';
   returnType: string | null;
@@ -422,8 +456,8 @@ export interface DeclareStatement extends NodeBase {
 export interface LocalDeclaration extends NodeBase {
   type: 'LocalDeclaration';
   name: string;
-  asType: string | null;
-  ofClass: string | null;
+  asType: IdentifierOrString | null;
+  ofClass: IdentifierOrString | null;
 }
 
 export interface LocalArrayDeclaration extends NodeBase {
@@ -431,8 +465,8 @@ export interface LocalArrayDeclaration extends NodeBase {
   name: string;
   rows: Expr;
   columns: Expr | null;
-  asType: string | null;
-  ofClass: string | null;
+  asType: IdentifierOrString | null;
+  ofClass: IdentifierOrString | null;
 }
 
 export interface PublicDeclaration extends NodeBase {
@@ -514,7 +548,7 @@ export interface ForStatement extends NodeBase {
 export interface ForEachStatement extends NodeBase {
   type: 'ForEachStatement';
   variable: string;
-  asType: string | null;
+  asType: IdentifierOrString | null;
   ofClass: { library: string } | null;
   collection: Expr;
   foxObject: boolean;
@@ -549,14 +583,16 @@ export interface TryStatement extends NodeBase {
 export interface WithStatement extends NodeBase {
   type: 'WithStatement';
   target: Expr;
-  asType: string | null;
-  ofClass: string | null;
+  asType: IdentifierOrString | null;
+  ofClass: IdentifierOrString | null;
   body: BlockStatement;
 }
 
 export interface ReturnStatement extends NodeBase {
   type: 'ReturnStatement';
   argument: Expr | null;
+  /** RETURN TO MASTER, or RETURN TO Routine: the routine control unwinds to rather than a value. */
+  to: string | null;
 }
 
 export interface ExitStatement extends NodeBase {
@@ -609,6 +645,8 @@ export interface ExpressionStatement extends NodeBase {
 
 export interface PrintStatement extends NodeBase {
   type: 'PrintStatement';
+  /** ? opens a new line first, ?? writes at the cursor, ??? goes straight to the printer. PRINT is the ? form. */
+  style: '?' | '??' | '???';
   arguments: Expr[];
 }
 
@@ -1042,6 +1080,16 @@ export interface OnSelectionStatement extends NodeBase {
   command: Statement | null;
 }
 
+/** ON PAD and ON BAR open a submenu rather than run a command, which is what separates them from ON SELECTION. */
+export interface OnMenuOpenStatement extends NodeBase {
+  type: 'OnMenuOpenStatement';
+  what: 'PAD' | 'BAR';
+  target: string | NumberLiteral;
+  of: string | null;
+  /** Null when the clause is omitted, which stops the item opening anything. */
+  activate: { what: 'POPUP' | 'MENU'; name: string } | null;
+}
+
 export interface SkipStatement extends NodeBase {
   type: 'SkipStatement';
   count: Expr | null;
@@ -1100,6 +1148,21 @@ export interface AppendFromStatement extends NodeBase {
   /** The TYPE clause, whose shape depends on the export format that matched. */
   exportType: ExportType | null;
   codepage: Expr | null;
+}
+
+/** APPEND MEMO reads a text file into a memo field; COPY MEMO writes one out. */
+export interface AppendMemoStatement extends NodeBase {
+  type: 'AppendMemoStatement';
+  field: string;
+  file: Expr | Path;
+  overwrite: boolean;
+}
+
+export interface CopyMemoStatement extends NodeBase {
+  type: 'CopyMemoStatement';
+  field: string;
+  file: Expr | Path;
+  additive: boolean;
 }
 
 export interface CopyToStatement extends NodeBase {
@@ -1183,6 +1246,10 @@ export interface SetCommand extends NodeBase {
   /** INTO: the work area the setting relates this one to. */
   into: Expr | null;
   alias: Expr | null;
+  /** SET PRINTER TO FILE x.txt: the argument is a destination file rather than a value. */
+  file: boolean;
+  /** SET TEXTMERGE DELIMITERS TO, a clause of its own rather than a setting. */
+  delimiters: Expr[] | null;
 }
 
 /** A reserved word, which KeywordOrIdentifier can return in place of a name. */
@@ -1202,6 +1269,13 @@ export interface TextBlockStatement extends NodeBase {
   noshow: boolean;
   flags: Expr | null;
   pretext: Expr | null;
+  content: string;
+}
+
+/** A \ or \\ line: TEXTMERGE output written one line at a time. `newline` is the single-backslash form, which starts a new line; \\ appends to the one before it. */
+export interface TextMergeLine extends NodeBase {
+  type: 'TextMergeLine';
+  newline: boolean;
   content: string;
 }
 
@@ -1271,6 +1345,31 @@ export interface SeekStatement extends NodeBase {
 
 export interface SuspendStatement extends NodeBase {
   type: 'SuspendStatement';
+}
+
+/** CANCEL ends the program, so like RETURN nothing after it in the block runs. */
+export interface CancelStatement extends NodeBase {
+  type: 'CancelStatement';
+}
+
+/** READ EVENTS hands control to the event loop until CLEAR EVENTS. */
+export interface ReadEventsStatement extends NodeBase {
+  type: 'ReadEventsStatement';
+}
+
+export interface CompileStatement extends NodeBase {
+  type: 'CompileStatement';
+  what: 'DATABASE' | 'FORM' | 'LABEL' | 'REPORT' | null;
+  target: Expr | Path;
+  options: string | null;
+}
+
+export interface BuildStatement extends NodeBase {
+  type: 'BuildStatement';
+  what: 'APP' | 'EXE' | 'DLL' | 'MTDLL' | 'PROJECT';
+  target: Expr | Path;
+  from: Expr | Path | null;
+  options: string | null;
 }
 
 export interface ResumeStatement extends NodeBase {
@@ -1362,6 +1461,7 @@ export interface DanglingTerminator extends NodeBase {
 
 export type Statement =
   | AppendFromStatement
+  | AppendMemoStatement
   | AppendStatement
   | AtStatement
   | Assignment
@@ -1373,6 +1473,7 @@ export type Statement =
   | CloseStatement
   | ColumnDefinition
   | ContinueStatement
+  | CopyMemoStatement
   | CopyToStatement
   | CopyStructureStatement
   | CopyIndexesStatement
@@ -1380,6 +1481,9 @@ export type Statement =
   | CreateViewStatement
   | DeclareStatement
   | DefineClass
+  | ClassAccessStatement
+  | ImplementsStatement
+  | AddObjectStatement
   | DefineStatement
   | DeleteStatement
   | DeleteTagStatement
@@ -1459,12 +1563,18 @@ export type Statement =
   | ScreenCommandStatement
   | SetSkipOfStatement
   | OnSelectionStatement
+  | OnMenuOpenStatement
   | SortStatement
   | StoreStatement
   | AggregateStatement
   | SuspendStatement
+  | CancelStatement
+  | ReadEventsStatement
+  | CompileStatement
+  | BuildStatement
   | TableConstraint
   | TextBlockStatement
+  | TextMergeLine
   | ThrowStatement
   | TryStatement
   | DanglingTerminator

@@ -3,7 +3,7 @@
 import { expressionKey, onNode, Severity } from '../rule.js';
 
 // Statements after one of these in the same block can never run.
-const terminators = new Set(['ReturnStatement', 'ExitStatement', 'ContinueStatement']);
+const terminators = new Set(['ReturnStatement', 'ExitStatement', 'ContinueStatement', 'CancelStatement']);
 
 // A routine after a file-level RETURN is a definition, not code that would have run: ending the main program with RETURN and putting the procedures below it is the normal layout.
 const routineTypes = new Set(['ProcedureStatement', 'DefineClass']);
@@ -20,7 +20,8 @@ export const unreachableCode = onNode({
       if (!statement || !next || !terminators.has(statement.type)) continue;
       if (routineTypes.has(next.type)) continue;
       const keyword = statement.type === 'ReturnStatement' ? 'RETURN'
-        : statement.type === 'ContinueStatement' ? 'LOOP' : 'EXIT';
+        : statement.type === 'ContinueStatement' ? 'LOOP'
+        : statement.type === 'CancelStatement' ? 'CANCEL' : 'EXIT';
       ctx.report(next.location, `This cannot run: the ${keyword} above it leaves the block first.`);
       return; // one report per block is enough to make the point
     }

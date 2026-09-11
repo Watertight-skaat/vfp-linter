@@ -96,4 +96,57 @@ check('a variable called wait is untouched', first('wait = 1').type, 'Assignment
 check('DEBUGOUT', first('DEBUGOUT lcMessage').expression.name, 'lcMessage');
 check('a call to a routine of that name is untouched', first('debugout(1)').expression.type, 'CallExpression');
 
+// --- DEFINE CLASS member declarations -----------------------------------------
+// The access words on a method used to leave the whole class unreadable, so every method in it left the outline and the symbol table together.
+const cls = first('DEFINE CLASS Poster AS Custom\nPROTECTED cName, nAge\nHIDDEN lDirty\nIMPLEMENTS IPoster IN "poster.dll"\nADD OBJECT cmdPost AS CommandButton WITH Caption = "Post", Top = 1\nPROTECTED PROCEDURE Post\nENDPROC\nFUNCTION Other\nENDFUNC\nENDDEFINE');
+check('every member is read', cls.body.map(s => s.type),
+	['ClassAccessStatement', 'ClassAccessStatement', 'ImplementsStatement', 'AddObjectStatement', 'ProcedureStatement', 'ProcedureStatement']);
+check('PROTECTED names the properties', [cls.body[0].access, cls.body[0].names], ['PROTECTED', ['cName', 'nAge']]);
+check('IMPLEMENTS keeps its library', cls.body[2].library, { type: 'StringLiteral', value: 'poster.dll' });
+check('ADD OBJECT keeps its class and its WITH pairs',
+	[cls.body[3].base, cls.body[3].properties.map(p => p.name)], ['CommandButton', ['Caption', 'Top']]);
+// A method carrying the word is still a sibling of the one after it: read as a property list, the name was consumed and the class ran on unterminated to the end of the file.
+check('a PROTECTED method is a routine, not a property list', [cls.body[4].name, cls.body[4].access], ['Post', 'PROTECTED']);
+check('and the routine after it is its sibling', cls.body[5].name, 'Other');
+check('neither word is reserved', first('protected = .T.').type, 'Assignment');
+
+// --- the output commands --------------------------------------------------------
+check('?? is its own style', (({ style, arguments: a }) => [style, a.length])(first('?? lcMessage')), ['??', 1]);
+check('??? too', first('??? lcMessage').style, '???');
+check('? is unchanged', first('? m.x').style, '?');
+check('PRINT is the ? form', first('PRINT m.x').style, '?');
+check('a bare ? still reads', first('?').arguments, []);
+// \ starts a new line of TEXTMERGE output, \\ appends to the one before it. The rest of the line is text, not code.
+check('a \\ line', first('\\ Dear <<m.cName>>,'), { type: 'TextMergeLine', newline: true, content: ' Dear <<m.cName>>,' });
+check('a \\\\ line appends', (({ newline }) => newline)(first('\\\\ and the rest of it.')), false);
+
+// --- the rest of the old ledger ---------------------------------------------------
+check('APPEND MEMO', (({ field, overwrite }) => ({ field, overwrite }))(first('APPEND MEMO notes FROM notes.txt OVERWRITE')), { field: 'notes', overwrite: true });
+check('APPEND on its own is untouched', first('APPEND BLANK').type, 'AppendStatement');
+check('COPY MEMO', first('COPY MEMO notes TO notes.txt').field, 'notes');
+check('COPY TO is still untouched', first('COPY TO x').type, 'CopyToStatement');
+check('ON PAD opens a submenu', (({ what, of, activate }) => ({ what, of, activate }))(first('ON PAD pFile OF mMain ACTIVATE POPUP pFileMenu')),
+	{ what: 'PAD', of: 'mMain', activate: { what: 'POPUP', name: 'pFileMenu' } });
+check('ON BAR too', first('ON BAR 1 OF pFileMenu ACTIVATE POPUP pSubMenu').what, 'BAR');
+check('ON SELECTION still runs a command', first('ON SELECTION BAR 1 OF pFileMenu DO Foo').command.type, 'DoStatement');
+check('a quoted class library', first('LOCAL loX AS Poster OF "poster.vcx"').ofClass, { type: 'StringLiteral', value: 'poster.vcx' });
+check('a quoted type', first('LOCAL loX AS "Custom"').asType, { type: 'StringLiteral', value: 'Custom' });
+check('a bare one is still a string', first('LOCAL loX AS Custom').asType, 'Custom');
+check('CANCEL', first('CANCEL').type, 'CancelStatement');
+check('READ EVENTS', first('READ EVENTS').type, 'ReadEventsStatement');
+check('COMPILE names the file', first('COMPILE program.prg').target, { type: 'Path', path: 'program.prg' });
+check('BUILD APP names both', (({ what, from }) => [what, from.path])(first('BUILD APP myapp FROM myproject')), ['APP', 'myproject']);
+// RETURN parses on its own, so without the TO form claimed first the tail read as a statement after it and reported as unreachable as well.
+check('RETURN TO MASTER', (({ argument, to }) => ({ argument, to }))(first('RETURN TO MASTER')), { argument: null, to: 'MASTER' });
+check('RETURN TO a routine', first('RETURN TO Caller').to, 'Caller');
+check('RETURN with a value is untouched', (({ argument, to }) => [argument.value, to])(first('RETURN .T.')), [true, null]);
+
+// --- SET: a file path, and a clause of its own -------------------------------------
+check('a bare Windows path is the argument', first('SET DEFAULT TO c:\\temp').arguments, [{ type: 'Path', path: 'c:\\temp' }]);
+check('SET ... TO FILE marks the destination', (({ file, arguments: a }) => [file, a[0].path])(first('SET PRINTER TO FILE output.txt')), [true, 'output.txt']);
+check('DELIMITERS TO is a clause, not two settings',
+	first('SET TEXTMERGE ON DELIMITERS TO "<<", ">>"').delimiters.map(d => d.value), ['<<', '>>']);
+check('the state beside it still reads', first('SET TEXTMERGE ON DELIMITERS TO "<<", ">>"').state, 'ON');
+check('an ordinary argument is still an expression', first('SET CENTURY TO 19').arguments[0].type, 'NumberLiteral');
+
 report('Parse checks');

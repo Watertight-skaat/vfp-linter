@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.2.4
+
+### `DEFINE CLASS` member declarations
+
+`PROTECTED`, `HIDDEN`, `IMPLEMENTS` and `ADD OBJECT`. The one that mattered was the access word on a
+method: `PROTECTED PROCEDURE Foo` left the whole class unreadable, so every method in it left the
+Outline and the symbol table together. A method now carries `access`, the property form is its own
+node, and `ADD OBJECT` keeps its class and its `WITH` pairs. The class scope and the Outline both book
+the names all three declare, the way `cName = ""` at class-body level already was. Neither word is
+reserved, so `protected = .T.` is still an assignment.
+
+### The output commands
+
+`??` writes at the cursor and `???` goes to the printer; `PrintStatement` carries which. A `\` or `\\`
+line is TEXTMERGE output written one line at a time, kept verbatim because it is text rather than code.
+
+### `SET` file paths and second clauses
+
+`SET DEFAULT TO c:\temp` read as the name `c` and left `:\temp` to the catch-all, `SET PRINTER TO FILE
+x.txt` lost the destination, and `SET TEXTMERGE ON DELIMITERS TO "<<", ">>"` stopped at the second
+clause. `SetCommand` now carries `file` and `delimiters`, and a bare Windows path is read as a path.
+
+### The rest of the old ledger
+
+`APPEND MEMO` / `COPY MEMO`, `ON PAD` / `ON BAR`, `CANCEL`, `READ EVENTS`, `COMPILE`, `BUILD APP` and
+`RETURN TO MASTER`, which used to report its own tail as unreachable code as well. `AS` and `OF` now
+take a quoted name -- `LOCAL loX AS Poster OF "poster.vcx"` -- and `CANCEL` joins `RETURN`, `EXIT` and
+`LOOP` as a statement nothing below it in the block can run after.
+
+The ledger fixture that recorded these is now four lines long, each one measured by probing the
+parser rather than read out of the grammar: `SAVE SCREEN` / `RESTORE SCREEN`, the `TO` clause of
+`SET MARK OF`, and an index file named with its extension in an `OF` clause.
+
 ## 1.2.3
 
 Grammar coverage: every gap the roadmap had measured is closed, two silent misparses found while

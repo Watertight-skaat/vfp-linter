@@ -1,3 +1,4 @@
 8:8 warning unreachable-code This cannot run: the RETURN above it leaves the block first.
 24:4 warning unreachable-code This cannot run: the LOOP above it leaves the block first.
 27:3 warning unreachable-code This cannot run: the EXIT above it leaves the block first.
+38:3 warning unreachable-code This cannot run: the CANCEL above it leaves the block first.

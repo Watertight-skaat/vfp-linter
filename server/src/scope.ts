@@ -121,7 +121,7 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
         existing.kind = kind;
         existing.declaredAs = parsed.text;
         existing.declaredAt = at;
-        existing.declaredType = str(type);
+        existing.declaredType = typeName(type);
         existing.isArray = existing.isArray || isArray;
       }
       return;
@@ -130,7 +130,7 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
       name: parsed.name,
       declaredAs: parsed.text,
       kind,
-      declaredType: str(type),
+      declaredType: typeName(type),
       isArray,
       declaredAt: at,
       reads: [],
@@ -193,6 +193,16 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
       if (stmt.type === 'Assignment' && stmt.target.type === 'Identifier') {
         declare(scope, stmt.target.name, 'property', stmt.location ?? null);
         visit(stmt.expression, scope);
+        continue;
+      }
+      // So do the member declarations: PROTECTED and HIDDEN name properties, ADD OBJECT names one and gives its class.
+      if (stmt.type === 'ClassAccessStatement') {
+        for (const name of stmt.names) declare(scope, name, 'property', stmt.location ?? null);
+        continue;
+      }
+      if (stmt.type === 'AddObjectStatement') {
+        declare(scope, stmt.name, 'property', stmt.location ?? null, stmt.base);
+        visit(stmt.properties, scope);
         continue;
       }
       visit(stmt, scope);
@@ -512,6 +522,13 @@ export function aliasName(value: unknown): string | null {
   if (bag.name) return aliasName(bag.name);
   if (bag.table) return aliasName(bag.table);
   return null;
+}
+
+// IdentifierOrString: a bare type name arrives as a string, a quoted one -- `LOCAL loX AS "Custom"` -- as a node.
+function typeName(value: unknown): string | null {
+  if (typeof value === 'string') return value;
+  const node = value as { type?: string; value?: unknown } | null;
+  return node && node.type === 'StringLiteral' && typeof node.value === 'string' ? node.value : null;
 }
 
 function str(value: unknown): string | null {
