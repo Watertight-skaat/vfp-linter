@@ -379,6 +379,11 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
   }
 }
 
+/** True when a SELECT names a work area rather than querying, so rules about queries leave it alone. */
+export function isWorkAreaSwitch(node: SelectStatement): boolean {
+  return workAreaSwitch(node) !== undefined;
+}
+
 /** `SELECT <alias>` and `SELECT <n>` switch work areas rather than querying. Returns the alias, null when it is `SELECT 0` or otherwise unknowable statically, or undefined when the statement is a real query. */
 function workAreaSwitch(node: SelectStatement): string | null | undefined {
   const isQuery = node.from ?? node.where ?? node.groupBy ?? node.having ?? node.orderBy ?? node.destination ?? node.top ?? node.quantifier;
@@ -432,7 +437,7 @@ function isMemvarPrefix(object: Expr): boolean {
 }
 
 // USE and SELECT INTO name their target as a string, a Path node, an Identifier or a QualifiedTable wrapper, depending on the clause.
-function aliasName(value: unknown): string | null {
+export function aliasName(value: unknown): string | null {
   if (typeof value === 'string') return value.toUpperCase();
   if (!value || typeof value !== 'object') return null;
   const node = value as AstNode;

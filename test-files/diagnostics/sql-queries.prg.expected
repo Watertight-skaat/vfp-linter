@@ -1,0 +1,3 @@
+2:1 warning select-without-into This query has nowhere to put its result, so VFP sends the whole result set to a Browse window at run time. Add INTO CURSOR, INTO TABLE, INTO ARRAY, or TO FILE.
+16:1 warning unlinked-tables Nothing relates these tables to each other: CUSTOMER, ORDERS. VFP will build the Cartesian product -- every row of each against every row of the others -- which on real table sizes reads as a hang rather than an error.
+19:1 warning unlinked-tables Nothing relates these tables to each other: C + O, P. VFP will build the Cartesian product -- every row of each against every row of the others -- which on real table sizes reads as a hang rather than an error.

@@ -50,9 +50,11 @@ nothing else would report it.
 | `run-scope-tests.js`      | The contents of the symbol table built from `test-files/scope.prg`                       |
 | `run-severity-tests.js`   | Unsupported syntax follows the severity setting; broken code ignores it                  |
 
-Fixtures live in two places. `test-files/*.prg` is the coverage corpus: the grammar is expected
-to read all of it, so a fixture there should have no `.expected` file at all. Anything recorded
-against one is a grammar gap, stated out loud instead of passing silently.
+Fixtures live in two places. `test-files/*.prg` is the coverage corpus: the grammar is expected to
+read all of it. A `.expected` file against one of those records either a grammar gap or a rule
+finding — `select.prg` and `macro-sub.prg` carry a run of `select-without-into` lines because they
+are SQL syntax fixtures whose queries were written without a destination. Either way the point is
+that it is stated out loud rather than passing silently.
 `test-files/diagnostics/*.prg` is the opposite — fixtures written to make a rule fire, each paired
 with the diagnostics it must produce. One of them, `still-unsupported.prg`, is a deliberate ledger
 of constructs the grammar cannot read yet: when one is implemented, `test:update` drops its line and
@@ -124,6 +126,8 @@ git history and re-add `eslint`, `@eslint/js`, `@stylistic/eslint-plugin`,
 | `unreachable-code` | Warning | A statement after `RETURN` / `EXIT` / `LOOP` in the same block |
 | `duplicate-case` | Warning | A `CASE` condition identical to an earlier one in the same `DO CASE` |
 | `private-all` | Warning | `PRIVATE ALL`, which hides every variable of the caller |
+| `unlinked-tables` | Warning | Tables in `FROM` with nothing relating them: a Cartesian product |
+| `select-without-into` | Warning | A query with no `INTO` or `TO`, which browses its result at run time |
 | `having-without-group-by` | Information | `HAVING` with no `GROUP BY`, so it is only a post-filter |
 | `try-without-catch` | Information | A `TRY` with neither `CATCH` nor `FINALLY` |
 | `empty-branch` | Information | An `IF`, `ELSE`, `CASE` or `OTHERWISE` branch with no statements |
@@ -143,6 +147,17 @@ inside SQL statements, where a bare name is expected to be a column.
 not part of the syntax tree. That is why it is advisory. An empty `ELSE` is also reported at the `IF`
 line rather than at the `ELSE`: the block's location spans the whole statement, so there is no more
 precise anchor to point at.
+
+**`unlinked-tables`** treats each table in `FROM` as a node and each condition mentioning two of them
+as an edge, then reports when the graph comes out in more than one piece. Three things deliberately
+silence it, because each could be the missing link: a name the query cannot attribute to a table
+(`WHERE cust_id = o_cust_id`), a macro, and a derived table. Two tables compared to the same non-literal
+value — the usual way a parent and its children are fetched by a key in a variable — count as related;
+the same literal does not, since two tables filtered to the same status are still unrelated.
+
+**`select-without-into`** reports only a `SELECT` standing on its own as a statement. In an expression
+it is a subquery and in an `INSERT ... SELECT` the `INSERT` is the destination, so neither is asked for
+one. A `UNION` carries its `INTO` on the last `SELECT`, which is checked too.
 
 ### Grammar coverage
 
