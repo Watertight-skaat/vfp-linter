@@ -56,9 +56,11 @@ for (const [src, terminator] of openers) {
 const closed = [
 	'IF .T.\n? 1\nENDIF\n',
 	'IF .T.\n? 1\nELSE\n? 2\nENDIF\n',
-	'FOR lnI = 1 TO 3\n? lnI\nENDFOR\n',
-	'FOR lnI = 1 TO 3\n? lnI\nNEXT\n',
-	'FOR EACH x IN y\n? x\nENDFOR\n',
+	// The loop variables are declared so that "clean" can keep meaning no diagnostic at all: an
+	// undeclared one is a real implicit-private finding and has nothing to do with block terminators.
+	'LOCAL lnI\nFOR lnI = 1 TO 3\n? lnI\nENDFOR\n',
+	'LOCAL lnI\nFOR lnI = 1 TO 3\n? lnI\nNEXT\n',
+	'LOCAL x\nFOR EACH x IN y\n? x\nENDFOR\n',
 	'DO WHILE .T.\n? 1\nENDDO\n',
 	'DO CASE\nCASE .T.\n? 1\nOTHERWISE\n? 2\nENDCASE\n',
 	'TRY\n? 1\nCATCH TO oErr\n? 2\nENDTRY\n',

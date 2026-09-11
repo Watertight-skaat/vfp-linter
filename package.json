@@ -98,7 +98,7 @@
 		"bundle:production": "node ./scripts/build.mjs --production",
 		"watch:bundle": "node ./scripts/build.mjs --watch",
 		"typecheck": "tsc -p client/tsconfig.json && tsc -p server/tsconfig.json",
-		"postinstall": "cd client && bun install && cd ../server && bun install && cd ..",
+		"postinstall": "cd client && bun install && cd ../server && bun install && cd .. && bun run build:parser",
 		"test": "bun ./test-files/run-all-tests.js && bun ./test-files/run-ast-tests.js && bun ./test-files/run-scope-tests.js && bun ./test-files/run-severity-tests.js",
 		"test:update": "bun ./test-files/run-all-tests.js --update",
 		"e2e": "bun run compile && node ./scripts/build.mjs --tests && node client/out/test/runTest.js"

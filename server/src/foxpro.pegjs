@@ -120,28 +120,36 @@ VarDecl
     }
 
 // Array declaration: ArrayName( nRows [, nColumns ] ) [ AS type [ OF ClassLib ] ]
+ArrayDims
+  = "(" _ rows:Expression _ cols:(_ "," _ c:Expression { return c; })? _ ")" { return { rows, columns: cols }; }
+  / "[" _ rows:Expression _ cols:(_ "," _ c:Expression { return c; })? _ "]" { return { rows, columns: cols }; }
+
 ArrayDecl
-  = name:Identifier _ "(" _ rows:Expression _ cols:(_ "," _ Expression)? _ ")" _ asPart:(_ "AS"i __ t:Identifier _ ofPart:(_ "OF"i _ cl:Identifier { return cl; })? { return { type: t, of: ofPart ? ofPart[2] : null }; })? {
-      return node("LocalArrayDeclaration", { name, rows, columns: cols ? cols[2] : null, asType: asPart ? asPart.type : null, ofClass: asPart ? asPart.of : null });
+  = name:Identifier _ dims:ArrayDims _ asPart:(_ "AS"i __ t:Identifier _ ofPart:(_ "OF"i _ cl:Identifier { return cl; })? { return { type: t, of: ofPart ? ofPart[2] : null }; })? {
+      return node("LocalArrayDeclaration", { name, rows: dims.rows, columns: dims.columns, asType: asPart ? asPart.type : null, ofClass: asPart ? asPart.of : null });
     }
 
 ArrayDeclList
   = head:ArrayDecl tail:(_ "," _ ArrayDecl)* { return [head, ...tail.map(t => t[3])]; }
 
 PrivateStatement
-  = "PRIVATE"i WB _ (
+  = "PRIVATE"i WB _ decl:(
       "ALL"i _ "LIKE"i _ p:(StringLiteral / Pattern) {
         const pat = (typeof p === 'string') ? p : (p && p.value ? p.value : p);
         return node("PrivateAllLike", { pattern: pat });
       }
       / "ALL"i { return node("PrivateAll", {}); }
-      / vars:IdentifierList{ return vars.map(v => node("PrivateDeclaration", { name: v })); }
+      / "ARRAY"i WB _ arrs:ArrayDeclList { return arrs.map(a => node("PrivateDeclaration", { name: a.name, isArray: true })); }
+      / vars:IdentifierList{ return vars.map(v => node("PrivateDeclaration", { name: v, isArray: false })); }
       / _ { return node("PrivateDirective", {}); }
-  )
+  ) { return decl; }
 
 PublicStatement
-  = "PUBLIC"i WB _ vars:IdentifierList {
-      return vars.map(v => node("PublicDeclaration", { name: v }));
+  = "PUBLIC"i WB _ "ARRAY"i WB _ arrs:ArrayDeclList {
+      return arrs.map(a => node("PublicDeclaration", { name: a.name, isArray: true }));
+    }
+  / "PUBLIC"i WB _ vars:IdentifierList {
+      return vars.map(v => node("PublicDeclaration", { name: v, isArray: false }));
     }
 
 LParameters
@@ -157,11 +165,8 @@ DimensionStatement
     }
 
 DimensionItem
-  = name:Identifier _ "(" _ rows:Expression _ cols:(_ "," _ Expression)? _ ")" _ asPart:("AS"i __ t:IdentifierOrString)? {
-      return { name, rows, columns: cols ? cols[2] : null, asType: asPart ? asPart[2] : null };
-    }
-  / name:Identifier _ "[" _ rows:Expression _ cols:(_ "," _ Expression)? _ "]" _ asPart:("AS"i __ t:IdentifierOrString)? {
-      return { name, rows, columns: cols ? cols[2] : null, asType: asPart ? asPart[2] : null };
+  = name:Identifier _ dims:ArrayDims _ asPart:("AS"i __ t:IdentifierOrString)? {
+      return { name, rows: dims.rows, columns: dims.columns, asType: asPart ? asPart[2] : null };
     }
 
 IdentifierList
@@ -198,6 +203,7 @@ LValue
   = head:Identifier tail:(
       ("." / "->") _ prop:Identifier { return { type: 'member', prop: prop }; }
     / "[" _ idxs:ExpressionList _ "]" { return { type: 'index', indexes: idxs }; }
+    / "(" _ idxs:ExpressionList _ ")" { return { type: 'index', indexes: idxs }; }
     )* {
       let expr = node("Identifier", { name: head });
       for (const t of tail) {
@@ -878,10 +884,10 @@ OrderItem
 
 IntoClause
   = "INTO"i _ dest:(
-      ("TABLE"i _ p:PathOrExpression { return { kind: 'TABLE', name: p }; })
-      / ("CURSOR"i _ a:Expression flags:(_("READWRITE"i / "NOFILTER"i))* { return { kind: 'CURSOR', name: a }; })
-      / ("ARRAY"i _ a:Identifier { return { kind: 'ARRAY', name: a }; })
-      / ("DBF"i _ n:IdentifierOrString { return { kind: 'DBF', name: n }; })
+      ("TABLE"i WB _ p:PathOrExpression { return { kind: 'TABLE', name: p }; })
+      / ("CURSOR"i WB _ a:Expression flags:(_("READWRITE"i / "NOFILTER"i))* { return { kind: 'CURSOR', name: a }; })
+      / ("ARRAY"i WB _ a:Identifier { return { kind: 'ARRAY', name: a }; })
+      / ("DBF"i WB _ n:PathOrExpression { return { kind: 'DBF', name: n }; })
       / n:IdentifierOrString { return { kind: 'DEFAULT', name: n }; }
     ) { return dest; }
 
@@ -947,11 +953,11 @@ DatabaseClause
   = "DATABASE"i __ db:IdentifierOrString _ name:("NAME"i __ ln:IdentifierOrString { return ln; })? { return { database: db, longName: name || null }; }
 
 FieldsClause
-  = "FIELDS"i __ (
+  = "FIELDS"i __ spec:(
       list:IdentifierList { return { kind: 'list', fields: list }; }
       / "LIKE"i __ sk:Pattern { return { kind: 'like', pattern: sk }; }
       / "EXCEPT"i __ sk:Pattern { return { kind: 'except', pattern: sk }; }
-    )
+    ) { return spec; }
 
 WithIndexClause
   = ("WITH"i _)? kind:("CDX"i / "PRODUCTION"i) { return typeof kind === 'string' ? kind.toUpperCase() : kind; }
@@ -1014,12 +1020,12 @@ ExportType
   / "DELIMITED"i _ d:DelimitedOptions? { return { format: 'DELIMITED', options: d || null }; }
 
 DelimitedOptions
-  = "WITH"i __ (
+  = "WITH"i __ opt:(
       "BLANK"i { return { mode: 'BLANK' }; }
       / "TAB"i { return { mode: 'TAB' }; }
       / "CHARACTER"i __ ch:IdentifierOrString { return { mode: 'CHARACTER', delimiter: ch }; }
       / del:IdentifierOrString { return { mode: 'DELIMITER', delimiter: del }; }
-    )
+    ) { return opt; }
 
 // -----------------------------
 // GO / GOTO (record navigation)
@@ -1273,18 +1279,18 @@ CaseBoundary
 //  [TO VarName] [NOREAD] [NOSHOW]
 DoFormStatement "do form statement"
   = "DO FORM"i WB _ target:(StringLiteral / Identifier / "?") _
-    namePart:("NAME"i _ nameIdent:ParameterName _ link:("LINKED"i)? )?
-    withPart:("WITH"i _ params:ArgumentList maybeTo:(_ "TO"i _ v:ParameterName)? )?
-    toPart:("TO"i _ v:ParameterName)?
+    namePart:("NAME"i _ nameIdent:ParameterName _ link:("LINKED"i)? { return { name: nameIdent, linked: !!link }; })?
+    withPart:("WITH"i _ params:ArgumentList maybeTo:(_ "TO"i _ v:ParameterName { return v; })? { return { params, to: maybeTo }; })?
+    toPart:("TO"i _ v:ParameterName { return v; })?
     flags:(_ ("NOREAD"i / "NOSHOW"i))* {
       // If a TO clause was attached directly after WITH's argument list, prefer it.
-      const toFromWith = (withPart && withPart[3]) ? withPart[3][2] : null;
-      const explicitTo = toPart ? toPart[2] : null;
+      const toFromWith = withPart ? withPart.to : null;
+      const explicitTo = toPart;
       return node("DoFormStatement", {
         target,
-        name: namePart ? namePart[2] : null,
-        linked: namePart ? !!(namePart[3]) : false,
-        arguments: withPart ? withPart[2] : [],
+        name: namePart ? namePart.name : null,
+        linked: namePart ? namePart.linked : false,
+        arguments: withPart ? withPart.params : [],
         to: toFromWith || explicitTo || null,
         noread: flags ? flags.some(f => f[1].toUpperCase() === 'NOREAD') : false,
         noshow: flags ? flags.some(f => f[1].toUpperCase() === 'NOSHOW') : false
@@ -1444,27 +1450,27 @@ TryStatement "try-catch statement"
 // ENDWITH
 WithStatement
   = "WITH"i WB _ target:(LValue / PostfixExpression)
-    asPart:(_ "AS"i __ t:Identifier _ ofPart:(_ "OF"i _ cl:Identifier { return cl; })? )? __
+    asPart:(_ "AS"i __ t:Identifier _ ofPart:(_ "OF"i _ cl:Identifier { return cl; })? { return { type: t, of: ofPart }; })? __
     body:(WithBodyEntry __)*
     "ENDWITH"i {
       return node("WithStatement", {
         target,
-        asType: asPart ? asPart[2] : null,
-        ofClass: asPart && asPart[4] ? asPart[4][2] : null,
+        asType: asPart ? asPart.type : null,
+        ofClass: asPart ? asPart.of : null,
         body: node("BlockStatement", { body: flatten(body.map(b => b[0])) })
       });
     }
 
 WithBodyEntry
   = "." _? a:DotAssignment { return a; }
-    / "." _? e:PostfixExpression { return node("ExpressionStatement", { expression: e }); }
+    / "." _? e:PostfixExpression { return node("ExpressionStatement", { expression: node("WithMemberExpression", { expression: e }) }); }
     / c:Statement { return c; }
 
 // Support assignments where the left side may contain call/member chains, e.g.
 //   .Objects(n).Style = 1
 DotAssignment
   = lhs:PostfixExpression __ "=" __ expr:Expression {
-      return node("Assignment", { target: lhs, expression: expr });
+      return node("Assignment", { target: node("WithMemberExpression", { expression: lhs }), expression: expr });
     }
 
 // -----------------------------
@@ -1526,12 +1532,12 @@ SetOrderToStatement
   SetRelationToStatement
     = "SET RELATION TO"i WB _
       first:RelationPair? tail:(_ "," _ RelationPair)*
-      inClause:(_ "IN"i __ target:(Identifier / StringLiteral / NumberLiteral) _)?
+      inClause:(_ "IN"i __ target:(Identifier / StringLiteral / NumberLiteral) _ { return target; })?
       additive:(_ "ADDITIVE"i)? {
         const pairs = first ? [first, ...tail.map(t => t[3])] : [];
         return node('SetRelation', {
           pairs: pairs.map(p => ({ expression: p.expr, into: p.into })),
-          inTarget: inClause ? inClause[2] : null,
+          inTarget: inClause,
           additive: !!(additive && additive[1])
         });
       }
@@ -1545,7 +1551,7 @@ SetOrderToStatement
 SetSettingStatement
   ="SET"i (Whitespace / LineContinuation)+ inner:(
     ("TO"i __ setting:Expression { return node("SetTo", { setting }); })
-    / (cmd:KeywordOrIdentifier toPart:(_ "TO"i __ setting:Expression)? argPart:(_ (StringLiteral / Identifier / NumberLiteral))? additive:(_ "ADDITIVE"i)? state:(_ ("ON"i / "OFF"i))? { const argument = toPart ? toPart[2] : (argPart ? argPart[1] : null); const st = state ? state[1] : null; return node("SetCommand", { command: cmd, argument: argument, state: st ? st.toUpperCase() : null, additive: !!additive }); })
+    / (cmd:KeywordOrIdentifier toPart:(_ "TO"i __ setting:Expression { return setting; })? argPart:(_ (StringLiteral / Identifier / NumberLiteral))? additive:(_ "ADDITIVE"i)? state:(_ ("ON"i / "OFF"i))? { const argument = toPart ?? (argPart ? argPart[1] : null); const st = state ? state[1] : null; return node("SetCommand", { command: cmd, argument: argument, state: st ? st.toUpperCase() : null, additive: !!additive }); })
   ) {
       // If TO form, inner is already a SetTo node and we return it directly.
       if (inner && inner.type === 'SetTo') return inner;
@@ -1616,12 +1622,12 @@ AppendType
 
 // Allow multiple WITH options, including an unquoted single-character like *
 AppendDelimitedOption
-  = "WITH"i __ (
+  = "WITH"i __ opt:(
       "BLANK"i { return { mode: 'BLANK' }; }
       / "TAB"i { return { mode: 'TAB' }; }
       / "CHARACTER"i __ ch:(IdentifierOrString / "*" { return "*"; }) { return { mode: 'CHARACTER', character: ch }; }
       / del:(IdentifierOrString / "*" { return "*"; }) { return { mode: 'DELIMITER', delimiter: del }; }
-    )
+    ) { return opt; }
 
 // BROWSE [FIELDS FieldList] [FONT cFontName [, nFontSize [, nFontCharSet]]] 
 //    [STYLE cFontStyle] [FOR lExpression1 [REST]] [FORMAT] 
@@ -1660,16 +1666,16 @@ ReplaceStatement
   = "REPLACE"i WB _
     scope: ( "ALL"i { return 'ALL'; } / "REST"i { return 'REST'; })? _
     fields:ReplaceFieldList
-    forClause:(_ "FOR"i __ condition:Expression _)?
-    whileClase:(_ "WHILE"i __ condition:Expression _)?
-    inClause:("IN"i __ target:(Identifier / StringLiteral / NumberLiteral) _)?
+    forClause:(_ "FOR"i __ condition:Expression _ { return condition; })?
+    whileClause:(_ "WHILE"i __ condition:Expression _ { return condition; })?
+    inClause:("IN"i __ target:(Identifier / StringLiteral / NumberLiteral) _ { return target; })?
     noOptimize:("NOOPTIMIZE"i)? {
       return node("ReplaceStatement", { 
-        scope: scope ? scope[0] : null,
+        scope,
         fields, 
-        forCondition: forClause ? forClause[2] : null,
-        whileCondition: whileClase ? whileClase[2] : null,
-        inTarget: inClause ? inClause[2] : null,
+        forCondition: forClause,
+        whileCondition: whileClause,
+        inTarget: inClause,
         noOptimize: !!noOptimize
       });
     }
@@ -1719,16 +1725,16 @@ ScanStatement
       / ("RECORD"i _ n:NumberLiteral { return { type: 'RECORD', number: n }; })
       / ("REST"i { return 'REST'; })
     )? _
-    forClause:(_ "FOR"i __ condition:Expression)?
-    whileClause:(_ "WHILE"i __ condition:Expression)?
+    forClause:(_ "FOR"i __ condition:Expression { return condition; })?
+    whileClause:(_ "WHILE"i __ condition:Expression { return condition; })?
     __
     body:(Statement __)*
     endkw:("ENDSCAN"i / ("LOOP"i / "EXIT"i) _? "ENDSCAN"i)? {
       return node("ScanStatement", {
-        noOptimize: !!(noopt && noopt[1]),
+        noOptimize: !!noopt,
         scope: scope || 'ALL',
-        forCondition: forClause ? forClause[2] : null,
-        whileCondition: whileClause ? whileClause[2] : null,
+        forCondition: forClause,
+        whileCondition: whileClause,
         body: node("BlockStatement", { body: flatten(body.map(s => s[0])) })
       });
     }
@@ -1809,9 +1815,10 @@ ReplaceField
 StoreStatement
   = "STORE"i WB __ expr:Expression __ "TO"i __
     toPart:(
-      vars:IdentifierList { return { type: 'VarList', vars }; }
-      / arr:Identifier "[" _ indexList:ExpressionList _ "]" { return { type: 'ArrayIndexed', array: arr, indexes: indexList }; }
+      arr:Identifier _ "[" _ indexList:ExpressionList _ "]" { return { type: 'ArrayIndexed', array: arr, indexes: indexList }; }
+      / arr:Identifier _ "(" _ indexList:ExpressionList _ ")" { return { type: 'ArrayIndexed', array: arr, indexes: indexList }; }
       / arrAssign:Identifier _ "=" _ rhs:Expression { return { type: 'ArrayAssign', target: arrAssign, expression: rhs }; }
+      / vars:IdentifierList { return { type: 'VarList', vars }; }
     ) {
     return node('StoreStatement', { expression: expr, target: toPart });
   }
@@ -1825,26 +1832,24 @@ ExpressionList
 ProcedureStatement "procedure"
   = cw:("PROCEDURE"i / "FUNCTION"i) WB __ name:Identifier _ proc:(
       // function-style parameter list with optional typed params and optional return type
-      "(" _ params:ProcedureParamList? _ ")" _ retPart:(_ "AS"i __ rt:IdentifierOrString)? __ statements:(Statement __)* ret:(_ "RETURN"i __ expr:Expression _)? end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
+      "(" _ params:ProcedureParamList? _ ")" _ retPart:(_ "AS"i __ rt:IdentifierOrString)? __ statements:(Statement __)* end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
         return node("ProcedureStatement", {
           name,
           isFunction: (typeof cw === 'string') ? (cw.toUpperCase() === 'FUNCTION') : false,
           parameters: params || [],
           returnType: retPart ? retPart[3] : null,
           body: node("BlockStatement", { body: flatten(statements.map(s => s[0])) }),
-          returnExpression: ret ? ret[2] : null,
           lparameters: false
         });
       }
     / // alternate LPARAMETERS style (untyped, compatible with LPARAMETERS/PARAMETERS keyword)
-    lparams:LParameters? __ statements:(Statement __)* ret:(_ "RETURN"i __ expr:Expression _)? end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
+    lparams:LParameters? __ statements:(Statement __)* end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
         return node("ProcedureStatement", {
           name,
           isFunction: (typeof cw === 'string') ? (cw.toUpperCase() === 'FUNCTION') : false,
           parameters: lparams ? (lparams.names || []) : [],
           returnType: null,
           body: node("BlockStatement", { body: flatten(statements.map(s => s[0])) }),
-          returnExpression: ret ? ret[2] : null,
           lparameters: !!lparams
         });
       }

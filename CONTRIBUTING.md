@@ -55,6 +55,32 @@ changed severity or message visible rather than silently absorbed.
 > `test` script -- it picks up the suites under `client/src/test`, which need a running
 > VS Code host, and reports failures that mean nothing outside `bun run e2e`.
 
+**A diagnostics fixture cannot catch a statement that parses into the wrong tree.** It asserts what
+the linter *reports*, and a misparse that still produces a valid tree reports nothing -- several have
+hidden behind a fully passing corpus. When a grammar change alters what a node carries, assert the
+shape in `run-scope-tests.js` as well: counting the symbol table's reads and writes is the only check
+that sees it.
+
+### CI
+
+`.github/workflows/ci.yml` runs on every push to `master` and every pull request:
+`bun install --frozen-lockfile`, then `bun run compile`, then `bun run test`, on pinned bun and
+node 22. One guard sits between them: **all three lockfiles are unchanged.** The root install runs the
+`client/` and `server/` installs through `postinstall`, and those nested installs are not themselves
+frozen, so the lockfiles are diffed rather than trusting the root flag.
+
+`bun run e2e` is not part of CI: it downloads VS Code and needs a display.
+
+### The parser is generated, not tracked
+
+`server/src/parser.js` and `server/src/parser.d.ts` are built from `server/src/foxpro.pegjs` and are
+**not in git**. They were tracked until two rounds of grammar auditing made the cost plain: a 107-line
+grammar change carried a 3,000-line parser diff around it, burying the review that mattered.
+
+`postinstall` runs `bun run build:parser`, so a fresh clone is ready as soon as `bun install`
+finishes and `bun run test` works without a separate build step. If you ever see
+`Cannot find module '../server/src/parser.js'`, run `bun run build:parser`.
+
 ### Build output
 
 `scripts/build.mjs` bundles `client/src/extension.ts` and `server/src/server.ts` with
@@ -135,7 +161,14 @@ rather than racing it.
 The user-facing list of rules and what they report is in [README.md](README.md). Two implementation
 notes that do not belong there:
 
-**`missing-memvar-prefix`** is the first rule to read the symbol table. It collects the field names the
+**`implicit-private`** reports a symbol whose kind is `implicit` -- nothing declared it -- and that is
+written at least once. It fires once per name, at the first write, because the finding is the missing
+declaration rather than each use of it; writes marked `sqlContext` do not count, since a bare name in
+SQL may be a column. It needed one grammar fix to be usable: inside `WITH ... ENDWITH` the leading dot
+of `.Caption = "x"` was being dropped, so every property assignment in every `WITH` block looked like
+an assignment to an undeclared variable.
+
+**`missing-memvar-prefix`** also reads the symbol table. It collects the field names the
 file itself reveals — `ColumnDefinition` names, `REPLACE` targets, `INSERT` column lists, and
 `MemberExpression`s qualified by an alias the file opens — and reports a declared variable referenced
 without `m.` whose name is in that set. References inside SQL statements are skipped, because

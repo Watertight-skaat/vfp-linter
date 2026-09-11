@@ -1,8 +1,10 @@
 # See also — what reading the Watertight source turned up
 
-Two lists, kept apart because they need different owners. The first is for the Watertight
-codebase; nothing in it has been changed. The second is for this linter, and each item is already
-pinned down by a fixture so it cannot quietly regress.
+Three lists, kept apart because they need different owners. The first is for the Watertight
+codebase; nothing in it has been changed. The second is for this linter, and each item is pinned
+down by a fixture so it cannot quietly regress. The third is the subset that produced no diagnostic
+at all -- those are pinned by a structural assertion instead, because a diagnostics fixture cannot
+see them.
 
 Line numbers are against `W:\DevStaging` as of 2026-09-10.
 
@@ -73,7 +75,7 @@ auto-allocation path is unreachable in both copies.
 - **`CASE .f.`** is how a branch is switched off without deleting it
   (`moscode\AAPRG\VOIPDIAL_WATERTIGHTCLOUD.prg:42-50`, `wt\AAprg\AR_SYSCH.prg:73,77`,
   `wt\AAprg\prnt_00000043.prg:84,87,102`). The `duplicate-case` rule reports every repeat, which is
-  technically right and probably unwanted — see item 12 below.
+  technically right and probably unwanted — see item 19 below.
 - **`vNETLOK`/`vNETULOK`** (`moscode\AAPRG\LOCKING.prg:53,68`) return `.t.` above their original
   bodies on purpose; the comment says so. `unreachable-code` fires on both.
 
@@ -96,17 +98,67 @@ Each is reproduced by a fixture, so the expectation file changes the day it is f
 | 9 | `FLUSH`, `MD`, `REINDEX`, `ALTER TABLE`, `COUNT`, `CONTINUE`, `NODEFAULT` | not recognised | same |
 | 10 | `WAIT WINDOW <message> NOWAIT NOCLEAR` | the flags are only accepted *before* the message, which is the opposite of how every call site writes it | same |
 
-Three more misparse **silently** — no diagnostic, but the tree is wrong, so anything built on the
-symbol table sees the wrong thing. They have no fixture because there is nothing to assert yet:
+## 3. Silent misparses — all fixed
 
-11. `LOCAL ARRAY laRows[1]` (brackets rather than parentheses) declares a variable literally named
-    `ARRAY` and leaves `laRows[1]` as a separate expression statement.
-12. `laRows(2) = 5` — assigning to an array element with parentheses — splits into a call expression
-    followed by an `=expression` statement, so the write is never attributed to `laRows`.
-13. `SELECT ... INTO DBF(m.file)` reads the destination as the literal name `DBF` and leaves
-    `(m.file)` as a separate statement.
+These are the dangerous kind: an unsupported statement at least *says* it was not read, while a
+silent misparse looks read. The statement parses, the tree is wrong, and every rule downstream
+quietly sees the wrong thing. **A diagnostics fixture cannot catch one**, which is why each is now
+pinned by a structural assertion in `run-scope-tests.js` instead.
 
-And one rule-design question rather than a gap:
+Three were found by reading the Watertight source:
 
-14. `duplicate-case` fires on every repeated `CASE .f.`. Given that repeating it is the local way to
+11. `LOCAL ARRAY laRows[1]` (brackets rather than parentheses) declared a variable literally named
+    `ARRAY` and left `laRows[1]` as a separate expression statement. Both delimiters now go through
+    one `ArrayDims` rule, which also removed the copy `DimensionItem` was carrying.
+12. `laRows(2) = 5` — assigning to an array element with parentheses — split into a call expression
+    followed by a stray literal, so the write was never attributed to `laRows`. `LValue` now takes a
+    parenthesised subscript as well as a bracketed one.
+13. `SELECT ... INTO DBF(m.file)` read the destination as a `DEFAULT` one literally named `DBF` and
+    dropped the expression. The `DBF` branch now takes an expression, and a word boundary on
+    `TABLE`/`CURSOR`/`ARRAY`/`DBF` fixes the matching case in the other direction: `INTO DBFname`
+    was read as `DBF` plus a table called `name`.
+
+Four more came out of sweeping the grammar for the *shapes* those three had:
+
+14. `PUBLIC ARRAY` and `PRIVATE ARRAY` had item 11's bug — the `ARRAY` keyword read as the first
+    variable name, the declaration behind it as a stray call. **`startup-settings.prg` in this corpus
+    was misparsing on line 5 the whole time it was passing.** Both now carry `isArray`.
+15. `STORE 0 TO laRows[1]` matched the bare-name list first, which took `laRows` and left the
+    subscript behind — so the `ArrayIndexed` alternative below it was unreachable. Reordered, and the
+    parenthesised form added. (`STORE 0 TO a[1], b[2]` is still not read, but it now reports
+    `unsupported-syntax` rather than silently dropping the subscript.)
+16. `PrivateStatement` had no action on its outer sequence, so it returned
+    `["PRIVATE", null, whitespace, decl]` and the junk only stayed invisible because the linter skips
+    anything whose `type` is falsy. This is the same bug this file records against
+    `ProcedureStatement` in an earlier pass.
+17. `FieldsClause`, `DelimitedOptions` and `AppendDelimitedOption` returned their raw match too, so
+    `COPY TO x FIELDS a, b` stored `["FIELDS", whitespace, {…}]` where the caller meant `{…}`.
+
+An eighth turned up while building the `implicit-private` rule, and it was the worst of them:
+
+18. Inside `WITH ... ENDWITH`, the leading dot of `.Caption = "x"` was **eaten**, so a property of
+    the WITH target parsed as a bare `Identifier` -- indistinguishable from `Caption = "x"`. Every
+    property assignment in every `WITH` block was booked in the symbol table as a variable write,
+    which is 7 phantom variables in this corpus alone and would be far more in form code. The dot is
+    now kept as a `WithMemberExpression`, whose root identifier is a property name while the
+    arguments and subscripts inside it stay real references -- `.Objects(m.n).Caption` names two
+    properties and reads one variable. The same rule's `AS`/`OF` clause had the index bug as well,
+    so `WITH oX AS Form` recorded `asType` as whitespace.
+
+And one was a whole class rather than a construct: twelve captures across the grammar read the wrong
+index of a PEG sequence, so the value landed on the whitespace *between* the tokens instead of the
+token itself. `SCAN`/`REPLACE` lost their `FOR` and `WHILE` conditions,
+`SET <command> TO <value>` lost its value, `DIMENSION`/`LOCAL ARRAY` lost the column count,
+`SET RELATION ... IN` lost the alias, `REPLACE`'s scope became `"A"`, `DO FORM ... NAME` was always
+`LINKED`, and `DO FORM ... WITH ... TO` lost its variable. Each group now carries an action
+returning its labelled value, which removes the class at that site rather than moving it by one.
+`ProcedureStatement.returnExpression` came out of the same audit and was removed instead:
+`(Statement __)*` always consumes the trailing `RETURN`, so the capture was unreachable and the
+field was structurally always null.
+
+---
+
+## 4. A rule-design question rather than a gap
+
+19. `duplicate-case` fires on every repeated `CASE .f.`. Given that repeating it is the local way to
     comment out a branch, it may be worth skipping conditions that are constant `.F.`.

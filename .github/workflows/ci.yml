@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+# A new push supersedes whatever is still running for the same ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.1
+
+      # tsc and scripts/build.mjs run on node, not bun. 22 is the floor the whole project agrees on: engines.vscode, @types/node, the esbuild target and lib.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # The root install runs the client/ and server/ installs through postinstall.
+      - run: bun install --frozen-lockfile
+
+      # Those nested installs are not themselves frozen, so check all three lockfiles rather than trusting the root flag.
+      - name: Lockfiles are unchanged
+        run: git diff --exit-code -- bun.lock client/bun.lock server/bun.lock
+
+      # Regenerates the parser, type-checks both projects, then bundles.
+      - run: bun run compile
+
+      # Must be `bun run test`: bare `bun test` is Bun's own runner, which picks up the VS Code e2e fixtures and reports meaningless failures. `bun run e2e` is not run here -- it downloads VS Code and needs a display.
+      - run: bun run test

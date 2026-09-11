@@ -4,7 +4,7 @@ import type {
   AstNode, BlockStatement, DoCaseStatement, IfStatement, Loc, Program, SelectStatement,
   TableRef, TryStatement, UnknownStatement
 } from './ast.js';
-import { aliasInEffectAt, aliasName, buildSymbolTable, isWorkAreaSwitch, type Scope } from './scope.js';
+import { aliasInEffectAt, aliasName, buildSymbolTable, isWorkAreaSwitch, type Scope, type SymbolTable } from './scope.js';
 
 // The LSP DiagnosticSeverity values, inlined so this file needs no language-server import.
 // Typed as literals rather than an enum so the result is assignable to Diagnostic[] without a cast.
@@ -78,7 +78,10 @@ export function runLinterRules(ast: Program | null | undefined, options: LinterO
   }
 
   traverse(ast);
-  problems.push(...missingMemvarPrefix(ast));
+  // One table, read by every scope-dependent rule: building it is the expensive part, and the rules disagree only about what they ask it.
+  const table = buildSymbolTable(ast);
+  problems.push(...implicitPrivates(table));
+  problems.push(...missingMemvarPrefix(ast, table));
   problems.push(...undirectedSelects(ast));
 
   // One pass appends to another, so order by position rather than by which rule produced what.
@@ -399,8 +402,32 @@ function tryWithoutHandler(node: TryStatement, out: LintDiagnostic[]) {
  * or a reference qualified by an alias the file opens. That keeps it quiet unless there is real
  * evidence of a collision.
  */
-function missingMemvarPrefix(ast: Program): LintDiagnostic[] {
-  const table = buildSymbolTable(ast);
+// VFP has no declaration requirement: assigning to a name nothing declared creates a PRIVATE at run
+// time, which every routine called from here can see and assign. So a mistyped name silently becomes
+// a new variable, and state leaks downstream instead of staying where it was written. Reported once
+// per name, at the first write -- the missing declaration is the finding, not each use of it.
+function implicitPrivates(table: SymbolTable): LintDiagnostic[] {
+  const out: LintDiagnostic[] = [];
+  for (const scope of table.scopes) {
+    for (const symbol of scope.symbols.values()) {
+      if (symbol.kind !== 'implicit') continue;
+      // A bare name inside SQL may be a column, so it is not evidence that a variable was created.
+      const first = symbol.writes.find(w => !w.sqlContext && w.location?.start);
+      if (!first?.location) continue;
+      out.push(problem(Severity.Warning, first.location, 'implicit-private',
+        `'${symbol.declaredAs}' is assigned but never declared, so FoxPro creates it as a PRIVATE: ` +
+        `it stays visible to everything ${scopeLabel(scope)} calls, and a mistyped name becomes a new variable rather than an error. ` +
+        `Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.`));
+    }
+  }
+  return out;
+}
+
+function scopeLabel(scope: Scope) {
+  return scope.kind === 'main' ? 'this file' : scope.name;
+}
+
+function missingMemvarPrefix(ast: Program, table: SymbolTable): LintDiagnostic[] {
   const aliases = new Set<string>();
   for (const scope of table.scopes) for (const alias of scope.openAliases) aliases.add(alias);
   // With no table in play there is nothing for a bare name to resolve to but the variable.

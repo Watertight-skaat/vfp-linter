@@ -1,0 +1,1 @@
+1:1 warning implicit-private 't' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything this file calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.

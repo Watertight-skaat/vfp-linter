@@ -13,6 +13,7 @@ from code that is actually wrong.
 | `syntax-error` | Error | The parser could not read the file at all |
 | `unterminated-block` | Error | A block opener whose terminator is missing |
 | `unsupported-syntax` | Information | Valid FoxPro the grammar has not learned yet (configurable) |
+| `implicit-private` | Warning | An assignment to a name nothing declared, which FoxPro creates as a PRIVATE |
 | `missing-memvar-prefix` | Warning | A variable referenced without `m.` whose name is also used as a field |
 | `unreachable-code` | Warning | A statement after `RETURN` / `EXIT` / `LOOP` in the same block |
 | `duplicate-case` | Warning | A `CASE` condition identical to an earlier one in the same `DO CASE` |

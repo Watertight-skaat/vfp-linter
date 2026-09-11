@@ -10,3 +10,9 @@ debug_ast.json
 
 # npm lockfiles are replaced by bun.lock
 package-lock.json
+
+# Generated from foxpro.pegjs by `bun run build:parser`, which postinstall runs so a fresh clone is
+# ready before the harness needs them. Tracked until the grammar audits made the point: a 107-line
+# grammar change carried a 3,000-line parser diff around it, burying the review that mattered.
+server/src/parser.js
+server/src/parser.d.ts

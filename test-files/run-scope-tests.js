@@ -30,7 +30,10 @@ check('scopes found', table.scopes.map(s => `${s.name}:${s.kind}`), [
 	'Widget:class',
 	'Widget.Init:method',
 	'Widget.Label:method',
-	'Branching:function'
+	'Branching:function',
+	'Filtering:procedure',
+	'Subscripts:procedure',
+	'Styling:procedure'
 ]);
 check('main is the root', table.main.name, '(main)');
 check('methods hang off the class', scope('Widget').children.map(c => c.name), ['Widget.Init', 'Widget.Label']);
@@ -86,6 +89,37 @@ check('a method body does not leak into the class', names('Widget.Init'), []);
 check('a variable written inside both CASE branches', shape('Branching', 'LCBRANCH'),
 	{ kind: 'local', type: null, array: false, declared: true, reads: 1, writes: 2 });
 check('a parameter read inside a CASE condition', shape('Branching', 'TNTYPE'),
+	{ kind: 'parameter', type: null, array: false, declared: true, reads: 1, writes: 0 });
+
+// SCAN and REPLACE dropped their FOR and WHILE conditions, DIMENSION its column count and SET its
+// argument, each by reading the wrong index of a PEG sequence. The statements still parsed, so no
+// diagnostic could have caught it -- only counting the reads does.
+check('a parameter read in SCAN FOR and REPLACE WITH', shape('Filtering', 'TNLIMIT'),
+	{ kind: 'parameter', type: null, array: false, declared: true, reads: 2, writes: 0 });
+check('a parameter read in DIMENSION, SET, SCAN WHILE and REPLACE FOR', shape('Filtering', 'TNCOLS'),
+	{ kind: 'parameter', type: null, array: false, declared: true, reads: 4, writes: 0 });
+check('a field in a scoped condition is not a declared variable', shape('Filtering', 'INVBAL'),
+	{ kind: 'implicit', type: null, array: false, declared: false, reads: 3, writes: 0 });
+
+// The ARRAY keyword used to be read as the first variable name on all three of these, a parenthesised
+// subscript split an assignment into a call plus a stray literal, and STORE matched the bare name and
+// dropped the subscript. All four parsed, so no diagnostic could have caught any of them; a symbol
+// with the wrong kind, or a missing write, is the only visible trace. The scope names alone are the
+// assertion for the first three -- a variable named ARRAY would appear here instead.
+check('Subscripts declares only the three arrays', names('Subscripts'),
+	['LABRACKETS', 'LAPRIVATE', 'LAPUBLIC']);
+check('LOCAL ARRAY with brackets, written through both subscript forms', shape('Subscripts', 'LABRACKETS'),
+	{ kind: 'local', type: null, array: true, declared: true, reads: 0, writes: 2 });
+check('PUBLIC ARRAY, written by STORE to an element', shape('Subscripts', 'LAPUBLIC'),
+	{ kind: 'public', type: null, array: true, declared: true, reads: 0, writes: 1 });
+check('PRIVATE ARRAY, two-dimensional', shape('Subscripts', 'LAPRIVATE'),
+	{ kind: 'private', type: null, array: true, declared: true, reads: 0, writes: 1 });
+
+// Inside WITH, the leading dot is the only thing separating a property from a memory variable, and the
+// grammar used to drop it. The names list is the assertion: CAPTION, COLUMNS and WIDTH appearing here
+// would mean every property assignment in every WITH block is being booked as an implicit PRIVATE.
+check('WITH properties are not variables', names('Styling'), ['LCHEADING', 'TNCOLUMN', 'TOGRID']);
+check('an argument inside a WITH member is still a read', shape('Styling', 'TNCOLUMN'),
 	{ kind: 'parameter', type: null, array: false, declared: true, reads: 1, writes: 0 });
 
 // --- work area -------------------------------------------------------------

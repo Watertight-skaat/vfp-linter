@@ -179,7 +179,6 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
       declare(scope, typed ? typed.name : param, 'parameter', node.location ?? null, typed ? typed.type : null);
     }
     visit(node.body, scope);
-    visit(node.returnExpression, scope);
   }
 
   function visitClass(node: DefineClass, parent: Scope) {
@@ -222,6 +221,20 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
     visit(target, scope);
   }
 
+  // Inside WITH, the chain after the dot hangs off the WITH target: `.Objects(m.n).Caption` names two
+  // properties and reads one variable. Walk it for the arguments and subscripts, but never book the
+  // root identifier -- that is a property name.
+  function visitWithMember(expr: Expr | null | undefined, scope: Scope) {
+    if (!expr || typeof expr !== 'object') return;
+    switch (expr.type) {
+      case 'Identifier': return;
+      case 'MemberExpression': visitWithMember(expr.object, scope); return;
+      case 'CallExpression': visitWithMember(expr.callee, scope); visit(expr.arguments, scope); return;
+      case 'ArrayIndexExpression': visitWithMember(expr.object, scope); visit(expr.indexes, scope); return;
+      default: visit(expr, scope);
+    }
+  }
+
   function visit(value: unknown, scope: Scope): void {
     if (Array.isArray(value)) {
       for (const item of value) visit(item, scope);
@@ -246,8 +259,8 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
         visit(node.rows, scope);
         visit(node.columns, scope);
         return;
-      case 'PublicDeclaration': declare(scope, node.name, 'public', at); return;
-      case 'PrivateDeclaration': declare(scope, node.name, 'private', at); return;
+      case 'PublicDeclaration': declare(scope, node.name, 'public', at, null, node.isArray); return;
+      case 'PrivateDeclaration': declare(scope, node.name, 'private', at, null, node.isArray); return;
       case 'PrivateAll':
       case 'PrivateAllLike':
         scope.privateAll = true;
@@ -356,6 +369,9 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
         // The callee of a bare call is a function name, not a variable read.
         if (node.callee.type !== 'Identifier') visit(node.callee, scope);
         visit(node.arguments, scope);
+        return;
+      case 'WithMemberExpression':
+        visitWithMember(node.expression, scope);
         return;
 
       default:

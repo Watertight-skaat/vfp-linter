@@ -40,6 +40,7 @@ export type Expr =
   | InExpression
   | CallExpression
   | MemberExpression
+  | WithMemberExpression
   | ArrayIndexExpression
   | CastExpression
   | ExistsExpression
@@ -311,6 +312,13 @@ export interface MemberExpression extends NodeBase {
   property: Identifier;
 }
 
+/** A reference opening with a dot inside WITH ... ENDWITH, so it names a property of the WITH target rather than a memory variable. The leading dot is the only thing that distinguishes the two, which is why it is kept. */
+export interface WithMemberExpression extends NodeBase {
+  type: 'WithMemberExpression';
+  /** The chain after the dot: `Caption`, `grdLines.RecordSource`, `Objects(n).Style`. Its root identifier is a property name, not a variable -- only the arguments and subscripts inside it are real references. */
+  expression: Expr;
+}
+
 export interface ArrayIndexExpression extends NodeBase {
   type: 'ArrayIndexExpression';
   object: Expr;
@@ -366,7 +374,6 @@ export interface ProcedureStatement extends NodeBase {
   parameters: ProcedureParam[] | string[];
   returnType: IdentifierOrString | null;
   body: BlockStatement;
-  returnExpression: Expr | null;
   /** True when the parameters came from an LPARAMETERS/PARAMETERS line rather than a parameter list. */
   lparameters: boolean;
 }
@@ -412,11 +419,13 @@ export interface LocalArrayDeclaration extends NodeBase {
 export interface PublicDeclaration extends NodeBase {
   type: 'PublicDeclaration';
   name: string;
+  isArray: boolean;
 }
 
 export interface PrivateDeclaration extends NodeBase {
   type: 'PrivateDeclaration';
   name: string;
+  isArray: boolean;
 }
 
 /** PRIVATE ALL, which hides every variable of the caller. */
