@@ -2,59 +2,37 @@
 
 Diagnostics for Visual FoxPro `.prg`, `.mpr` and `.spr` files in VS Code.
 
-It parses your code with a real grammar rather than matching patterns, which is what lets the checks
-below tell a field from a variable, a subquery from a statement, and syntax the linter has not learned
-from code that is actually wrong.
+The extension parses your code with a real grammar instead of matching patterns, so it can tell a field from a variable and a subquery from a statement.
 
 ## What it checks
 
 | Code | Severity | What it reports |
 | ---- | -------- | --------------- |
-| `syntax-error` | Error | The parser could not read the file at all |
+| `syntax-error` | Error | The parser could not read the file |
 | `unterminated-block` | Error | A block opener whose terminator is missing |
 | `unsupported-syntax` | Information | Valid FoxPro the grammar has not learned yet (configurable) |
-| `implicit-private` | Warning | An assignment to a name nothing declared, which FoxPro creates as a PRIVATE |
-| `unused-local` | Warning | A `LOCAL` that is never read or written, so it is dead or the name is misspelled below |
+| `implicit-private` | Warning | An assignment to an undeclared name, which FoxPro creates as a PRIVATE |
+| `unused-local` | Warning | A `LOCAL` that is never read or written |
 | `missing-memvar-prefix` | Warning | A variable referenced without `m.` whose name is also used as a field |
 | `unreachable-code` | Warning | A statement after `RETURN` / `EXIT` / `LOOP` in the same block |
 | `duplicate-case` | Warning | A `CASE` condition identical to an earlier one in the same `DO CASE` |
 | `private-all` | Warning | `PRIVATE ALL`, which hides every variable of the caller |
 | `unlinked-tables` | Warning | Tables in `FROM` with nothing relating them: a Cartesian product |
-| `select-without-into` | Warning | A query with no `INTO` or `TO`, which browses its whole result at run time |
+| `select-without-into` | Warning | A query with no `INTO` or `TO`, which browses its whole result |
 | `having-without-group-by` | Information | `HAVING` with no `GROUP BY`, so it is only a post-filter |
 | `try-without-catch` | Information | A `TRY` with neither `CATCH` nor `FINALLY` |
 | `empty-branch` | Information | An `IF`, `ELSE`, `CASE` or `OTHERWISE` branch with no statements |
 
-Every diagnostic carries its code, so you can filter or turn off any of them from the Problems panel.
+Every diagnostic carries its code, so you can filter or disable any of them from the Problems panel.
 
-### The ones that hold back on purpose
+### Rules that deliberately stay quiet
 
-A linter that cries wolf gets switched off, so four of these are built to stay quiet unless there is
-real evidence.
+A few rules would be unusable if they reported everything they could, so they hold back:
 
-**`missing-memvar-prefix`.** When a memory variable and a field of an open table share a name, a bare
-reference resolves to *the field* — so `lcName = "x"` can update the record instead of the variable.
-Which names are fields cannot be known without opening the table, and flagging every bare reference
-while a table is open would flag nearly every line of real FoxPro. So it reports only names your file
-itself shows being used as a field: a column in a `CREATE`, a `REPLACE` target, an `INSERT` column
-list, or a reference qualified by an alias the file opens. No evidence of a collision, no report.
-
-**`unlinked-tables`.** Each table in `FROM` is a node and each condition mentioning two of them is an
-edge; it reports when the graph comes out in more than one piece, and names the pieces. Three things
-silence it, because any of them could be the missing link: a name the query cannot attribute to a
-table (`WHERE cust_id = o_cust_id`), a macro, and a derived table. Two tables compared to the same
-variable count as related, since that is how a parent and its children are usually fetched by a key.
-
-**`unused-local`.** The other half of `implicit-private`: that rule reports a name nothing declared,
-this one a declaration nothing uses. It covers `LOCAL` only — `PUBLIC` and `PRIVATE` exist to be seen
-by the routines you call, so silence in the declaring routine says nothing about them, and an unused
-parameter is usually a signature the caller still passes. The pair is most useful together: declare
-`lcName` and then assign `lcNmae`, and you get an unused local at the declaration and an implicit
-private at the typo.
-
-**`empty-branch`** is advisory because comments are not part of the syntax tree, so a branch holding
-only a comment reads as empty. An empty `ELSE` is reported at the `IF` line, which is the nearest
-position the parser gives for it.
+- **`missing-memvar-prefix`** only reports names your own file shows being used as a field — a column in a `CREATE`, a `REPLACE` target, an `INSERT` column list, or a reference qualified by an alias the file opens. Flagging every bare reference would flag nearly every line.
+- **`unlinked-tables`** treats each table in `FROM` as a node and each condition mentioning two of them as an edge, then reports when the graph splits. A name it cannot attribute to a table, a macro, or a derived table silences it, since any of those could be the missing link. Two tables compared to the same variable count as related.
+- **`unused-local`** covers `LOCAL` only. `PUBLIC` and `PRIVATE` are meant to be read by other routines, and an unused parameter is usually just a signature the caller still passes.
+- **`empty-branch`** is advisory because comments are not in the syntax tree, so a branch holding only a comment looks empty.
 
 ## Settings
 
@@ -63,32 +41,17 @@ position the parser gives for it.
 | `foxpro.unsupportedSyntaxSeverity` | `information` | How to report statements the grammar cannot parse yet |
 | `foxpro.maxNumberOfProblems` | `100` | Caps the diagnostics reported per file |
 
-`unsupportedSyntaxSeverity` exists because "the linter does not know this statement" is not the same
-claim as "this statement is wrong". The grammar does not cover all of FoxPro, so valid code can reach
-the catch-all rule, and reporting that as an error puts red squiggles under working programs. It is
-advisory by default and takes `error`, `warning`, `information`, `hint` or `off`.
+The grammar does not cover all of FoxPro, so valid code can reach the catch-all rule. `unsupportedSyntaxSeverity` keeps that advisory by default; it takes `error`, `warning`, `information`, `hint` or `off`.
 
-Two things are never quieted with it, because both are genuinely wrong: a syntax error the parser
-throws on, and a block whose terminator is missing. The second needs the special case because the
-catch-all swallows the opening line of an unterminated `IF`, `FOR`, `TRY`, `WITH`, `DEFINE CLASS` or
-`TEXT` rather than failing the parse, so nothing else would report it.
+Syntax errors and unterminated blocks are never quieted by that setting, because both are genuinely wrong.
 
 ## What it does not read yet
 
-Most of the language parses, including the parts that are easy to get wrong: `TEXT ... ENDTEXT` with
-its body left as raw text, the `ON ERROR` family, SQL `CASE WHEN`, the `::` scope-resolution operator,
-`@ ... SAY`/`GET`, and the Xbase housekeeping and output commands.
+Still unread, and reported as `unsupported-syntax`: the screen and menu commands (`DEFINE WINDOW`, `DEFINE BAR`, `ACTIVATE WINDOW`, `ON SELECTION BAR`), the pre-SQL data commands (`TOTAL`, `JOIN WITH`, `UPDATE ON`, `COPY STRUCTURE`, `DELETE TAG`, `BLANK`), `SAVE TO`/`RESTORE FROM`, `PRIVATE ALL EXCEPT`, `ASSERT`, `PLAY MACRO`, table-level constraints in `CREATE TABLE`, and a multi-target `STORE` with a subscripted target.
 
-Still unread, and so reported as `unsupported-syntax`: the screen and menu commands (`DEFINE WINDOW`,
-`DEFINE BAR`, `ACTIVATE WINDOW`, `ON SELECTION BAR`), the pre-SQL data commands (`TOTAL`, `JOIN WITH`,
-`UPDATE ON`, `COPY STRUCTURE`, `DELETE TAG`, `BLANK`), `SAVE TO`/`RESTORE FROM`, `PRIVATE ALL EXCEPT`,
-`ASSERT`, `PLAY MACRO`, a table-level constraint in `CREATE TABLE`, and a multi-target `STORE` where
-one target is subscripted. Macro substitution is parsed where it appears, and `&lcCmd` counts as a
-read of `lcCmd`, but a macro's contents are only known at run time — so checks that depend on reading
-a condition step aside when they meet one.
+Macro substitution is parsed where it appears, and `&lcCmd` counts as a read of `lcCmd`, but a macro's contents are only known at run time, so checks that depend on reading a condition skip it.
 
-If you hit something valid that reports as unsupported, an issue with the statement in it is the most
-useful thing you can send.
+If you hit something valid that reports as unsupported, please open an issue with the statement in it.
 
 ## Requirements
 
@@ -96,5 +59,4 @@ VS Code 1.101 or later.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the build, the test suites, and how the grammar, the typed
-AST and the symbol table fit together.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the build, the test suites, and how the grammar, the typed AST and the symbol table fit together.
