@@ -8,10 +8,6 @@ CREATE TRIGGER ON customer FOR INSERT AS NewCustomer()
 DELETE TRIGGER ON customer FOR INSERT
 VALIDATE DATABASE RECOVER
 
-* RENAME's database forms. The file form -- RENAME old.dbf TO new.dbf -- is read; these rename an object inside the container instead, and TABLE is the one that appears in real code.
-RENAME TABLE oldname TO newname
-RENAME CLASS poster OF posters.vcx TO banner
-
 * SHUTDOWN ends the VFP session, running ON SHUTDOWN first. QUIT, which does not, is read.
 SHUTDOWN
 

@@ -182,4 +182,21 @@ check('SCATTER reads it as well, and keeps the clause after it',
 check('a plain field list is unchanged', first('COPY TO x FIELDS a, b').fields, { kind: 'list', fields: ['a', 'b'] });
 check('and a field whose name starts with one', first('COPY TO x FIELDS likely, extra').fields, { kind: 'list', fields: ['likely', 'extra'] });
 
+// --- RENAME's container forms -----------------------------------------------------
+// RENAME TABLE and its three siblings rename an object inside the database or class library; the file form renames bytes on disk. Every assertion below is on which of the two matched, since both start with the same word.
+check('RENAME TABLE names both ends', first('RENAME TABLE oldname TO newname'),
+	{ type: 'RenameObjectStatement', kind: 'TABLE', source: 'oldname', library: null, destination: 'newname' });
+check('RENAME VIEW is the same shape', (({ kind, source, destination }) => [kind, source, destination])(first('RENAME VIEW v1 TO v2')), ['VIEW', 'v1', 'v2']);
+check('so is RENAME CONNECTION', first('RENAME CONNECTION c1 TO c2').kind, 'CONNECTION');
+check('RENAME CLASS keeps its library, extension and all', first('RENAME CLASS poster OF posters.vcx TO banner'),
+	{ type: 'RenameObjectStatement', kind: 'CLASS', source: 'poster', library: { type: 'Path', path: 'posters.vcx' }, destination: 'banner' });
+check('a name expression reads on the old end', first('RENAME TABLE (lcOld) TO (lcNew)').source, { type: 'Identifier', name: 'lcOld' });
+check('and on the new one', first('RENAME TABLE (lcOld) TO (lcNew)').destination, { type: 'Identifier', name: 'lcNew' });
+check('the file form is untouched', first('RENAME old.dbf TO new.dbf'),
+	{ type: 'RenameStatement', source: { type: 'Path', path: 'old.dbf' }, destination: { type: 'Path', path: 'new.dbf' } });
+check('and a file that starts with the keyword still renames a file', first('RENAME table.dbf TO new.dbf').type, 'RenameStatement');
+check('a file actually named TABLE too, which is where the two forms meet', first('RENAME TABLE TO newname').source, { type: 'Path', path: 'TABLE' });
+check('a name that merely starts with it too', first('RENAME tablename TO other').source, { type: 'Path', path: 'tablename' });
+check('COPY FILE is unchanged beside it', first('COPY FILE a.txt TO b.txt').type, 'CopyFileStatement');
+
 report('Parse checks');

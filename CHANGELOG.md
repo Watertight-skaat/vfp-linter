@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.3.1
+
+### `RENAME`'s container forms
+
+`RENAME TABLE oldname TO newname` renames an object inside the database container rather than a file
+on disk, and until now reported itself as unsupported. It and its three siblings -- `RENAME VIEW`,
+`RENAME CONNECTION` and `RENAME CLASS poster OF posters.vcx TO banner`, whose library keeps its
+extension -- are one `RenameObjectStatement` carrying `kind`, and either end may be a name expression
+in parentheses. The file form is untouched: `RENAME table.dbf TO new.dbf`, and even a file actually
+named `TABLE`, still read as a file.
+
+`CopyFileStatement` and `RenameStatement` were emitted through a ternary, which is the one shape the
+AST suite's probe cannot see, so neither had ever been declared in `ast.ts`. Both are now emitted by
+name and declared, and the suite checks their properties like every other node's.
+
 ## 1.3.0
 
 ### `DEFINE CLASS` member declarations
@@ -50,7 +65,7 @@ called `LIKE` and left the skeleton behind. Found while probing for what else th
 ### The ledger fixture
 
 Refilled, with nine constructs the same probe turned up and nobody had recorded: `CREATE TRIGGER` /
-`DELETE TRIGGER`, `VALIDATE DATABASE`, `RENAME TABLE` / `RENAME CLASS`, `SHUTDOWN`, the Foxbase
+`DELETE TRIGGER`, `VALIDATE DATABASE`, `RENAME TABLE` / `RENAME CLASS` (since read), `SHUTDOWN`, the Foxbase
 `MENU BAR` / `MENU TO` / `READ MENU TO`, and `RELEASE MENU` / `RELEASE POPUP`, which reads as far as
 the word and then takes `MENU` for the name of a variable to release.
 

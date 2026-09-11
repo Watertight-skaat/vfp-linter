@@ -1187,6 +1187,28 @@ export interface CopyMemoStatement extends NodeBase {
   additive: boolean;
 }
 
+/** COPY FILE and the file form of RENAME, which both move bytes on disk. */
+export interface CopyFileStatement extends NodeBase {
+  type: 'CopyFileStatement';
+  source: Expr | Path;
+  destination: Expr | Path;
+}
+
+export interface RenameStatement extends NodeBase {
+  type: 'RenameStatement';
+  source: Expr | Path;
+  destination: Expr | Path;
+}
+
+/** RENAME TABLE | VIEW | CONNECTION | CLASS, which rename an object inside the database or class library rather than a file. `library` is the OF clause, which only CLASS has. */
+export interface RenameObjectStatement extends NodeBase {
+  type: 'RenameObjectStatement';
+  kind: 'TABLE' | 'VIEW' | 'CONNECTION' | 'CLASS';
+  source: Expr | string;
+  library: Expr | Path | null;
+  destination: Expr | string;
+}
+
 export interface CopyToStatement extends NodeBase {
   type: 'CopyToStatement';
   target: Expr | Path;
@@ -1495,10 +1517,13 @@ export type Statement =
   | CloseStatement
   | ColumnDefinition
   | ContinueStatement
+  | CopyFileStatement
   | CopyMemoStatement
   | CopyToStatement
   | CopyStructureStatement
   | CopyIndexesStatement
+  | RenameStatement
+  | RenameObjectStatement
   | CreateStatement
   | CreateViewStatement
   | DeclareStatement

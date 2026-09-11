@@ -17,10 +17,9 @@
 Reported as `unsupported-syntax`. `test-files/diagnostics/still-unsupported.prg` holds the list, and everything on it was found by probing the parser rather than by reading the grammar.
 
 - **`CREATE TRIGGER` / `DELETE TRIGGER`, and `VALIDATE DATABASE`** — the referential-integrity side of the database container. `DELETE TRIGGER` is partial: `DELETE` parses and `ON customer FOR INSERT` is what is lost.
-- **`RENAME TABLE` and `RENAME CLASS`** — the container forms. The file form, `RENAME old.dbf TO new.dbf`, is read; these rename an object inside the container instead, and `TABLE` is the one that appears in real code.
 - **`SHUTDOWN`** — ends the session, running `ON SHUTDOWN` first. `QUIT`, which does not, is read.
 - **The Foxbase menu system** — `MENU BAR`, `MENU TO` and `READ MENU TO`, which predate `DEFINE POPUP` and still turn up in the oldest files. `MENU TO` puts the chosen bar number in a variable, so what is lost is a write the symbol table never sees.
-- **`RELEASE MENU` / `RELEASE POPUP`** — partial, and the worst shape of the five: `RELEASE` reads as far as the word, then takes `MENU` for the name of a variable to release and leaves the real name behind. It is the only one here that misparses rather than reporting, so fixing it is worth more than the line count suggests.
+- **`RELEASE MENU` / `RELEASE POPUP`** — partial, and the worst shape of the four: `RELEASE` reads as far as the word, then takes `MENU` for the name of a variable to release and leaves the real name behind. It is the only one here that misparses rather than reporting, so fixing it is worth more than the line count suggests.
 
 Two things a sweep found that are not gaps but misparses, so nothing reports them:
 

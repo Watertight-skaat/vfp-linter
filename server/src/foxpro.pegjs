@@ -1011,7 +1011,7 @@ PreferenceClause
 // COPY/RENAME
 // -----------------------------
 CopyStatement "copy/rename statement"
-  = CopyFileStatement / CopyIndexesStatement / CopyMemoStatement / CopyStructureStatement / CopyToStatement
+  = RenameObjectStatement / CopyFileStatement / CopyIndexesStatement / CopyMemoStatement / CopyStructureStatement / CopyToStatement
 
 // COPY MEMO MemoFieldName TO FileName [ADDITIVE], the memo-field twin of COPY TO.
 CopyMemoStatement
@@ -1027,8 +1027,20 @@ CopyIndexesStatement
     }
 
 CopyFileStatement
-  = action:("COPY FILE"i / "RENAME"i) WB _ src:PathOrExpression _ "TO"i _ dst:PathOrExpression {
-      return node(action === 'COPY FILE' ? 'CopyFileStatement' : 'RenameStatement', { source: src, destination: dst });
+  = "COPY FILE"i WB _ src:PathOrExpression _ "TO"i _ dst:PathOrExpression {
+      return node('CopyFileStatement', { source: src, destination: dst });
+    }
+  / "RENAME"i WB _ src:PathOrExpression _ "TO"i _ dst:PathOrExpression {
+      return node('RenameStatement', { source: src, destination: dst });
+    }
+
+// RENAME's database-container forms, which rename an object inside the container rather than a file on disk. Ahead of the file form to read in the order the two are written, though either order parses both: the file form needs TO as its second token, so a kind keyword and a name in front of it make it backtrack on its own. RENAME TABLE TO new -- a file actually named TABLE -- is the one place the two meet, and it still reads as the file.
+RenameObjectStatement
+  = "RENAME"i WB _ kind:("TABLE"i / "VIEW"i / "CONNECTION"i) WB _ src:CreateTarget _ "TO"i WB _ dst:CreateTarget {
+      return node('RenameObjectStatement', { kind: kind.toUpperCase(), source: src, library: null, destination: dst });
+    }
+  / "RENAME"i WB _ "CLASS"i WB _ src:CreateTarget _ "OF"i WB _ lib:PathOrExpression _ "TO"i WB _ dst:CreateTarget {
+      return node('RenameObjectStatement', { kind: 'CLASS', source: src, library: lib, destination: dst });
     }
 
 CopyToStatement
