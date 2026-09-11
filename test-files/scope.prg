@@ -100,3 +100,56 @@ PROCEDURE Styling
 		.Columns(m.tnColumn).Width = 64
 	ENDWITH
 ENDPROC
+
+* SCATTER and GATHER are how a record becomes an object, CATCH TO takes the m.-prefixed spelling house
+* style puts on every variable, TEXT TO builds a string, and DO FORM's NAME and TO both create the name
+* they are given. Every one of these is a reference the symbol table could not see at all: the
+* statements either did not parse or parsed with the name thrown away, so nothing downstream knew the
+* variable had been touched. A macro substitution is a read of the variable being run, which is the
+* only thing standing between a macro-driven local and looking unused.
+PROCEDURE Records
+	LPARAMETERS tcTable
+	LOCAL loRow, lcCommand, loErr, lcReport, loPicked
+	lcCommand = "GO TOP"
+	USE (m.tcTable) AGAIN IN 0
+	SCATTER NAME m.loRow MEMO
+	GATHER NAME m.loRow MEMO
+	&lcCommand
+	TEXT TO m.lcReport NOSHOW ADDITIVE TEXTMERGE PRETEXT 1
+		<<m.loRow.invnum>>
+	ENDTEXT
+	DO FORM branchpick TO m.loPicked
+	TRY
+		COUNT TO lnSeen
+	CATCH TO m.loErr
+		? m.loErr.Message
+	ENDTRY
+	RETURN m.lcReport + m.loPicked
+ENDPROC
+
+* SCAN takes FOR and WHILE in either order. Reading them in a fixed order left the second clause to the
+* catch-all, which reported it as an unterminated FOR block; here both operands have to reach the tree.
+PROCEDURE Reordered
+	LPARAMETERS tnLimit, tnCols
+	SCAN REST WHILE invbal < tnCols FOR invbal > tnLimit
+		? invbal
+	ENDSCAN
+ENDPROC
+
+* A member named with a keyword is a property, not a memory variable. The names list is the assertion:
+* TO, FROM and CLASS appearing here would mean the grammar had cut each reference at the dot and booked
+* the keyword as a variable of its own.
+PROCEDURE KeywordMembers
+	LPARAMETERS toMessage
+	LOCAL lcJoined
+	lcJoined = m.toMessage.To + m.toMessage.From + m.toMessage.Class
+	m.toMessage.To = m.lcJoined
+ENDPROC
+
+* A work area named by an expression. `USE IN (m.cAlias)` is how an area held in a variable is closed;
+* the alias cannot be known statically, but the read of the variable naming it is still real.
+PROCEDURE ComputedAreas
+	LPARAMETERS tcAlias
+	USE IN (m.tcAlias)
+	SET ORDER TO (m.tcAlias) IN (m.tcAlias)
+ENDPROC

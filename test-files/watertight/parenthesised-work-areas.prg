@@ -1,6 +1,4 @@
-* A work area named by an expression rather than a literal. The grammar accepts the parenthesised
-* form where a table name is expected but not where an alias is expected, so these lines are read
-* only as far as the parenthesis and the rest of the line is left over.
+* A work area named by an expression rather than a literal. The parenthesised form is accepted wherever an alias is expected, not only where a table name is: accepting it in one place and not the other left the rest of each of these lines to the catch-all.
 LPARAMETERS m.cPath, m.cAlias, m.cTag
 
 * Closing a work area whose alias is held in a variable.

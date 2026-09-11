@@ -307,8 +307,25 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
         visit(node.collection, scope);
         visit(node.body, scope);
         return;
+      case 'TextBlockStatement':
+        // TEXT TO builds the variable's contents, so it is a write. The body is output text rather than code, so a name that appears only inside a <<...>> merge is invisible here -- which cannot produce a false 'unused' because a variable worth merging has to have been assigned somewhere first.
+        reference(scope, node.to, 'write', at);
+        return;
+      case 'DoFormStatement':
+        // NAME creates the form object and TO receives what the form returns. Both create the name.
+        reference(scope, node.name, 'write', at);
+        reference(scope, node.to, 'write', at);
+        visit(node.arguments, scope);
+        return;
+      case 'ScatterStatement':
+        // TO and NAME both create the name they are handed. MEMVAR spreads the record over one variable per field, none of which is named here.
+        reference(scope, node.name, 'write', at);
+        return;
+      case 'GatherStatement':
+        reference(scope, node.name, 'read', at);
+        return;
       case 'CalculateStatement':
-      case 'SumStatement':
+      case 'AggregateStatement':
         if (node.to?.kind === 'ARRAY') reference(scope, node.to.name, 'write', at);
         else for (const name of node.to?.vars ?? []) reference(scope, name, 'write', at);
         visit(node.expressions, scope);
@@ -316,15 +333,32 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
         visit(node.whileCondition, scope);
         return;
 
+      case 'TryStatement':
+        visit(node.tryBlock, scope);
+        if (node.catchClause) {
+          // CATCH TO creates the error object, so an undeclared name there is an implicit PRIVATE like any other.
+          reference(scope, node.catchClause.to, 'write', at);
+          visit(node.catchClause.when, scope);
+          visit(node.catchClause.body, scope);
+        }
+        visit(node.thrown, scope);
+        visit(node.finallyBlock, scope);
+        return;
+
       // --- work area ---
       case 'UseStatement': {
         if (!node.target) {
-          workArea(scope, 'close', null, 'USE', at);
+          // `USE IN <area>` closes that area and leaves the current one alone; a bare USE closes the current one.
+          workArea(scope, 'close', node.inTarget, 'USE', at, node.inTarget != null);
+          visit(node.inTarget, scope);
           return;
         }
         // An explicit ALIAS names the area; otherwise it takes the name of the table.
         const named = node.target.kind === 'TABLE' ? node.target.name : null;
         workArea(scope, 'open', node.alias ?? named, 'USE', at, node.inTarget != null);
+        // A table or alias named by an expression -- `USE (m.cPath) ALIAS (m.cAlias)` -- reads whatever the expression holds.
+        if (node.target.kind === 'EXPR') visit(node.target.value, scope);
+        visit(node.alias, scope);
         visit(node.inTarget, scope);
         return;
       }
@@ -369,6 +403,10 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
         // The callee of a bare call is a function name, not a variable read.
         if (node.callee.type !== 'Identifier') visit(node.callee, scope);
         visit(node.arguments, scope);
+        return;
+      case 'MacroSubstitute':
+        // `&lcCmd` evaluates the variable's contents as code, which is a read of it like any other. Without this the name is invisible to the symbol table, and a local used only through a macro looks unused.
+        reference(scope, node.name, 'read', at);
         return;
       case 'WithMemberExpression':
         visitWithMember(node.expression, scope);

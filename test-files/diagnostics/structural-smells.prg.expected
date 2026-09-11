@@ -4,4 +4,5 @@
 38:2 information empty-branch This ELSE branch is empty and can be removed.
 43:2 information empty-branch This CASE branch is empty, so matching it does nothing.
 51:2 information try-without-catch This TRY has neither CATCH nor FINALLY, so it handles nothing and any error still propagates to the caller.
+57:2 warning implicit-private 'oErr' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything Handled calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.
 66:10 warning private-all PRIVATE ALL hides every variable of the caller from this routine and everything it calls. Name the variables it needs to hide, or declare the ones this routine owns as LOCAL.

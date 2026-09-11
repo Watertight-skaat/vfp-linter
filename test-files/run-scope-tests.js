@@ -33,7 +33,11 @@ check('scopes found', table.scopes.map(s => `${s.name}:${s.kind}`), [
 	'Branching:function',
 	'Filtering:procedure',
 	'Subscripts:procedure',
-	'Styling:procedure'
+	'Styling:procedure',
+	'Records:procedure',
+	'Reordered:procedure',
+	'KeywordMembers:procedure',
+	'ComputedAreas:procedure'
 ]);
 check('main is the root', table.main.name, '(main)');
 check('methods hang off the class', scope('Widget').children.map(c => c.name), ['Widget.Init', 'Widget.Label']);
@@ -134,5 +138,45 @@ check('alias before any USE', aliasInEffectAt(scope('(main)'), 4), null);
 check('alias after USE customer', aliasInEffectAt(scope('(main)'), 5), 'CUSTOMER');
 check('SELECT 0 makes the alias unknowable', aliasInEffectAt(scope('(main)'), 6), undefined);
 check('USE ... IN leaves the current area alone', aliasInEffectAt(scope('(main)'), 7), undefined);
+
+// SCATTER, GATHER, CATCH TO, TEXT TO, DO FORM and &macro each name a variable that reached the symbol
+// table as nothing at all: the statement either did not parse or parsed with the name thrown away. A
+// missing reference here is invisible to every diagnostics fixture, because a statement that quietly
+// drops its operand still reports nothing -- so the counts are the assertion.
+check('SCATTER NAME writes the object, GATHER NAME reads it', shape('Records', 'LOROW'),
+	{ kind: 'local', type: null, array: false, declared: true, reads: 1, writes: 1 });
+check('a macro substitution is a read of the variable being run', shape('Records', 'LCCOMMAND'),
+	{ kind: 'local', type: null, array: false, declared: true, reads: 1, writes: 1 });
+check('CATCH TO m.name creates the error object', shape('Records', 'LOERR'),
+	{ kind: 'local', type: null, array: false, declared: true, reads: 1, writes: 1 });
+check('TEXT TO builds the variable it names', shape('Records', 'LCREPORT'),
+	{ kind: 'local', type: null, array: false, declared: true, reads: 1, writes: 1 });
+check('DO FORM ... TO receives into the variable', shape('Records', 'LOPICKED'),
+	{ kind: 'local', type: null, array: false, declared: true, reads: 1, writes: 1 });
+check('COUNT TO writes an undeclared name', shape('Records', 'LNSEEN'),
+	{ kind: 'implicit', type: null, array: false, declared: false, reads: 0, writes: 1 });
+// A name inside a <<...>> merge is output text rather than code, so it is not a reference. That cannot
+// produce a false 'unused': a variable worth merging has to have been assigned somewhere first.
+check('a name inside a TEXTMERGE body is not a reference', sym('Records', 'INVNUM'), null);
+
+// SCAN takes FOR and WHILE in either order. The fixed order left the second clause to the catch-all,
+// which reported a missing ENDFOR for a block that was never opened; both operands must reach the tree.
+check('SCAN reads both clauses with WHILE written first',
+	[shape('Reordered', 'TNCOLS').reads, shape('Reordered', 'TNLIMIT').reads], [1, 1]);
+
+// A keyword after the dot is a property name. TO, FROM and CLASS appearing in this list would mean each
+// reference had been cut at the dot and the keyword booked as a memory variable of its own.
+check('keyword members are not variables', names('KeywordMembers'), ['LCJOINED', 'TOMESSAGE']);
+check('the object is read once per member reference', shape('KeywordMembers', 'TOMESSAGE'),
+	{ kind: 'parameter', type: null, array: false, declared: true, reads: 4, writes: 0 });
+
+// `USE IN cust` is the normal way to close a work area, and it read as opening a table named IN --
+// every work-area event in the corpus was wrong. The alias of a computed one cannot be known, but the
+// event is a targeted close either way, so the current area is left alone.
+check('USE IN closes a targeted area', scope('ComputedAreas').workArea.map(e => `${e.kind}:${e.alias}:${e.targeted ? 'in' : 'current'}`),
+	['close:null:in']);
+check('the variable naming a computed area is read', shape('ComputedAreas', 'TCALIAS'),
+	{ kind: 'parameter', type: null, array: false, declared: true, reads: 3, writes: 0 });
+check('a targeted close leaves the current alias alone', aliasInEffectAt(scope('ComputedAreas'), 200), null);
 
 report('Scope checks');

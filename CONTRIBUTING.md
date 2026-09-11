@@ -19,7 +19,7 @@
 | `bun run compile`   | Regenerates the parser, type-checks, and bundles client + server       |
 | `bun run dev`       | Watches the grammar, the bundles and both type-check projects          |
 | `bun run typecheck` | Type-checks only (esbuild does not type-check)                         |
-| `bun run test`        | Runs the four suites below                                           |
+| `bun run test`        | Runs the five suites below                                           |
 | `bun run test:update` | Re-records the expected diagnostics for every fixture                |
 | `bun run e2e`       | Launches VS Code and runs the end-to-end suite in `client/src/test`    |
 
@@ -31,6 +31,7 @@
 | `run-ast-tests.js`        | `ast.ts` declares exactly the node types and properties the grammar emits               |
 | `run-scope-tests.js`      | The contents of the symbol table built from `test-files/scope.prg`                       |
 | `run-severity-tests.js`   | Unsupported syntax follows the severity setting; broken code ignores it                  |
+| `run-keyword-tests.js`    | Every keyword literal in the grammar still allows an identifier that starts with it       |
 
 Fixtures live in three places. `test-files/*.prg` is the coverage corpus: the grammar is expected to
 read all of it. A `.expected` file against one of those records either a grammar gap or a rule

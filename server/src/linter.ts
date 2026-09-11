@@ -81,6 +81,7 @@ export function runLinterRules(ast: Program | null | undefined, options: LinterO
   // One table, read by every scope-dependent rule: building it is the expensive part, and the rules disagree only about what they ask it.
   const table = buildSymbolTable(ast);
   problems.push(...implicitPrivates(table));
+  problems.push(...unusedLocals(table));
   problems.push(...missingMemvarPrefix(ast, table));
   problems.push(...undirectedSelects(ast));
 
@@ -108,7 +109,6 @@ function getProblemsFromNode(node: AstNode, opts: Required<LinterOptions>): Lint
         'PRIVATE ALL hides every variable of the caller from this routine and everything it calls. Name the variables it needs to hide, or declare the ones this routine owns as LOCAL.'));
       break;
   }
-  // todo some day: warn about unused locals
   // todo: warn about naming variables badly (VFP Hungarian prefixes: lc/ln/ll/ld/lo/la, and flag a prefix that disagrees with what is assigned, e.g. lcCount = 0)
   return out;
 }
@@ -418,6 +418,27 @@ function implicitPrivates(table: SymbolTable): LintDiagnostic[] {
         `'${symbol.declaredAs}' is assigned but never declared, so FoxPro creates it as a PRIVATE: ` +
         `it stays visible to everything ${scopeLabel(scope)} calls, and a mistyped name becomes a new variable rather than an error. ` +
         `Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.`));
+    }
+  }
+  return out;
+}
+
+// The other half of the pair: implicit-private reports an entry with no declaration, this one a
+// declaration with no reference. LOCAL only -- PUBLIC and PRIVATE exist to be seen by the routines
+// this one calls, so silence here says nothing about them, and an unused parameter is usually a
+// signature the caller still passes. A reference inside SQL counts: a bare name there may be a column
+// rather than the variable, which is not enough to claim the variable was touched but is enough to
+// stop calling it unused.
+function unusedLocals(table: SymbolTable): LintDiagnostic[] {
+  const out: LintDiagnostic[] = [];
+  for (const scope of table.scopes) {
+    for (const symbol of scope.symbols.values()) {
+      if (symbol.kind !== 'local' || !symbol.declaredAt?.start) continue;
+      if (symbol.reads.length || symbol.writes.length) continue;
+      out.push(problem(Severity.Warning, symbol.declaredAt, 'unused-local',
+        `'${symbol.declaredAs}' is declared LOCAL in ${scopeLabel(scope)} and then never read or written. ` +
+        `Either it is left over and can go, or the name it was meant to be used under is misspelled somewhere below ` +
+        `-- in which case that spelling is creating a PRIVATE of its own.`));
     }
   }
   return out;

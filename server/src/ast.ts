@@ -586,14 +586,14 @@ export interface ExpressionStatement extends NodeBase {
 export interface PrintStatement extends NodeBase {
   type: 'PrintStatement';
   arguments: Expr[];
-  /** The first argument, kept for callers that only want one. */
-  argument: Expr | null;
 }
 
 export interface WaitWindowStatement extends NodeBase {
   type: 'WaitWindowStatement';
   nowait: boolean;
   noclear: boolean;
+  clear: boolean;
+  timeout: Expr | null;
   message: Expr | null;
 }
 
@@ -742,6 +742,29 @@ export interface ReplaceStatement extends NodeBase {
   noOptimize: boolean;
 }
 
+/** SCATTER's destination: MEMVAR spreads the record over m.-prefixed variables, ARRAY and NAME create the name they are given. */
+export type ScatterDestination = 'MEMVAR' | 'ARRAY' | 'NAME';
+
+export interface ScatterStatement extends NodeBase {
+  type: 'ScatterStatement';
+  destination: ScatterDestination | null;
+  /** The array or object the record is copied into. Null for MEMVAR, which names no single variable. */
+  name: string | null;
+  fields: FieldsSelection | null;
+  memo: boolean;
+  blank: boolean;
+  additive: boolean;
+  autoMem: boolean;
+}
+
+export interface GatherStatement extends NodeBase {
+  type: 'GatherStatement';
+  source: ScatterDestination | null;
+  name: string | null;
+  fields: FieldsSelection | null;
+  memo: boolean;
+}
+
 export interface CalculateStatement extends NodeBase {
   type: 'CalculateStatement';
   expressions: Expr[];
@@ -753,8 +776,11 @@ export interface CalculateStatement extends NodeBase {
   inTarget: Expr | null;
 }
 
-export interface SumStatement extends NodeBase {
-  type: 'SumStatement';
+/** SUM, AVERAGE and COUNT: one command with three names and one option tail. */
+export interface AggregateStatement extends NodeBase {
+  type: 'AggregateStatement';
+  command: 'SUM' | 'AVERAGE' | 'COUNT';
+  /** COUNT brings none. */
   expressions: Expr[] | null;
   scope: RecordScope | null;
   forCondition: Expr | null;
@@ -762,6 +788,64 @@ export interface SumStatement extends NodeBase {
   to: CalcTarget | null;
   noOptimize: boolean;
   inTarget: Expr | null;
+}
+
+export interface FlushStatement extends NodeBase {
+  type: 'FlushStatement';
+  force: boolean;
+}
+
+export interface ReindexStatement extends NodeBase {
+  type: 'ReindexStatement';
+  compact: boolean;
+}
+
+export interface DirectoryStatement extends NodeBase {
+  type: 'DirectoryStatement';
+  command: 'MKDIR' | 'RMDIR' | 'CHDIR' | 'MD' | 'RD' | 'CD';
+  target: Expr | Path;
+}
+
+/** CONTINUE resumes the last LOCATE. LOOP is ContinueStatement; this one does not end a block. */
+export interface ContinueLocateStatement extends NodeBase {
+  type: 'ContinueLocateStatement';
+}
+
+export interface NoDefaultStatement extends NodeBase {
+  type: 'NoDefaultStatement';
+}
+
+export interface PushPopStatement extends NodeBase {
+  type: 'PushPopStatement';
+  command: 'PUSH' | 'POP';
+  what: 'KEY' | 'MENU' | 'POPUP';
+  options: string | null;
+}
+
+/** EXTERNAL is a compiler directive: it creates nothing, but the names in it are deliberate. */
+export interface ExternalStatement extends NodeBase {
+  type: 'ExternalStatement';
+  kind: string;
+  names: string[];
+}
+
+export interface ModifyStatement extends NodeBase {
+  type: 'ModifyStatement';
+  what: string;
+  options: string | null;
+}
+
+export interface AlterTableStatement extends NodeBase {
+  type: 'AlterTableStatement';
+  name: IdentifierOrString;
+  /** The DDL tail, kept as source: recognising the statement is what stops the false positive. */
+  options: string | null;
+}
+
+export interface RunStatement extends NodeBase {
+  type: 'RunStatement';
+  /** The shell command line, which is not FoxPro. */
+  command: string;
 }
 
 export interface SkipStatement extends NodeBase {
@@ -888,6 +972,8 @@ export interface SetCommand extends NodeBase {
   type: 'SetCommand';
   command: string | Keyword;
   argument: Expr | null;
+  /** `SET FILTER TO` with nothing after it, which clears the setting rather than leaving it alone. */
+  cleared: boolean;
   state: 'ON' | 'OFF' | null;
   additive: boolean;
 }
@@ -1114,6 +1200,8 @@ export type Statement =
   | ReportFormStatement
   | ResumeStatement
   | ReplaceStatement
+  | ScatterStatement
+  | GatherStatement
   | ReturnStatement
   | ScanStatement
   | SelectItem
@@ -1124,9 +1212,19 @@ export type Statement =
   | SetTo
   | SeekStatement
   | SkipStatement
+  | FlushStatement
+  | ReindexStatement
+  | DirectoryStatement
+  | ContinueLocateStatement
+  | NoDefaultStatement
+  | PushPopStatement
+  | ExternalStatement
+  | ModifyStatement
+  | AlterTableStatement
+  | RunStatement
   | SortStatement
   | StoreStatement
-  | SumStatement
+  | AggregateStatement
   | SuspendStatement
   | TableConstraint
   | TextBlockStatement

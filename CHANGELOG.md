@@ -1,5 +1,76 @@
 # Changelog
 
+## Unreleased
+
+### `unused-local`
+
+The other half of `implicit-private`. That rule reports a name nothing declared; this one reports a
+declaration nothing uses — `reads` and `writes` both empty in the symbol table. `LOCAL` only: `PUBLIC`
+and `PRIVATE` exist to be seen by the routines you call, so silence in the declaring routine says
+nothing about them, and an unused parameter is usually a signature the caller still passes.
+
+Measured before it shipped, the way the roadmap's `=` rule taught: across 93 fixtures it fires six
+times and every one is real. One of them is the shape the rule exists for — `form-launch.prg` declares
+`oCustomer` and the code below uses `oCustomerForm`, so the pair now reports the dead declaration and
+the accidental PRIVATE at the same time.
+
+### Grammar coverage
+
+Every construct on the roadmap's measured list now parses:
+
+- `TEXT ... ADDITIVE` written anywhere in the option list, not only next to the variable. This was the
+  one gap that cost a whole **file** its parse rather than one statement
+- `SCAN ... WHILE ... FOR ...` in either order, which had been reported as an unterminated `FOR` block
+  that was never opened — a false positive at error severity
+- `SCATTER` and `GATHER` in every form, which is how a record becomes an object
+- a keyword after a dot: `.To`, `.From`, `.Class`, `.Select`. `.AND.`, `.T.` and `.NULL.` are still
+  told apart, by the closing dot
+- `CATCH TO m.ErrObj`, the house spelling of `CATCH`
+- `PARAM`, `PARAMETER` and `LPARAMETER`, which declare a routine's inputs
+- a parenthesised alias wherever an alias is expected: `USE IN (m.cAlias)`, `SET ORDER TO (m.cTag)`,
+  `GO TOP IN (m.cAlias)`. This unblocks the work-area rules
+- `FLUSH`, `REINDEX`, `MD`/`RD`/`CD`, `COUNT`, `AVERAGE`, `CONTINUE`, `NODEFAULT`, `PUSH`/`POP KEY`,
+  `EXTERNAL`, `MODIFY`, `ALTER TABLE`, `RUN`, `SET <x> TO` with no argument, and `WAIT WINDOW` with
+  its flags after the message rather than before it
+
+### Silent misparses
+
+The previous round recorded none of these left. Sweeping the grammar again for a labelled group read
+as if it were its own sequence found **thirteen** more, each of which parsed and then handed back the
+wrong value — so no fixture could have reported any of them:
+
+- `CATCH TO loErr` returned `"E"`, the third character of the name; `CATCH ... WHEN` returned nothing
+- `ZAP IN ord` and `UNLOCK ... IN ord` returned `"d"`; `SKIP ... IN` and `UNLOCK RECORD` returned nothing
+- `AS ... OF <library>` on `LOCAL` and on `LOCAL ARRAY`
+- `COLLATE` on a column definition, on the `UNIQUE` constraint and on the `FOREIGN KEY` constraint,
+  and `TAG` on a column's `REFERENCES` and on the `FOREIGN KEY`'s
+
+Two more of other kinds, found while fixing those:
+
+- **`USE IN cust`**, the ordinary way to close a work area, read as *opening* a table named `IN`,
+  because the target pattern was greedy enough to swallow the option keyword after it. Every
+  work-area event the symbol table recorded for one was wrong, and `USE IN <area>` was being modelled
+  as closing the current area rather than that one
+- `PrintStatement.argument` duplicated `arguments[0]`, so every variable read inside a `?` statement
+  was counted twice. Nothing read the field; it is gone, like `returnExpression` before it
+
+Fifteen in total, none of which any diagnostics fixture could see.
+
+### The symbol table sees six more things
+
+Each was a reference that reached it as nothing at all, because the statement either did not parse or
+parsed with the name thrown away: `SCATTER NAME` and `GATHER NAME`, `CATCH TO`, `TEXT TO`,
+`DO FORM ... NAME` and `... TO`, `USE (expr)`/`ALIAS (expr)`, and `&lcCommand` — which is a read of
+`lcCommand`, and without it any macro-driven local looked unused.
+
+### Tests
+
+`run-keyword-tests.js` is new: it re-derives all 302 keyword literals from the grammar and probes each
+as an identifier prefix in three statement shapes, because none of FoxPro's command words is reserved
+and a rule without a word boundary silently beats the assignment below it. Scope assertions went from
+42 to 55, fixtures from 92 to 93, and the `unsupported-syntax` ledger was rewritten to hold only
+constructs that genuinely still do not parse.
+
 ## 1.1.0
 
 The release that stops the linter crying wolf, and starts it finding real bugs.

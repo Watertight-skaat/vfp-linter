@@ -14,6 +14,7 @@ from code that is actually wrong.
 | `unterminated-block` | Error | A block opener whose terminator is missing |
 | `unsupported-syntax` | Information | Valid FoxPro the grammar has not learned yet (configurable) |
 | `implicit-private` | Warning | An assignment to a name nothing declared, which FoxPro creates as a PRIVATE |
+| `unused-local` | Warning | A `LOCAL` that is never read or written, so it is dead or the name is misspelled below |
 | `missing-memvar-prefix` | Warning | A variable referenced without `m.` whose name is also used as a field |
 | `unreachable-code` | Warning | A statement after `RETURN` / `EXIT` / `LOOP` in the same block |
 | `duplicate-case` | Warning | A `CASE` condition identical to an earlier one in the same `DO CASE` |
@@ -28,7 +29,7 @@ Every diagnostic carries its code, so you can filter or turn off any of them fro
 
 ### The ones that hold back on purpose
 
-A linter that cries wolf gets switched off, so three of these are built to stay quiet unless there is
+A linter that cries wolf gets switched off, so four of these are built to stay quiet unless there is
 real evidence.
 
 **`missing-memvar-prefix`.** When a memory variable and a field of an open table share a name, a bare
@@ -43,6 +44,13 @@ edge; it reports when the graph comes out in more than one piece, and names the 
 silence it, because any of them could be the missing link: a name the query cannot attribute to a
 table (`WHERE cust_id = o_cust_id`), a macro, and a derived table. Two tables compared to the same
 variable count as related, since that is how a parent and its children are usually fetched by a key.
+
+**`unused-local`.** The other half of `implicit-private`: that rule reports a name nothing declared,
+this one a declaration nothing uses. It covers `LOCAL` only — `PUBLIC` and `PRIVATE` exist to be seen
+by the routines you call, so silence in the declaring routine says nothing about them, and an unused
+parameter is usually a signature the caller still passes. The pair is most useful together: declare
+`lcName` and then assign `lcNmae`, and you get an unused local at the declaration and an implicit
+private at the typo.
 
 **`empty-branch`** is advisory because comments are not part of the syntax tree, so a branch holding
 only a comment reads as empty. An empty `ELSE` is reported at the `IF` line, which is the nearest
@@ -71,10 +79,13 @@ Most of the language parses, including the parts that are easy to get wrong: `TE
 its body left as raw text, the `ON ERROR` family, SQL `CASE WHEN`, the `::` scope-resolution operator,
 `@ ... SAY`/`GET`, and the Xbase housekeeping and output commands.
 
-Still unread, and so reported as `unsupported-syntax`: `SCATTER`/`GATHER MEMVAR`, `MODIFY STRUCTURE`,
-`COUNT`, `AVERAGE`, `FLUSH`, `PUSH`/`POP KEY`, `EXTERNAL`, `RUN`, and the menu commands. Macro
-substitution is parsed where it appears, but a macro's contents are only known at run time, so checks
-that depend on reading a condition step aside when they meet one.
+Still unread, and so reported as `unsupported-syntax`: the screen and menu commands (`DEFINE WINDOW`,
+`DEFINE BAR`, `ACTIVATE WINDOW`, `ON SELECTION BAR`), the pre-SQL data commands (`TOTAL`, `JOIN WITH`,
+`UPDATE ON`, `COPY STRUCTURE`, `DELETE TAG`, `BLANK`), `SAVE TO`/`RESTORE FROM`, `PRIVATE ALL EXCEPT`,
+`ASSERT`, `PLAY MACRO`, a table-level constraint in `CREATE TABLE`, and a multi-target `STORE` where
+one target is subscripted. Macro substitution is parsed where it appears, and `&lcCmd` counts as a
+read of `lcCmd`, but a macro's contents are only known at run time — so checks that depend on reading
+a condition step aside when they meet one.
 
 If you hit something valid that reports as unsupported, an issue with the statement in it is the most
 useful thing you can send.

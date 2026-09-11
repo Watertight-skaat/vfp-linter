@@ -1,9 +1,0 @@
-6:1 warning implicit-private 'cRecipient' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything this file calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.
-6:26 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '.To'
-7:1 warning implicit-private 'cSender' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything this file calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.
-7:24 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '.From'
-8:1 warning implicit-private 'cClassName' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything this file calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.
-8:25 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '.Class'
-9:1 warning implicit-private 'cSelection' is assigned but never declared, so FoxPro creates it as a PRIVATE: it stays visible to everything this file calls, and a mistyped name becomes a new variable rather than an error. Declare it LOCAL to keep it here, or PRIVATE to say the visibility is deliberate.
-9:25 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '.Select'
-11:11 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '.To = "billing@example.com"'

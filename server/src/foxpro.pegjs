@@ -41,7 +41,7 @@ Statement "statement"
   / UseStatement
   / AppendStatement
   / CalculateStatement
-  / SumStatement
+  / AggregateStatement
   / CopyStatement
   / EraseStatement
   / SetStatement
@@ -74,6 +74,8 @@ Statement "statement"
   / ReturnStatement
   / StoreStatement
   / ReplaceStatement
+  / ScatterStatement
+  / GatherStatement
   / IfStatement
   / EvalStatement
   / WithStatement
@@ -89,6 +91,16 @@ Statement "statement"
   / ReportFormStatement
   / SortStatement
   / ListStatement
+  / FlushStatement
+  / ReindexStatement
+  / DirectoryStatement
+  / ContinueLocateStatement
+  / NoDefaultStatement
+  / PushPopStatement
+  / ExternalStatement
+  / ModifyStatement
+  / AlterTableStatement
+  / RunStatement
   / ExpressionStatement
   / UnknownStatement
   ) { return s; }
@@ -115,7 +127,7 @@ LocalEntry
 
 // Variable declaration: name [ AS type [ OF ClassLib ] ]
 VarDecl
-  = name:ParameterName _ asPart:(_ "AS"i __ t:Identifier _ ofPart:(_ "OF"i _ cl:Identifier { return cl; })? { return { type: t, of: ofPart ? ofPart[2] : null }; })? {
+  = name:ParameterName _ asPart:(_ "AS"i __ t:Identifier _ ofPart:(_ "OF"i _ cl:Identifier { return cl; })? { return { type: t, of: ofPart }; })? {
       return node("LocalDeclaration", { name, asType: asPart ? asPart.type : null, ofClass: asPart ? asPart.of : null });
     }
 
@@ -125,7 +137,7 @@ ArrayDims
   / "[" _ rows:Expression _ cols:(_ "," _ c:Expression { return c; })? _ "]" { return { rows, columns: cols }; }
 
 ArrayDecl
-  = name:Identifier _ dims:ArrayDims _ asPart:(_ "AS"i __ t:Identifier _ ofPart:(_ "OF"i _ cl:Identifier { return cl; })? { return { type: t, of: ofPart ? ofPart[2] : null }; })? {
+  = name:Identifier _ dims:ArrayDims _ asPart:(_ "AS"i __ t:Identifier _ ofPart:(_ "OF"i _ cl:Identifier { return cl; })? { return { type: t, of: ofPart }; })? {
       return node("LocalArrayDeclaration", { name, rows: dims.rows, columns: dims.columns, asType: asPart ? asPart.type : null, ofClass: asPart ? asPart.of : null });
     }
 
@@ -152,8 +164,11 @@ PublicStatement
       return vars.map(v => node("PublicDeclaration", { name: v, isArray: false }));
     }
 
+// The singular spellings are the older ones and the app still uses them. These declare a routine's
+// inputs, so missing one leaves the symbol table without the parameters of the whole routine. Longest
+// first: PARAMETERS has to be tried before PARAMETER, and PARAMETER before PARAM.
 LParameters
-  = ("LPARAMETERS"i / "PARAMETERS"i) WB _ vars:ParameterList {
+  = ("LPARAMETERS"i / "LPARAMETER"i / "PARAMETERS"i / "PARAMETER"i / "PARAM"i) WB _ vars:ParameterList {
       return node("ParametersDeclaration", { names: vars });
     }
 
@@ -201,7 +216,7 @@ Pattern
 // Allow dotted member chains (e.g. m.test) on the left-hand side of an assignment
 LValue
   = head:Identifier tail:(
-      ("." / "->") _ prop:Identifier { return { type: 'member', prop: prop }; }
+      ("." / "->") _ prop:MemberName { return { type: 'member', prop: prop }; }
     / "[" _ idxs:ExpressionList _ "]" { return { type: 'index', indexes: idxs }; }
     / "(" _ idxs:ExpressionList _ ")" { return { type: 'index', indexes: idxs }; }
     )* {
@@ -225,17 +240,32 @@ AssignmentStatement
 // Shorthand print statement: ? <expression> or PRINT <expression>
 PrintStatement // todo: Wait window probably should be separate
   = ("?" / ("PRINT"i WB)) _ args:ExpressionList {
-      return node("PrintStatement", { arguments: args, argument: (args && args.length) ? args[0] : null });
+      return node("PrintStatement", { arguments: args });
     }
 
 // WAIT [cMessageText] [TO VarName] [WINDOW [AT nRow, nColumn]] [NOWAIT]
 //    [CLEAR | NOCLEAR] [TIMEOUT nSeconds]
+// The flags may sit on either side of the message, and every call site in the app writes them after it.
+// The leading list is greedy, so a flag is never mistaken for the message.
 WaitWindowStatement
-  = "WAIT WINDOW"i WB _ opts:(_ ("NOWAIT"i / "NOCLEAR"i))* _ msg:Expression? {
-      const nowait = opts ? opts.some(o => (typeof o[1] === 'string' ? o[1].toUpperCase() : o[1]) === 'NOWAIT') : false;
-      const noclear = opts ? opts.some(o => (typeof o[1] === 'string' ? o[1].toUpperCase() : o[1]) === 'NOCLEAR') : false;
-      return node("WaitWindowStatement", { nowait, noclear, message: msg || null });
+  = "WAIT WINDOW"i WB lead:(_ WaitOption)* msg:(_ e:Expression { return e; })? trail:(_ WaitOption)* {
+      const o = { nowait: false, noclear: false, clear: false, timeout: null };
+      for (const part of [...lead, ...trail].map(t => t[1])) {
+        switch (part.kind) {
+          case 'NOWAIT': o.nowait = true; break;
+          case 'NOCLEAR': o.noclear = true; break;
+          case 'CLEAR': o.clear = true; break;
+          case 'TIMEOUT': o.timeout = part.value; break;
+        }
+      }
+      return node("WaitWindowStatement", { nowait: o.nowait, noclear: o.noclear, clear: o.clear, timeout: o.timeout, message: msg });
     }
+
+WaitOption
+  = "NOWAIT"i WB { return { kind: 'NOWAIT' }; }
+  / "NOCLEAR"i WB { return { kind: 'NOCLEAR' }; }
+  / "CLEAR"i WB { return { kind: 'CLEAR' }; }
+  / "TIMEOUT"i WB _ n:Expression { return { kind: 'TIMEOUT', value: n }; }
 
 // USE [[DatabaseName!] TableName | SQLViewName | ?]
 //  [IN nWorkArea | cTableAlias] [ONLINE] [ADMIN] [AGAIN]
@@ -246,7 +276,7 @@ WaitWindowStatement
 //  [CONNSTRING cConnectionString | nStatementHandle ]
 UseStatement
   = "USE"i WB _
-    tgt:UseTarget? _
+    tgt:(!UseOptionWord t:UseTarget { return t; })? _
     parts:(UseOption _)*
     {
       const opts = { inTarget:null, online:false, admin:false, again:false, norequery:false, dataSession:null, nodata:false, index:null, alias:null, exclusive:false, shared:false, noUpdate:false, connection:null };
@@ -284,6 +314,11 @@ UseStatement
       });
     }
 
+// The words that can only be options, never the table.
+UseOptionWord
+  = ("IN"i / "ONLINE"i / "ADMIN"i / "AGAIN"i / "NOREQUERY"i / "NODATA"i / "INDEX"i / "ALIAS"i
+    / "EXCLUSIVE"i / "SHARED"i / "NOUPDATE"i / "CONNSTRING"i) WB
+
 UseTarget
   = "?" { return { kind: 'PROMPT' }; }
   / name:QualifiedTable { return { kind: 'TABLE', name }; }
@@ -297,7 +332,7 @@ UseOption
   / "NOREQUERY"i _ ds:Expression? { return { kind: 'NOREQUERY', value: ds || true }; }
   / "NODATA"i { return { kind: 'NODATA', value: true }; }
   / idx:UseIndexPart { return { kind: 'INDEX', value: idx }; }
-  / "ALIAS"i __ a:IdentifierOrString { return { kind: 'ALIAS', value: a }; }
+  / "ALIAS"i __ a:AliasRef { return { kind: 'ALIAS', value: a }; }
   / "EXCLUSIVE"i { return { kind: 'EXCLUSIVE', value: true }; }
   / "SHARED"i { return { kind: 'SHARED', value: true }; }
   / "NOUPDATE"i { return { kind: 'NOUPDATE', value: true }; }
@@ -363,7 +398,8 @@ TextBlockStatement "text block"
       const o = { to: null, additive: false, textmerge: false, noshow: false, flags: null, pretext: null };
       for (const part of opts.map(t => t[1])) {
         switch (part.kind) {
-          case 'TO': o.to = part.value; o.additive = part.additive; break;
+          case 'TO': o.to = part.value; break;
+          case 'ADDITIVE': o.additive = true; break;
           case 'TEXTMERGE': o.textmerge = true; break;
           case 'NOSHOW': o.noshow = true; break;
           case 'FLAGS': o.flags = part.value; break;
@@ -381,8 +417,10 @@ TextBlockStatement "text block"
       });
     }
 
+// ADDITIVE is its own option rather than a tail of TO: the option list is order-free, and the app writes `TO m.x NOSHOW ADDITIVE` as often as the adjacent form. Requiring adjacency stopped the list at NOSHOW, failed the whole TEXT rule, and left the body to be read as code -- costing the file its parse rather than one statement.
 TextOption
-  = "TO"i WB _ v:ParameterName _ add:("ADDITIVE"i WB)? { return { kind: 'TO', value: v, additive: !!add }; }
+  = "TO"i WB _ v:ParameterName { return { kind: 'TO', value: v }; }
+  / "ADDITIVE"i WB { return { kind: 'ADDITIVE' }; }
   / "TEXTMERGE"i WB { return { kind: 'TEXTMERGE' }; }
   / "NOSHOW"i WB { return { kind: 'NOSHOW' }; }
   / "FLAGS"i WB _ n:Expression { return { kind: 'FLAGS', value: n }; }
@@ -591,7 +629,7 @@ ExistsExpression
 PostfixExpression
   = head:Primary tail:(
       "::" _ prop:Identifier { return { type: 'scope', prop } }
-    / ("." / "->") _ prop:Identifier { return { type: 'member', prop } }
+    / ("." / "->") _ prop:MemberName { return { type: 'member', prop } }
       / "(" _ args:ArgumentList? _ ")" { return { type: 'call', args: args || [] } }
       / "[" _ idxs:ExpressionList _ "]" { return { type: 'index', indexes: idxs }; }
     )*
@@ -1046,23 +1084,33 @@ GoToStatement "go/goto statement"
     }
 
 InClause
-  = "IN"i _ target:(Identifier / StringLiteral / NumberLiteral / SelectCore) { return target; }
+  = "IN"i WB _ target:(AliasRef / SelectCore) { return target; }
+
+// A work area can be named by an expression in parentheses wherever an alias is expected:
+// `USE IN (D_MTPC)`, `SET ORDER TO (m.cTag) IN (m.cAlias)`, `GO TOP IN (m.cAlias)`. That is how the
+// alias travels when it is held in a variable. Accepting the parenthesised form only where a *table*
+// was expected is what left the rest of each of those lines to the catch-all.
+AliasRef
+  = "(" _ e:Expression _ ")" { return e; }
+  / Identifier
+  / StringLiteral
+  / NumberLiteral
 
 // SKIP [nRecords] [IN nWorkArea | cTableAlias]
 SkipStatement
   = "SKIP"i WB _ n:Expression? _ 
   inPart:(_ "IN"i __ target:(NumberLiteral / PathOrExpression) { return target; })? 
   {
-    return node('SkipStatement', { count: n || null, inTarget: inPart ? inPart[2] : null });
+    return node('SkipStatement', { count: n || null, inTarget: inPart });
   }
 
 // UNLOCK [RECORD nRecordNumber] [IN nWorkArea | cTableAlias] [ALL]
 UnlockStatement
   = "UNLOCK"i WB _
     rec:(_ "RECORD"i __ n:Expression { return n; })?
-    _ inPart:(_ "IN"i __ target:(NumberLiteral / Identifier / StringLiteral) { return target; })?
+    _ inPart:(_ "IN"i __ target:AliasRef { return target; })?
     _ all:("ALL"i)? {
-      return node('UnlockStatement', { record: rec ? rec[2] : null, inTarget: inPart ? inPart[2] : null, all: !!all });
+      return node('UnlockStatement', { record: rec, inTarget: inPart, all: !!all });
     }
 
 // Opt 1: INSERT INTO dbf_name [(FieldName1 [, FieldName2, ...])]
@@ -1160,8 +1208,8 @@ DeleteStatement
 
 // ZAP [IN nWorkArea | cTableAlias]
 ZapStatement
-  = "ZAP"i WB _ inPart:(_ "IN"i __ target:(NumberLiteral / Identifier / StringLiteral) { return target; })? {
-    return node('ZapStatement', { inTarget: inPart ? inPart[2] : null });
+  = "ZAP"i WB _ inPart:(_ "IN"i __ target:AliasRef { return target; })? {
+    return node('ZapStatement', { inTarget: inPart });
   }
 
 // RECALL [Scope] [FOR lExpression1] [WHILE lExpression2] [NOOPTIMIZE]
@@ -1172,7 +1220,7 @@ RecallStatement
     forp:(("FOR"i __ fexp:Expression { return fexp; }))? _
     whilep:(("WHILE"i __ wexp:Expression { return wexp; }))? _
     noopt:("NOOPTIMIZE"i)? _
-    inPart:(_ "IN"i __ target:(NumberLiteral / Identifier / StringLiteral) { return target; })?
+    inPart:(_ "IN"i __ target:AliasRef { return target; })?
     {
       return node('RecallStatement', {
         scope: scope || null,
@@ -1386,9 +1434,9 @@ ColumnDefinition
     def:("DEFAULT"i __ d:Expression { return d; })? _
     colkey:(
       "PRIMARY"i __ "KEY"i { return { primaryKey: true, unique: false, collate: null }; }
-      / "UNIQUE"i _ coll:("COLLATE"i __ cs:IdentifierOrString { return cs; })? { return { primaryKey: false, unique: true, collate: coll ? coll[2] : null }; }
+      / "UNIQUE"i _ coll:("COLLATE"i __ cs:IdentifierOrString { return cs; })? { return { primaryKey: false, unique: true, collate: coll }; }
     )? _
-    refs:("REFERENCES"i __ tbl:IdentifierOrString _ tag:("TAG"i __ tn:Identifier { return tn; })? { return { table: tbl, tag: tag ? tag[2] : null }; })? _
+    refs:("REFERENCES"i __ tbl:IdentifierOrString _ tag:("TAG"i __ tn:Identifier { return tn; })? { return { table: tbl, tag }; })? _
     nocp:("NOCPTRANS"i)? {
       return node('ColumnDefinition', {
         name,
@@ -1413,8 +1461,8 @@ FieldSize
 
 TableConstraint
   = "PRIMARY"i __ "KEY"i __ expr:Expression __ "TAG"i __ tag:Identifier { return node('TableConstraint', { kind: 'PRIMARY KEY', expression: expr, tag }); }
-  / "UNIQUE"i __ expr:Expression __ "TAG"i __ tag:Identifier _ coll:("COLLATE"i __ cs:IdentifierOrString { return cs; })? { return node('TableConstraint', { kind: 'UNIQUE', expression: expr, tag, collate: coll ? coll[2] : null }); }
-  / "FOREIGN"i __ "KEY"i __ expr:Expression __ "TAG"i __ tag:Identifier _ nodup:("NODUP"i)? _ coll:("COLLATE"i __ cs:IdentifierOrString { return cs; })? __ "REFERENCES"i __ tbl:IdentifierOrString _ reftag:("TAG"i __ rt:Identifier { return rt; })? { return node('TableConstraint', { kind: 'FOREIGN KEY', expression: expr, tag, nodup: !!nodup, collate: coll ? coll[2] : null, references: { table: tbl, tag: reftag ? reftag[2] : null } }); }
+  / "UNIQUE"i __ expr:Expression __ "TAG"i __ tag:Identifier _ coll:("COLLATE"i __ cs:IdentifierOrString { return cs; })? { return node('TableConstraint', { kind: 'UNIQUE', expression: expr, tag, collate: coll }); }
+  / "FOREIGN"i __ "KEY"i __ expr:Expression __ "TAG"i __ tag:Identifier _ nodup:("NODUP"i)? _ coll:("COLLATE"i __ cs:IdentifierOrString { return cs; })? __ "REFERENCES"i __ tbl:IdentifierOrString _ reftag:("TAG"i __ rt:Identifier { return rt; })? { return node('TableConstraint', { kind: 'FOREIGN KEY', expression: expr, tag, nodup: !!nodup, collate: coll, references: { table: tbl, tag: reftag } }); }
   / "CHECK"i __ expr:Expression _ err:("ERROR"i __ msg:StringLiteral)? { return node('TableConstraint', { kind: 'CHECK', expression: expr, error: err ? err[2] : null }); }
 
 
@@ -1423,12 +1471,12 @@ TryStatement "try-catch statement"
   = "TRY"i WB __
     tstmts:(Statement __)*
     cpart:(
-      "CATCH"i 
-      toVar:(_ "TO"i _ v:Identifier { return v; })?
-      whenPart:(_ "WHEN"i __ wexpr:Expression { return wexpr; })? 
+      "CATCH"i WB
+      toVar:(_ "TO"i WB _ v:ParameterName { return v; })?
+      whenPart:(_ "WHEN"i WB __ wexpr:Expression { return wexpr; })?
       __
       cstmts:(Statement __)* {
-        return { to: toVar ? toVar[2] : null, when: whenPart ? whenPart[2] : null, body: flatten(cstmts.map(s => s[0])) };
+        return { to: toVar, when: whenPart, body: flatten(cstmts.map(s => s[0])) };
       }
     )?
     tpart:("THROW"i _ texpr:Expression? __ { return texpr === undefined ? null : texpr; })?
@@ -1474,6 +1522,68 @@ DotAssignment
     }
 
 // -----------------------------
+// Xbase housekeeping
+// -----------------------------
+// None of these command words are reserved, so each opens with NotCallOrAssign and keeps only the
+// operands a rule could want. A long option tail is captured as raw source: recognising the statement
+// is what stops the false positive, and pretending to model the tail would buy nothing.
+
+FlushStatement
+  = "FLUSH"i WB NotCallOrAssign force:(_ "FORCE"i WB)? {
+      return node('FlushStatement', { force: !!force });
+    }
+
+ReindexStatement
+  = "REINDEX"i WB NotCallOrAssign compact:(_ "COMPACT"i WB)? {
+      return node('ReindexStatement', { compact: !!compact });
+    }
+
+// MD/RD/CD and their long spellings. Whitespace before the path is required rather than optional:
+// these are two letters long, and without it `CD.Value` would read as a command rather than a member.
+DirectoryStatement
+  = cmd:("MKDIR"i / "RMDIR"i / "CHDIR"i / "MD"i / "RD"i / "CD"i) WB NotCallOrAssign Whitespace _ target:PathOrExpression {
+      return node('DirectoryStatement', { command: cmd.toUpperCase(), target });
+    }
+
+// CONTINUE resumes the last LOCATE. It is not LOOP -- that is ContinueStatement -- and unlike LOOP it
+// does not end the block, so it must stay a separate node or unreachable-code would misread it.
+ContinueLocateStatement
+  = "CONTINUE"i WB NotCallOrAssign { return node('ContinueLocateStatement', {}); }
+
+// NODEFAULT suppresses the base class's own handling of the event being coded.
+NoDefaultStatement
+  = "NODEFAULT"i WB NotCallOrAssign { return node('NoDefaultStatement', {}); }
+
+PushPopStatement
+  = cmd:("PUSH"i / "POP"i) WB _ what:("KEY"i / "MENU"i / "POPUP"i) WB NotCallOrAssign opts:RawOptions {
+      return node('PushPopStatement', { command: cmd.toUpperCase(), what: what.toUpperCase(), options: opts });
+    }
+
+// EXTERNAL declares nothing at run time -- it tells the compiler a name resolves elsewhere -- but the
+// names in it are deliberate rather than typos, so they are kept.
+ExternalStatement
+  = "EXTERNAL"i WB _ kind:("ARRAY"i / "PROCEDURE"i / "FUNCTION"i / "CLASS"i / "FORM"i / "LABEL"i / "MENU"i / "QUERY"i / "REPORT"i / "SCREEN"i) WB _ names:IdentifierList {
+      return node('ExternalStatement', { kind: kind.toUpperCase(), names });
+    }
+
+ModifyStatement
+  = "MODIFY"i WB _ what:("STRUCTURE"i / "COMMAND"i / "CONNECTION"i / "DATABASE"i / "FILE"i / "MEMO"i / "REPORT"i / "FORM"i / "CLASS"i / "VIEW"i / "PROCEDURE"i / "LABEL"i / "MENU"i / "PROJECT"i / "QUERY"i / "WINDOW"i / "GENERAL"i) WB NotCallOrAssign opts:RawOptions {
+      return node('ModifyStatement', { what: what.toUpperCase(), options: opts });
+    }
+
+// ALTER TABLE's tail is a DDL of its own. The table is the part a rule would ask about; the rest is source.
+AlterTableStatement
+  = "ALTER"i WB __ "TABLE"i WB __ name:IdentifierOrString opts:RawOptions {
+      return node('AlterTableStatement', { name, options: opts });
+    }
+
+// RUN, and its `!` shorthand: everything after it goes to the shell, so none of it is FoxPro.
+RunStatement
+  = ("RUN"i WB NotCallOrAssign / "!") cmd:$((!LineTerminator .)*) {
+      return node('RunStatement', { command: cmd.trim() });
+    }
+
+// -----------------------------
 // Unknown/catch-all statement
 // -----------------------------
 // Captures a single logical line (respecting semicolon continuations) that didn't
@@ -1511,12 +1621,13 @@ SetOrderToStatement
   = "SET ORDER TO"i WB _
     sel:(
       n:NumberLiteral { return { kind: 'NUMBER', value: n }; }
+      / "(" _ e:Expression _ ")" { return { kind: 'EXPR', value: e }; }
       / f:(IdentifierOrString / UnquotedPath) { return { kind: 'FILE', value: f }; }
       / t:TagSpec { return { kind: 'TAG', tag: t.tag, of: t.of, direction: t.direction }; }
     )?
-    _ first:( _ ("IN"i __ target:(Identifier / StringLiteral / NumberLiteral) { return { kind: 'IN', value: target }; } 
+    _ first:( _ ("IN"i __ target:AliasRef { return { kind: 'IN', value: target }; } 
              / dir:("ASCENDING"i / "DESCENDING"i / "ASC"i / "DESC"i) { return { kind: 'DIR', value: dir }; }) )?
-    second:( _ ("IN"i __ target:(Identifier / StringLiteral / NumberLiteral) { return { kind: 'IN', value: target }; } 
+    second:( _ ("IN"i __ target:AliasRef { return { kind: 'IN', value: target }; } 
               / dir:("ASCENDING"i / "DESCENDING"i / "ASC"i / "DESC"i) { return { kind: 'DIR', value: dir }; }) )?
     {
       let inTarget = null; let direction = null;
@@ -1532,7 +1643,7 @@ SetOrderToStatement
   SetRelationToStatement
     = "SET RELATION TO"i WB _
       first:RelationPair? tail:(_ "," _ RelationPair)*
-      inClause:(_ "IN"i __ target:(Identifier / StringLiteral / NumberLiteral) _ { return target; })?
+      inClause:(_ "IN"i __ target:AliasRef _ { return target; })?
       additive:(_ "ADDITIVE"i)? {
         const pairs = first ? [first, ...tail.map(t => t[3])] : [];
         return node('SetRelation', {
@@ -1543,7 +1654,7 @@ SetOrderToStatement
       }
 
   RelationPair
-    = expr:Expression _ "INTO"i __ into:(Identifier / NumberLiteral / StringLiteral) {
+    = expr:Expression _ "INTO"i __ into:AliasRef {
         return { expr, into };
       }
 
@@ -1551,7 +1662,7 @@ SetOrderToStatement
 SetSettingStatement
   ="SET"i (Whitespace / LineContinuation)+ inner:(
     ("TO"i __ setting:Expression { return node("SetTo", { setting }); })
-    / (cmd:KeywordOrIdentifier toPart:(_ "TO"i __ setting:Expression { return setting; })? argPart:(_ (StringLiteral / Identifier / NumberLiteral))? additive:(_ "ADDITIVE"i)? state:(_ ("ON"i / "OFF"i))? { const argument = toPart ?? (argPart ? argPart[1] : null); const st = state ? state[1] : null; return node("SetCommand", { command: cmd, argument: argument, state: st ? st.toUpperCase() : null, additive: !!additive }); })
+    / (cmd:KeywordOrIdentifier toPart:(_ "TO"i WB s:(_ e:Expression { return e; })? { return { setting: s }; })? argPart:(_ (StringLiteral / Identifier / NumberLiteral))? additive:(_ "ADDITIVE"i)? state:(_ ("ON"i / "OFF"i))? { const argument = toPart ? toPart.setting : (argPart ? argPart[1] : null); const st = state ? state[1] : null; return node("SetCommand", { command: cmd, argument: argument, cleared: !!toPart && !toPart.setting, state: st ? st.toUpperCase() : null, additive: !!additive }); })
   ) {
       // If TO form, inner is already a SetTo node and we return it directly.
       if (inner && inner.type === 'SetTo') return inner;
@@ -1590,7 +1701,7 @@ AppendStatement
     }
   / "APPEND"i WB _
     blank:("BLANK"i _)?
-    inPart:("IN"i _ tableAlias:(Identifier / StringLiteral / NumberLiteral) _)?
+    inPart:("IN"i _ tableAlias:AliasRef _)?
     nomenu:("NOMENU"i _)? {
       return node("AppendStatement", {
         blank: !!blank,
@@ -1668,7 +1779,7 @@ ReplaceStatement
     fields:ReplaceFieldList
     forClause:(_ "FOR"i __ condition:Expression _ { return condition; })?
     whileClause:(_ "WHILE"i __ condition:Expression _ { return condition; })?
-    inClause:("IN"i __ target:(Identifier / StringLiteral / NumberLiteral) _ { return target; })?
+    inClause:("IN"i __ target:AliasRef _ { return target; })?
     noOptimize:("NOOPTIMIZE"i)? {
       return node("ReplaceStatement", { 
         scope,
@@ -1680,6 +1791,62 @@ ReplaceStatement
       });
     }
 
+// SCATTER [FIELDS FieldList | FIELDS LIKE Skeleton | FIELDS EXCEPT Skeleton] [MEMO]
+//   TO ArrayName [BLANK] | TO ArrayName AUTOMEM | MEMVAR [BLANK] | NAME ObjectName [BLANK | ADDITIVE]
+// This is how a record becomes an object or a set of variables, so the destination is the part the
+// rules need: TO and NAME both create the name they are handed, which makes SCATTER a write of it.
+ScatterStatement
+  = "SCATTER"i WB NotCallOrAssign opts:(_ ScatterOption)* {
+      const o = { destination: null, name: null, fields: null, memo: false, blank: false, additive: false, autoMem: false };
+      for (const part of opts.map(t => t[1])) {
+        switch (part.kind) {
+          case 'DEST': if (!o.destination) { o.destination = part.value; o.name = part.name; } break;
+          case 'FIELDS': o.fields = part.value; break;
+          case 'MEMO': o.memo = true; break;
+          case 'BLANK': o.blank = true; break;
+          case 'ADDITIVE': o.additive = true; break;
+          case 'AUTOMEM': o.autoMem = true; break;
+        }
+      }
+      return node("ScatterStatement", {
+        destination: o.destination, name: o.name, fields: o.fields,
+        memo: o.memo, blank: o.blank, additive: o.additive, autoMem: o.autoMem
+      });
+    }
+
+ScatterOption
+  = "MEMVAR"i WB { return { kind: 'DEST', value: 'MEMVAR', name: null }; }
+  / "NAME"i WB _ n:ParameterName { return { kind: 'DEST', value: 'NAME', name: n }; }
+  / "TO"i WB _ n:ParameterName { return { kind: 'DEST', value: 'ARRAY', name: n }; }
+  / f:FieldsClause { return { kind: 'FIELDS', value: f }; }
+  / "MEMO"i WB { return { kind: 'MEMO' }; }
+  / "BLANK"i WB { return { kind: 'BLANK' }; }
+  / "ADDITIVE"i WB { return { kind: 'ADDITIVE' }; }
+  / "AUTOMEM"i WB { return { kind: 'AUTOMEM' }; }
+
+// GATHER FROM ArrayName | MEMVAR | NAME ObjectName
+//   [FIELDS FieldList | FIELDS LIKE Skeleton | FIELDS EXCEPT Skeleton] [MEMO]
+// The mirror of SCATTER: the named object or array is read, and the record is what gets written.
+GatherStatement
+  = "GATHER"i WB NotCallOrAssign opts:(_ GatherOption)* {
+      const o = { source: null, name: null, fields: null, memo: false };
+      for (const part of opts.map(t => t[1])) {
+        switch (part.kind) {
+          case 'SRC': if (!o.source) { o.source = part.value; o.name = part.name; } break;
+          case 'FIELDS': o.fields = part.value; break;
+          case 'MEMO': o.memo = true; break;
+        }
+      }
+      return node("GatherStatement", { source: o.source, name: o.name, fields: o.fields, memo: o.memo });
+    }
+
+GatherOption
+  = "MEMVAR"i WB { return { kind: 'SRC', value: 'MEMVAR', name: null }; }
+  / "NAME"i WB _ n:ParameterName { return { kind: 'SRC', value: 'NAME', name: n }; }
+  / "FROM"i WB _ n:ParameterName { return { kind: 'SRC', value: 'ARRAY', name: n }; }
+  / f:FieldsClause { return { kind: 'FIELDS', value: f }; }
+  / "MEMO"i WB { return { kind: 'MEMO' }; }
+
 // LOCATE [FOR lExpression1] [IN nWorkArea | cTableAlias] [WHILE lExpression2] [NOOPTIMIZE]
 LocateStatement
   = "LOCATE"i WB parts:(
@@ -1689,7 +1856,7 @@ LocateStatement
       / ("NEXT"i _ n:NumberLiteral { return { kind: 'SCOPE', value: { type: 'NEXT', count: n } }; })
       / ("RECORD"i _ n:NumberLiteral { return { kind: 'SCOPE', value: { type: 'RECORD', number: n } }; })
       / ("REST"i { return { kind: 'SCOPE', value: 'REST' }; })
-      / ("IN"i __ target:(Identifier / StringLiteral / NumberLiteral / SelectCore) { return { kind: 'IN', value: target }; })
+      / ("IN"i __ target:(AliasRef / SelectCore) { return { kind: 'IN', value: target }; })
       / ("WHILE"i __ condition:Expression { return { kind: 'WHILE', value: condition }; })
       / ("NOOPTIMIZE"i { return { kind: 'NOOPTIMIZE' }; })
       )
@@ -1716,28 +1883,40 @@ LocateStatement
 //   [LOOP]
 //   [EXIT]
 // ENDSCAN
+// The clauses are order-free in VFP, and the app writes WHILE before FOR because the WHILE bounds the
+// walk and the FOR is the extra filter. Reading them in a fixed order left `FOR ...` to the catch-all,
+// which then reported a missing ENDFOR for a block that was never opened -- a false positive at error
+// severity. `_` keeps the option list on the logical line, so the body below is never mistaken for one.
 ScanStatement
-  = "SCAN"i WB _
-    noopt:("NOOPTIMIZE"i _)?
-    scope:(
-      ("ALL"i { return 'ALL'; })
-      / ("NEXT"i _ n:NumberLiteral { return { type: 'NEXT', count: n }; })
-      / ("RECORD"i _ n:NumberLiteral { return { type: 'RECORD', number: n }; })
-      / ("REST"i { return 'REST'; })
-    )? _
-    forClause:(_ "FOR"i __ condition:Expression { return condition; })?
-    whileClause:(_ "WHILE"i __ condition:Expression { return condition; })?
-    __
+  = "SCAN"i WB opts:(_ ScanOption)* __
     body:(Statement __)*
-    endkw:("ENDSCAN"i / ("LOOP"i / "EXIT"i) _? "ENDSCAN"i)? {
+    ("ENDSCAN"i / ("LOOP"i / "EXIT"i) _? "ENDSCAN"i)? {
+      const o = { noOptimize: false, scope: null, forCondition: null, whileCondition: null };
+      for (const part of opts.map(t => t[1])) {
+        switch (part.kind) {
+          case 'NOOPTIMIZE': o.noOptimize = true; break;
+          case 'SCOPE': if (!o.scope) o.scope = part.value; break;
+          case 'FOR': if (!o.forCondition) o.forCondition = part.value; break;
+          case 'WHILE': if (!o.whileCondition) o.whileCondition = part.value; break;
+        }
+      }
       return node("ScanStatement", {
-        noOptimize: !!noopt,
-        scope: scope || 'ALL',
-        forCondition: forClause,
-        whileCondition: whileClause,
+        noOptimize: o.noOptimize,
+        scope: o.scope || 'ALL',
+        forCondition: o.forCondition,
+        whileCondition: o.whileCondition,
         body: node("BlockStatement", { body: flatten(body.map(s => s[0])) })
       });
     }
+
+ScanOption
+  = "NOOPTIMIZE"i WB { return { kind: 'NOOPTIMIZE' }; }
+  / "ALL"i WB { return { kind: 'SCOPE', value: 'ALL' }; }
+  / "NEXT"i WB _ n:NumberLiteral { return { kind: 'SCOPE', value: { type: 'NEXT', count: n } }; }
+  / "RECORD"i WB _ n:NumberLiteral { return { kind: 'SCOPE', value: { type: 'RECORD', number: n } }; }
+  / "REST"i WB { return { kind: 'SCOPE', value: 'REST' }; }
+  / "FOR"i WB __ c:Expression { return { kind: 'FOR', value: c }; }
+  / "WHILE"i WB __ c:Expression { return { kind: 'WHILE', value: c }; }
 
 
 // CALCULATE eExpressionList [Scope] [FOR lExpression1] [WHILE lExpression2]
@@ -1764,8 +1943,12 @@ CalculateStatement
 
 // SUM [eExpressionList]   [Scope] [FOR lExpression1] [WHILE lExpression2]
 //    [TO MemVarNameList | TO ARRAY ArrayName]   [NOOPTIMIZE]
-SumStatement
-  = ("SUM"i) WB __? parts:(
+// SUM, AVERAGE and COUNT are one command with three names: the same scope, FOR/WHILE and TO tail that
+// CALCULATE takes. COUNT simply brings no expression list, which the option loop already allows.
+// `_` rather than `__` keeps the tail on the logical line, so a bare COUNT cannot reach down and read
+// the next line's assignment as its expression list.
+AggregateStatement
+  = cmd:("SUM"i / "AVERAGE"i / "COUNT"i) WB NotCallOrAssign parts:(
       _ (
         (exprs:ExpressionList { return { kind: 'EXPRS', value: exprs }; })
       / (p:CalcOption { return p; })
@@ -1785,7 +1968,7 @@ SumStatement
           case 'IN': if (!opts.inTarget) opts.inTarget = p.value; break;
         }
       }
-      return node('SumStatement', { expressions: expressions, scope: opts.scope, forCondition: opts.forCondition, whileCondition: opts.whileCondition, to: opts.to, noOptimize: opts.noOptimize, inTarget: opts.inTarget });
+      return node('AggregateStatement', { command: cmd.toUpperCase(), expressions: expressions, scope: opts.scope, forCondition: opts.forCondition, whileCondition: opts.whileCondition, to: opts.to, noOptimize: opts.noOptimize, inTarget: opts.inTarget });
     }
 
 CalcOption
@@ -1929,7 +2112,7 @@ ReleaseBody
 // PACK [MEMO | DBF] [TableName] [IN nWorkArea | cTableAlias]
 PackStatement
   = "PACK"i WB NotCallOrAssign _ what:(("MEMO"i / "DBF"i) WB)? _ tbl:IdentifierOrString? _
-    inTgt:("IN"i WB __ t:(NumberLiteral / Identifier / StringLiteral) { return t; })? {
+    inTgt:("IN"i WB __ t:AliasRef { return t; })? {
       return node('PackStatement', {
         what: what ? what[0].toUpperCase() : null,
         table: tbl || null,
@@ -1940,7 +2123,7 @@ PackStatement
 // SEEK eExpression [ORDER ...] [ASCENDING | DESCENDING] [IN nWorkArea | cTableAlias]
 SeekStatement
   = "SEEK"i WB NotCallOrAssign _ e:Expression _ ord:OrderSpec? _ dir:(("ASCENDING"i / "DESCENDING"i) WB)? _
-    inTgt:("IN"i WB __ t:(NumberLiteral / Identifier / StringLiteral) { return t; })? {
+    inTgt:("IN"i WB __ t:AliasRef { return t; })? {
       return node('SeekStatement', {
         expression: e,
         order: ord || null,
@@ -2005,6 +2188,16 @@ Identifier
 
 KeywordOrIdentifier
   = Keyword / Identifier
+
+// After a dot a keyword is just a name: .To, .From, .Class and .Select are all real properties, and
+// refusing them cut the reference short and left the rest of the line to the catch-all. The dot
+// operators are the exception, and the closing dot is what tells them apart -- `.AND.`, `.T.` and
+// `.NULL.` are the operator or the literal, never a member, while `.Additive` and `.Note` are members.
+MemberName
+  = !(DotOperatorWord ".") pref:([@&])? name:$([a-zA-Z_][a-zA-Z0-9_]*) { return (pref ? pref : '') + name; }
+
+DotOperatorWord
+  = "AND"i / "OR"i / "NOT"i / "NULL"i / "T"i / "F"i / "Y"i / "N"i
 
 // Recognized keywords to prevent them being treated as identifiers.
 Keyword "keyword"

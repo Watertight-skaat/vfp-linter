@@ -63,7 +63,9 @@ const closed = [
 	'LOCAL x\nFOR EACH x IN y\n? x\nENDFOR\n',
 	'DO WHILE .T.\n? 1\nENDDO\n',
 	'DO CASE\nCASE .T.\n? 1\nOTHERWISE\n? 2\nENDCASE\n',
-	'TRY\n? 1\nCATCH TO oErr\n? 2\nENDTRY\n',
+	// Declared for the same reason as the loop variables above: CATCH TO creates the variable,
+	// so an undeclared one is a real implicit-private finding and not a block-terminator problem.
+	'LOCAL oErr\nTRY\n? 1\nCATCH TO oErr\n? 2\nENDTRY\n',
 	'TRY\n? 1\nFINALLY\n? 2\nENDTRY\n',
 	'WITH oX\n.a = 1\nENDWITH\n',
 	'DEFINE CLASS A AS B\nPROCEDURE P\nENDPROC\nENDDEFINE\n',
