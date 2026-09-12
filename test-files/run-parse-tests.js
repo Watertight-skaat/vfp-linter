@@ -404,4 +404,32 @@ check('DIMEN is DIMENSION', first('DIMEN invarr(1, 16)'),
 check('the full spelling is unchanged', first('DIMENSION invarr(1, 16)').type, 'DimensionStatement');
 check('and a longer word starting with it is still a name', first('DIMENSIONS = 1').type, 'Assignment');
 
+// TOTAL takes its two halves in either order, and only the reverse of the documented one was read.
+const totalTo = first('TOTAL TO totals ON custid FIELDS invbal FOR invbal > 0');
+check('TOTAL TO ... ON ... reads both halves', [totalTo.target, totalTo.key.name], [{ type: 'Path', path: 'totals' }, 'custid']);
+check('and the option tail behind them', [totalTo.fields, totalTo.for.operator], [{ kind: 'list', fields: ['invbal'] }, '>']);
+check('TOTAL ON ... TO ... is unchanged',
+	(({ target, key }) => [target, key.name])(first('TOTAL ON custid TO totals')), [{ type: 'Path', path: 'totals' }, 'custid']);
+
+// The SETs whose argument ran past what the setting reader claimed, each leaving its tail to the catch-all.
+check('a two-word setting is one command', (({ command, arguments: a }) => [command, a[0].value])(first('SET TOPIC ID TO 5')), ['TOPIC ID', 5]);
+check('SET TOPIC TO on its own is still one word', first('SET TOPIC TO "x"').command, 'TOPIC');
+check('the optional second word keeps the state beside it',
+	(({ command, state }) => [command, state])(first('SET NOTIFY CURSOR OFF')), ['NOTIFY CURSOR', 'OFF']);
+check('and without it the setting is unchanged', (({ command, state }) => [command, state])(first('SET NOTIFY OFF')), ['NOTIFY', 'OFF']);
+check('SET WINDOW OF MEMO names the field and the window',
+	first('SET WINDOW OF MEMO notes TO myform'), { type: 'SetWindowOfMemo', field: 'notes', window: 'myform' });
+check('a bare TO restores the default window', first('SET WINDOW OF MEMO notes TO').window, null);
+
+// REPLACE's scope, which the documentation puts after the field list. Only the leading ALL | REST was read.
+check('RECORD after the field list is the scope',
+	first('REPLACE invbal WITH 0 RECORD 5').scope, { type: 'RECORD', number: { type: 'NumberLiteral', value: 5, raw: '5', currency: false } });
+// Unread, NEXT fell to the dangling-terminator rule and closed the enclosing FOR, so the loop lost every statement after it.
+check('NEXT there is the scope, not the end of the loop',
+	first('FOR i = 1 TO 3\nREPLACE invbal WITH 0 NEXT 3\n? 1\nNEXT').body.body.map(s => s.type), ['ReplaceStatement', 'PrintStatement']);
+check('the clauses behind it still read',
+	(({ forCondition, inTarget, noOptimize }) => [forCondition.operator, inTarget, noOptimize])(first('REPLACE invbal WITH 0 REST FOR invbal > 0 IN invinfo NOOPTIMIZE')), ['>', 'invinfo', true]);
+check('the leading ALL is unchanged', first('REPLACE ALL invbal WITH 0').scope, 'ALL');
+check('and a field whose name begins with one is still a field', first('REPLACE allowance WITH 0').fields[0].field, 'allowance');
+
 report('Parse checks');

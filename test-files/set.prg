@@ -13,5 +13,12 @@ SET RELATION OFF INTO orders
 
 * TOPIC begins with the word TO, which without a boundary read as SET TO with a setting called PIC.
 SET TOPIC TO "customers"
+
+* The settings whose name is two words, and the one whose field sits between its keywords.
+SET TOPIC ID TO 5
+SET NOTIFY CURSOR OFF
+SET NOTIFY OFF
+SET WINDOW OF MEMO notes TO myform
+SET WINDOW OF MEMO notes TO
 SET STATUS BAR OFF
 SET CENTURY ON

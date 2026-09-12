@@ -1781,10 +1781,14 @@ RunStatement
 // The xbase commands SQL replaced. A 30-year-old application still runs on them, and each names a table, a field or a variable, so the operands are kept and only the option tail is dropped.
 
 // TOTAL ON eExpression TO TableName [FIELDS FieldList] [Scope] [FOR lExpression] [WHILE lExpression] [NOOPTIMIZE]
+// VFP takes the two halves in either order, and `TOTAL TO totals ON custid` -- the spelling the documentation leads with -- fell to the catch-all while only the reverse was read.
 TotalStatement
-  = "TOTAL"i WB _ "ON"i WB __ key:Expression _ "TO"i WB _ target:PathOrExpression opts:(_ FieldOrRecordOption)* {
+  = "TOTAL"i WB _ head:(
+      "ON"i WB __ key:Expression _ "TO"i WB _ target:PathOrExpression { return { key, target }; }
+      / "TO"i WB _ target:PathOrExpression _ "ON"i WB __ key:Expression { return { key, target }; }
+    ) opts:(_ FieldOrRecordOption)* {
       const o = collectRecordOptions(opts.map(t => t[1]));
-      return node('TotalStatement', { target, key, fields: o.fields, scope: o.scope, for: o.forCondition, while: o.whileCondition, noOptimize: o.noOptimize });
+      return node('TotalStatement', { target: head.target, key: head.key, fields: o.fields, scope: o.scope, for: o.forCondition, while: o.whileCondition, noOptimize: o.noOptimize });
     }
 
 // JOIN WITH WorkArea | TableAlias TO TableName FOR lExpression [FIELDS FieldList]
@@ -1967,6 +1971,12 @@ SetMarkOfStatement
       return node('SetMarkOfStatement', { what: what.toUpperCase(), target, of: of || null, mark });
     }
 
+// SET WINDOW OF MEMO MemoFieldName TO [WindowName] names the window a memo field is edited in. The field sits between the keywords, so SetSettingStatement read OF, MEMO and the field as three bare arguments and left the TO clause to the catch-all; with the name omitted the setting goes back to the default window.
+SetWindowOfMemoStatement
+  = "SET"i WB _ "WINDOW"i WB _ "OF"i WB _ "MEMO"i WB _ field:ParameterName _ "TO"i WB _ window:Identifier? {
+      return node('SetWindowOfMemo', { field, window: window || null });
+    }
+
 // ON SELECTION BAR nBar OF Popup | MENU MenuName | PAD PadName OF MenuName | POPUP PopupName [Command]
 // The command it installs is real code, so it is parsed as a statement rather than kept as text.
 OnSelectionStatement
@@ -2017,7 +2027,7 @@ UnknownStatement
     }
 
 SetStatement
-  = SetOrderToStatement / SetRelationToStatement / SetSkipOfStatement / SetMarkOfStatement / SetSettingStatement
+  = SetOrderToStatement / SetRelationToStatement / SetSkipOfStatement / SetMarkOfStatement / SetWindowOfMemoStatement / SetSettingStatement
 
 // SET ORDER TO [nIndexNumber | IDXIndexFileName | [TAG] TagName 
 //   [OF CDXFileName] [IN nWorkArea | cTableAlias]
@@ -2077,7 +2087,7 @@ SetSettingStatement
     / (cmd:SetFileWord
        toPart:(_ "TO"i WB args:(_ a:SetFileArguments { return a; })? { return { args }; })?
        parts:(_ SetOption)* { return setCommandNode(cmd, toPart, parts); })
-    / (cmd:KeywordOrIdentifier
+    / (cmd:(SetTwoWordCommand / KeywordOrIdentifier)
        toPart:(_ "TO"i WB args:(_ a:SetArguments { return a; })? { return { args }; })?
        parts:(_ SetOption)* { return setCommandNode(cmd, toPart, parts); })
   ) {
@@ -2086,6 +2096,10 @@ SetSettingStatement
       // Otherwise inner is a SetCommand node; return it as the captured command node.
       return inner;
     }
+
+// The SETs whose name is two words. Read as one, the second word was taken for the setting itself and everything after it was left behind: `SET TOPIC ID TO 5` reported `TO 5` as unsupported and `SET NOTIFY CURSOR OFF` reported `CURSOR OFF`.
+SetTwoWordCommand
+  = kw:$("TOPIC"i WB _ "ID"i / "NOTIFY"i WB _ "CURSOR"i) WB { return kw.toUpperCase().replace(/\s+/g, ' '); }
 
 // What follows a SET's TO. FILE marks a destination -- `SET PRINTER TO FILE output.txt` -- and a bare Windows path is one the expression reader cannot hold: `SET DEFAULT TO c:\temp` read as the name c and left `:\temp` to the catch-all. Both are tried before the expression list, which would match and stop short.
 SetArguments
@@ -2234,23 +2248,27 @@ BrowseOption
     / "NOREFRESH"i / "SAVE"i) WB { return null; }
 
 // REPLACE [ALL | REST] FieldName1 WITH eExpression1 [ADDITIVE] [, FieldName2 WITH eExpression2 [ADDITIVE]] ... [Scope] [FOR lExpression1] [WHILE lExpression2] [IN nWorkArea | cTableAlias] [NOOPTIMIZE]
+// The scope is documented *after* the field list, and only the leading ALL | REST was read, so `REPLACE invbal WITH 0 RECORD 5` left its scope to the catch-all -- and `... NEXT 3` left a NEXT, which closed the enclosing FOR.
 ReplaceStatement
   = "REPLACE"i WB _
-    scope: ( "ALL"i { return 'ALL'; } / "REST"i { return 'REST'; })? _
+    scope: ( "ALL"i WB { return 'ALL'; } / "REST"i WB { return 'REST'; })? _
     fields:ReplaceFieldList
-    forClause:(_ "FOR"i __ condition:Expression _ { return condition; })?
-    whileClause:(_ "WHILE"i __ condition:Expression _ { return condition; })?
-    inClause:("IN"i __ target:AliasRef _ { return target; })?
-    noOptimize:("NOOPTIMIZE"i)? {
+    opts:(_ ReplaceOption)* {
+      const o = collectRecordOptions(opts.map(t => t[1]));
       return node("ReplaceStatement", { 
-        scope,
+        scope: scope || o.scope,
         fields, 
-        forCondition: forClause,
-        whileCondition: whileClause,
-        inTarget: inClause,
-        noOptimize: !!noOptimize
+        forCondition: o.forCondition,
+        whileCondition: o.whileCondition,
+        inTarget: o.inTarget,
+        noOptimize: o.noOptimize
       });
     }
+
+// REPLACE's tail: the record options every xbase command shares, plus the work area. No FIELDS, which REPLACE names in the list itself.
+ReplaceOption
+  = t:InClause { return { kind: 'IN', value: t }; }
+  / RecordOption
 
 // SCATTER [FIELDS FieldList | FIELDS LIKE Skeleton | FIELDS EXCEPT Skeleton] [MEMO]
 //   TO ArrayName [BLANK] | TO ArrayName AUTOMEM | MEMVAR [BLANK] | NAME ObjectName [BLANK | ADDITIVE]

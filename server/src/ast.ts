@@ -1152,6 +1152,14 @@ export interface SetMarkOfStatement extends NodeBase {
   mark: Expr;
 }
 
+/** SET WINDOW OF MEMO, which names the window a memo field is edited in. The only SET whose argument sits between its keywords. */
+export interface SetWindowOfMemo extends NodeBase {
+  type: 'SetWindowOfMemo';
+  field: string;
+  /** Null when TO is given no name, which restores the default memo window. */
+  window: string | null;
+}
+
 export interface OnSelectionStatement extends NodeBase {
   type: 'OnSelectionStatement';
   what: 'BAR' | 'MENU' | 'PAD' | 'POPUP';
@@ -1704,6 +1712,7 @@ export type Statement =
   | MenuToStatement
   | SetSkipOfStatement
   | SetMarkOfStatement
+  | SetWindowOfMemo
   | OnSelectionStatement
   | OnMenuOpenStatement
   | SortStatement

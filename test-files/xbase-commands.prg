@@ -70,6 +70,7 @@ ENDSCAN
 
 * The pre-SQL data commands. Each names a table, a field or a variable, so each carries operands a rule would want.
 TOTAL ON stnum TO summary FIELDS invbal FOR invbal > 0
+TOTAL TO summary ON stnum FIELDS invbal
 JOIN WITH (m.lcAlias) TO joined FOR custinfo.stnum = invinfo.stnum FIELDS custinfo.stnum, invinfo.invbal
 UPDATE ON stnum FROM (m.lcAlias) REPLACE invbal WITH invinfo.invbal, invnum WITH invinfo.invnum RANDOM
 COPY STRUCTURE TO newtbl FIELDS stnum, invbal WITH CDX

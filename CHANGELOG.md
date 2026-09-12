@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.3.5
+
+### Three rules that read less than their own comment claimed
+
+None of these is a missing command. Each is a rule that already exists and reads part of its statement,
+which is the expensive kind of gap: the statement looks read, so the tail it drops is reported as a
+separate unsupported one and nothing says the node above it is short.
+
+**`TOTAL TO <file> ON <key>`**, the order the documentation leads with. Only the reverse was read, so
+the canonical spelling fell to the catch-all whole. The two halves are now one alternative either way
+round, with the same option tail behind them.
+
+**Three `SET`s whose argument ran past the setting reader.** `SET TOPIC ID TO 5` and
+`SET NOTIFY CURSOR OFF` are two-word settings: the second word was taken for the setting itself and
+everything after it left behind, so `TO 5` and `CURSOR OFF` were reported as statements of their own.
+`SET WINDOW OF MEMO notes TO myform` is the only `SET` whose operand sits between its keywords, so it
+gets its own rule beside `SET SKIP OF` and `SET MARK OF` -- a `SetWindowOfMemo` node naming the field
+and the window, with `window` null for the bare `TO` that restores the default one.
+
+**`REPLACE ... RECORD 5`.** The scope is documented *after* the field list and only the leading
+`ALL | REST` was read. `REPLACE` now takes the same order-free option set as `SCAN`, so `RECORD n`,
+`NEXT n`, `FOR`, `WHILE`, `IN` and `NOOPTIMIZE` read in any order in either position. The `NEXT`
+spelling was the one that cost more than a statement: unread it fell to the dangling-terminator rule
+and closed the enclosing `FOR`, which lost the loop every statement after it. Adding a word boundary to
+the leading `ALL` fixed a second defect found by its control test -- `REPLACE allowance WITH 0` was
+reading `ALL` as the scope and `owance` as the field.
+
+Fourteen parse checks assert each on the field that was lost, with a control beside it, and all
+fourteen were run against the previous grammar to confirm they fail there.
+
 ## 1.3.4
 
 ### The measured half of the ledger

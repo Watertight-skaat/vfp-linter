@@ -31,12 +31,6 @@ What is left in the ledger is unmeasured, and each item costs one statement: tra
 
 - **UNIQUE / FOREIGN KEY after the column list in `CREATE TABLE`** — column-level `UNIQUE`, `CHECK` and `REFERENCES` are read; a constraint written after the column list is not, and it costs the whole `CREATE TABLE` its parse. A second `ADD COLUMN` on `ALTER TABLE` is the same shape, 91 uses.
 
-Three found by a sweep that are defects in rules that already exist rather than missing ones:
-
-- **`TOTAL TO totals ON custid`** — the documented argument order. `TotalStatement` reads only the reverse, `TOTAL ON key TO file`, so the canonical spelling falls to the catch-all. Accepting either order is the fix.
-- **Three `SET`s whose argument runs past what the setting reader claims** — `SET TOPIC ID TO 5`, `SET NOTIFY CURSOR OFF` and `SET WINDOW OF MEMO notes TO myform`, each leaving the tail behind. (partial)
-- **`REPLACE ... RECORD n`** — the scope clause *after* the field list is unread, so `REPLACE invbal WITH 0 RECORD 5` leaves `RECORD 5` behind. The leading `ALL`/`REST` is read. Found while giving `DELETE` and `RECALL` the same clause; unmeasured, which is why it is here rather than done.
-
 ## Cleanup
 
 - **e2e in CI** — `bun run e2e` is the only thing exercising the LSP over the wire, and it passes again as of this pass. It downloads VS Code and needs a display, so it would need `xvfb-run` and would be the flakiest job in the file. The case for a separate, non-blocking job: the suite was red for two releases, on two counts, and nobody knew. Two things to fix on the way: the runner exits 0 when Mocha finds no test files, and the quick fixes, Outline and folding have no e2e coverage yet.
