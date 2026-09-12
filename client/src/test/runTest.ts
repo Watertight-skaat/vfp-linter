@@ -17,8 +17,11 @@ async function main() {
 		// VS Code's integrated terminal sets this, and the downloaded Code.exe inherits it and starts as plain Node, rejecting every launch flag with "bad option".
 		delete process.env.ELECTRON_RUN_AS_NODE;
 
+		// The fixture folder is opened as the workspace: without one the server has no roots to crawl, and every cross-file request answers nothing whether or not the index works.
+		const workspace = path.resolve(__dirname, '../../testFixture');
+
 		// Run against the oldest VS Code the extension claims to support, so the suite actually exercises the floor declared in `engines.vscode` rather than whatever `stable` happens to be today.
-		await runTests({ version: '1.101.0', extensionDevelopmentPath, extensionTestsPath });
+		await runTests({ version: '1.101.0', extensionDevelopmentPath, extensionTestsPath, launchArgs: [workspace] });
 	} catch (err) {
 		console.error('Failed to run tests', err);
 		process.exit(1);

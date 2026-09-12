@@ -2,24 +2,29 @@
 // This file deliberately creates no language-server connection, so the test scripts can import it directly.
 
 import type { AstNode, AstNodeType, Loc, Program } from './ast.js';
+import { extract, type FileRecord, type WorkspaceIndex, type WorkspaceView } from './index.js';
 import { parse } from './parser.js';
 import { rules } from './rules/index.js';
 import { buildSymbolTable } from './scope.js';
-import { Severity, severityByName, toRange, walk, type Fix, type LintDiagnostic, type Rule, type RuleContext, type SeverityName } from './rule.js';
+import { Severity, severityByName, toRange, walk, type Fix, type LintDiagnostic, type RelatedLocation, type Rule, type RuleContext, type SeverityName } from './rule.js';
 
-export type { Fix, LintDiagnostic, SeverityName } from './rule.js';
+export type { Fix, LintDiagnostic, RelatedLocation, SeverityName } from './rule.js';
 
 export interface LinterOptions {
   /** Per-rule severity overrides, keyed by the diagnostic code. A rule the settings do not name keeps its default. */
   rules?: Partial<Record<string, SeverityName>>;
   /** The setting that predates `rules`; `rules['unsupported-syntax']` wins when both are given. */
   unsupportedSyntaxSeverity?: SeverityName;
+  /** The rest of the tree, and which file this text is. Absent, every cross-file rule stays silent. */
+  workspace?: { index: WorkspaceIndex; file: string };
 }
 
 export interface LintResult {
   diagnostics: LintDiagnostic[];
   /** Null when the parse failed, in which case the only diagnostic is the syntax error. */
   ast: Program | null;
+  /** What this file defines and refers to, extracted on the way past. Only built when a workspace was given, since nothing else needs it. */
+  record?: FileRecord;
 }
 
 const source = 'VFP Linter';
@@ -42,12 +47,19 @@ export function lint(text: string, options: LinterOptions = {}): LintResult {
     const severity = resolveSeverity(rule, options);
     return severity === null ? [] : [{ rule, severity }];
   });
-  const ctxBase = { ast, table: buildSymbolTable(ast), lines, eol: text.includes('\r\n') ? '\r\n' : '\n' };
+  // The file's own record is extracted once and shared: the view hands it to the rules, and the caller puts it back in the index so an unsaved edit is what the next file sees.
+  let record: FileRecord | undefined;
+  let workspace: WorkspaceView | undefined;
+  if (options.workspace) {
+    record = extract(options.workspace.file, ast, lines);
+    workspace = options.workspace.index.viewFor(options.workspace.file, record);
+  }
+  const ctxBase = { ast, table: buildSymbolTable(ast), lines, eol: text.includes('\r\n') ? '\r\n' : '\n', workspace };
   const contexts = active.map(({ rule, severity }) => {
     const ctx: RuleContext = {
       ...ctxBase,
-      report(loc: Loc | undefined, message: string, fix?: Fix) {
-        diagnostics.push({ severity, range: toRange(loc), code: rule.code, message, source, ...(fix ? { data: { fix } } : {}) });
+      report(loc: Loc | undefined, message: string, fix?: Fix, related?: RelatedLocation[]) {
+        diagnostics.push({ severity, range: toRange(loc), code: rule.code, message, source, ...(related?.length ? { relatedInformation: related } : {}), ...(fix ? { data: { fix } } : {}) });
       }
     };
     return { rule, ctx };
@@ -65,7 +77,7 @@ export function lint(text: string, options: LinterOptions = {}): LintResult {
   const kept = diagnostics.filter(d => !suppressed(d.range.start.line, d.code));
   // One pass appends to another, so order by position rather than by which rule produced what.
   kept.sort((a, b) => a.range.start.line - b.range.start.line || a.range.start.character - b.range.start.character);
-  return { diagnostics: kept, ast };
+  return { diagnostics: kept, ast, ...(record ? { record } : {}) };
 }
 
 function resolveSeverity(rule: Rule, options: LinterOptions): Severity | null {

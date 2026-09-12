@@ -4,7 +4,9 @@
 		// Listed explicitly for the same reason as client and server: TypeScript 7 does not reliably discover ambient @types here.
 		"types": ["node"],
 		// run-severity-tests.ts reads the settings schema out of package.json and checks it against the rules.
-		"resolveJsonModule": true
+		"resolveJsonModule": true,
+		// The suites are run by bun, never bundled or shipped, and two of them await the workspace crawl at the top level. The root's node20 setting reads them as CommonJS, where that is an error; nothing else about how they are checked changes.
+		"module": "preserve"
 	},
 	"include": [
 		"."

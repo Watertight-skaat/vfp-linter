@@ -1,0 +1,275 @@
+// The suite for everything that needs more than one file: the index, how a name resolves across the tree, and the diagnostics a file only produces when the rest of the workspace is visible.
+// A case is a directory under test-files/workspace/. Every .prg in it is linted with an index built over that directory alone, and each one's findings are diffed against its .expected, exactly as run-all-tests.ts does for a single file. `case.json` can set a searchPath, per-rule severities, or the tier to index at.
+// Below the fixtures are assertions about the index itself -- resolution order, file resolution, what an edit invalidates -- and the parity check that holds the header scan to the parser over every fixture in the repository.
+
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { lint, type LinterOptions } from '../server/src/linter.js';
+import { extract, headerRefKinds, scanHeader, upper, WorkspaceIndex, type FileRecord, type Reference } from '../server/src/index.js';
+import { definitionAt, hoverAt, workspaceSymbols } from '../server/src/navigation.js';
+import { parse } from '../server/src/parser.js';
+import { buildIndex, globToRegExp, indexedExtensions, recordFrom, refresh } from '../server/src/workspace.js';
+import { check, report } from './check.js';
+import { format } from './format.js';
+
+const root = './test-files/workspace';
+const update = process.argv.includes('--update');
+
+interface CaseSettings {
+	searchPath?: string[];
+	rules?: LinterOptions['rules'];
+	tier?: 1 | 2;
+}
+
+const read = (file: string) => fs.readFileSync(file, 'utf-8');
+const lines = (file: string) => read(file).split(/\r\n|\r|\n/);
+
+// --- the fixture cases -------------------------------------------------------
+
+const cases = fs.readdirSync(root, { withFileTypes: true }).filter(e => e.isDirectory()).map(e => e.name).sort();
+const failures: [string, string[]][] = [];
+let matched = 0;
+let total = 0;
+
+for (const name of cases) {
+	const dir = path.join(root, name);
+	const settingsPath = path.join(dir, 'case.json');
+	const settings: CaseSettings = fs.existsSync(settingsPath) ? JSON.parse(read(settingsPath)) : {};
+	const index = await buildIndex({
+		roots: [dir],
+		searchPath: (settings.searchPath ?? []).map(p => path.resolve(dir, p)),
+		yieldEvery: 0
+	});
+	// The fixtures are small enough to index at tier 2, which is what makes a case exercising calls or CREATEOBJECT possible.
+	if (settings.tier !== 1) for (const file of [...index.files.values()].map(r => r.file)) index.upsert(recordFrom(file, read(file), { mtime: 0, size: 0 }, 2));
+
+	for (const file of filesIn(dir)) {
+		total++;
+		const options: LinterOptions = { unsupportedSyntaxSeverity: 'error', rules: settings.rules, workspace: { index, file: path.resolve(file) } };
+		const actual = lint(read(file), options).diagnostics.flatMap(d => format(d).split('\n').map(l => l.trim()));
+		const expectedPath = `${file}.expected`;
+
+		if (update) {
+			if (actual.length) fs.writeFileSync(expectedPath, actual.join('\n') + '\n');
+			else if (fs.existsSync(expectedPath)) fs.unlinkSync(expectedPath);
+			continue;
+		}
+
+		const expected = fs.existsSync(expectedPath) ? read(expectedPath).split('\n').map(l => l.trim()).filter(Boolean) : [];
+		const diff: string[] = [];
+		for (let i = 0; i < Math.max(actual.length, expected.length); i++) {
+			if (actual[i] === expected[i]) continue;
+			if (expected[i] === undefined) diff.push(`  + ${actual[i]}`);
+			else if (actual[i] === undefined) diff.push(`  - ${expected[i]}`);
+			else diff.push(`  - ${expected[i]}\n  + ${actual[i]}`);
+		}
+		if (diff.length) failures.push([file, diff]); else matched++;
+	}
+}
+
+function filesIn(dir: string): string[] {
+	return fs.readdirSync(dir, { withFileTypes: true })
+		.flatMap(entry => (entry.isDirectory() ? filesIn(path.join(dir, entry.name)) : entry.name.endsWith('.prg') ? [path.join(dir, entry.name)] : []))
+		.sort();
+}
+
+if (update) {
+	console.log(`Recorded the workspace fixtures across ${cases.length} cases.`);
+	process.exit(0);
+}
+for (const [file, diff] of failures) {
+	console.log(`==== ${file} ====`);
+	console.log(diff.join('\n'));
+}
+check('every workspace fixture matches its expected diagnostics', `${matched}/${total}`, `${total}/${total}`);
+
+// --- the index ---------------------------------------------------------------
+
+const basic = await buildIndex({ roots: ['./test-files/workspace/basic'], yieldEvery: 0 });
+const at = (name: string) => path.resolve('./test-files/workspace/basic', name);
+const names = (list: { name: string }[]) => list.map(r => r.name).sort();
+
+check('a crawl indexes every readable file', [...basic.files.values()].map(r => path.basename(r.file)).sort(), ['console.prg', 'ledger.prg', 'log.prg', 'shared.h']);
+check('the header scan reads a routine and its parameters', basic.get(at('log.prg'))!.routines.map(r => `${r.name}(${r.params.join(', ')})`), ['LogEntry(tcAccount)', 'Describe(tcAccount, tnWidth)']);
+check('a function is marked as one', basic.get(at('log.prg'))!.routines.map(r => r.isFunction), [false, true]);
+check('the constants of a header file are indexed', names(basic.get(at('shared.h'))!.constants), ['CRLF', 'MAX_ROWS']);
+check('the comment block above a routine is its documentation', basic.get(at('ledger.prg'))!.routines[0].doc, 'Posts a charge to the ledger.\nReturns .T. when the post succeeded.');
+check('a routine is found by name from another file', basic.resolveRoutine('logentry', at('console.prg')).map(r => path.basename(r.file)), ['log.prg']);
+check('an unknown name resolves to nothing', basic.resolveRoutine('NoSuchThing', at('console.prg')), []);
+
+// The references a file makes, which is what every cross-file rule reads.
+const consoleRefs = (kind: string) => basic.get(at('console.prg'))!.refs.filter(r => r.kind === kind).map(r => `${r.name}/${r.argc}`);
+check('a DO names its routine and counts its arguments', consoleRefs('do'), ['PostCharge/2']);
+check('a DO FORM names its form', consoleRefs('form'), ['ledgerview/0']);
+
+// --- resolving a file --------------------------------------------------------
+
+check('an #INCLUDE resolves beside the file that names it', basic.resolveFile('shared.h', 'include', at('log.prg')), at('shared.h'));
+check('a name with no extension takes the one its kind defaults to', basic.resolveFile('log', 'procedure', at('console.prg')), at('log.prg'));
+check('a form that does not exist resolves to nothing', basic.resolveFile('ledgerview', 'form', at('console.prg')), null);
+check('resolution is case-insensitive, as the filesystem VFP runs on is', basic.resolveFile('SHARED.H', 'include', at('log.prg')), at('shared.h'));
+
+const searchPathDir = './test-files/workspace/search-path';
+const searched = await buildIndex({ roots: [searchPathDir], searchPath: [path.resolve(searchPathDir, 'lib')], yieldEvery: 0 });
+check('the search path is looked in after the roots', path.basename(searched.resolveFile('toolkit', 'procedure', path.resolve(searchPathDir, 'main.prg')) ?? ''), 'toolkit.prg');
+check('a routine in a search-path file is still indexed', searched.resolveRoutine('Shared', path.resolve(searchPathDir, 'main.prg')).length, 1);
+
+// --- resolution order --------------------------------------------------------
+
+const procDir = './test-files/workspace/procedure-file';
+const procedureFile = await buildIndex({ roots: [procDir], yieldEvery: 0 });
+const app = path.resolve(procDir, 'app.prg');
+check('the library the file loads is preferred over one merely present in the tree',
+	procedureFile.resolveRoutine('Greet', app).map(r => path.basename(r.file)), ['toolkit.prg', 'stray.prg']);
+check('a definition in the asking file wins over every other',
+	procedureFile.resolveRoutine('Greet', path.resolve(procDir, 'stray.prg')).map(r => path.basename(r.file)), ['stray.prg', 'toolkit.prg']);
+
+// --- what an edit invalidates ------------------------------------------------
+
+const churn = new WorkspaceIndex({ roots: [path.resolve('/work')] });
+const record = (file: string, text: string, tier: 1 | 2 = 1) => recordFrom(path.resolve('/work', file), text, { mtime: 0, size: 0 }, tier);
+churn.upsert(record('lib.prg', 'PROCEDURE Greet\nLPARAMETERS tcWho\nENDPROC\n'));
+churn.upsert(record('caller.prg', 'DO Greet WITH "a"\n'));
+check('a caller is a dependent of what it calls', [...churn.dependentsOf(['GREET'])].map(f => path.basename(f)), ['caller.prg']);
+check('an unchanged re-index invalidates nothing',
+	[...churn.upsert(record('lib.prg', 'PROCEDURE Greet\nLPARAMETERS tcWho\nENDPROC\n')).changed], []);
+check('a changed signature invalidates the name',
+	[...churn.upsert(record('lib.prg', 'PROCEDURE Greet\nLPARAMETERS tcWho, tcHow\nENDPROC\n')).changed], ['GREET']);
+check('and the caller is what has to be looked at again',
+	[...churn.dependentsOf(churn.upsert(record('lib.prg', 'PROCEDURE Greet\nENDPROC\n')).changed)].map(f => path.basename(f)), ['caller.prg']);
+check('deleting the file invalidates it too', [...churn.remove(path.resolve('/work', 'lib.prg')).changed].sort(), ['GREET', 'file:lib', 'file:lib.prg']);
+check('and the name then resolves to nothing', churn.resolveRoutine('Greet', path.resolve('/work', 'caller.prg')), []);
+
+// A file appearing or vanishing is an invalidation of its own, separate from the names inside it: a `SET PROCEDURE TO lib` that was reported as missing stops being missing the moment lib.prg is created. The two are filed under the name with and without its extension so they meet without the index having to resolve a search path on every re-index.
+const loading = new WorkspaceIndex({ roots: [path.resolve('/work')] });
+loading.upsert(record('app.prg', 'SET PROCEDURE TO lib ADDITIVE\n#INCLUDE "shared.h"\n'));
+check('a file appearing reaches the file that named it without its extension',
+	[...loading.dependentsOf(loading.upsert(record('lib.prg', 'PROCEDURE Greet\nENDPROC\n')).changed)].map(f => path.basename(f)), ['app.prg']);
+check('and one named with its extension too',
+	[...loading.dependentsOf(loading.upsert(record('shared.h', '#DEFINE MAX 1\n')).changed)].map(f => path.basename(f)), ['app.prg']);
+check('a file nothing names has no dependents',
+	[...loading.dependentsOf(loading.upsert(record('other.prg', 'PROCEDURE Unrelated\nENDPROC\n')).changed)], []);
+
+// --- the watcher path --------------------------------------------------------
+// What the server does when a file changes on disk outside the editor. It touches the filesystem, so it gets a directory of its own rather than one of the fixtures.
+
+const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'vfp-workspace-'));
+try {
+	const libFile = path.join(scratch, 'lib.prg');
+	fs.writeFileSync(libFile, 'PROCEDURE Greet\nLPARAMETERS tcWho\nENDPROC\n');
+	fs.writeFileSync(path.join(scratch, 'caller.prg'), 'DO Greet WITH "a"\n');
+	const watched = await buildIndex({ roots: [scratch], yieldEvery: 0 });
+	check('a crawled routine is there to begin with', watched.resolveRoutine('Greet', libFile).length, 1);
+
+	fs.writeFileSync(libFile, 'PROCEDURE Greet\nLPARAMETERS tcWho, tcHow\nENDPROC\n');
+	const afterEdit = refresh(watched, libFile);
+	check('an edit on disk is picked up', [...afterEdit], ['GREET']);
+	check('and the new signature is what resolves', watched.resolveRoutine('Greet', libFile)[0].params, ['tcWho', 'tcHow']);
+	check('the caller is what has to be re-linted', [...watched.dependentsOf(afterEdit)].map(f => path.basename(f)), ['caller.prg']);
+
+	fs.unlinkSync(libFile);
+	check('a deleted file is dropped', [...refresh(watched, libFile)].sort(), ['GREET', 'file:lib', 'file:lib.prg']);
+	check('and its routine is gone with it', watched.resolveRoutine('Greet', libFile), []);
+	// A file the index does not read still has to be recorded, or SET CLASSLIB TO a .vcx reports as missing.
+	const library = path.join(scratch, 'controls.vcx');
+	fs.writeFileSync(library, '');
+	refresh(watched, library);
+	check('a file of a kind the index cannot read is still known to exist', watched.resolveFile('controls', 'classlib', path.join(scratch, 'caller.prg')), library);
+} finally {
+	fs.rmSync(scratch, { recursive: true, force: true });
+}
+
+// --- navigation --------------------------------------------------------------
+
+const consoleFile = at('console.prg');
+const consoleLines = lines(path.join('./test-files/workspace/basic', 'console.prg'));
+const consoleRecord = extract(consoleFile, parse(consoleLines.join('\n')) as never, consoleLines);
+const view = basic.viewFor(consoleFile, consoleRecord);
+const where = (line: number, character: number) => definitionAt(consoleRecord, consoleLines, { line, character }, view).map(l => `${path.basename(l.file)}:${l.range.start.line}`);
+
+check('go to definition follows a DO to another file', where(1, 5), ['ledger.prg:2']);
+check('go to definition follows a call', where(3, 12), ['log.prg:7']);
+check('a form with no file behind it goes nowhere', where(2, 10), []);
+
+const ledgerLines = lines('./test-files/workspace/basic/ledger.prg');
+const ledgerRecord = extract(at('ledger.prg'), parse(ledgerLines.join('\n')) as never, ledgerLines);
+const ledgerView = basic.viewFor(at('ledger.prg'), ledgerRecord);
+check('a routine in the same file wins', definitionAt(ledgerRecord, ledgerLines, { line: 4, character: 5 }, ledgerView).map(l => path.basename(l.file)), ['log.prg']);
+check('hover shows the signature and the comment block above it',
+	hoverAt(consoleRecord, consoleLines, { line: 1, character: 5 }, view)?.markdown.split('\n').filter(l => l && !l.startsWith('```')),
+	['PROCEDURE PostCharge(tcAccount, tnAmount)', '*ledger.prg*', 'Posts a charge to the ledger.', 'Returns .T. when the post succeeded.']);
+check('hover on a constant shows its value',
+	hoverAt(ledgerRecord, ['MAX_ROWS'], { line: 0, character: 2 }, ledgerView)?.markdown.split('\n')[1], '#DEFINE MAX_ROWS 500');
+check('a macro target says so rather than guessing',
+	hoverAt(...macro())?.markdown, 'Named at run time, so the linter cannot say what this refers to.');
+
+function macro(): [FileRecord, string[], { line: number; character: number }, typeof view] {
+	const text = ['DO &lcProc'];
+	const rec = extract(consoleFile, parse(text.join('\n')) as never, text);
+	return [rec, text, { line: 0, character: 5 }, view];
+}
+
+check('workspace symbols list every definition in the tree',
+	workspaceSymbols({ index: basic }, '').map(s => s.name), ['CRLF', 'Describe', 'LogEntry', 'MAX_ROWS', 'PostCharge']);
+check('a query narrows them, prefix first', workspaceSymbols({ index: basic }, 'log').map(s => s.name), ['LogEntry']);
+check('a symbol carries the shape the editor groups by',
+	workspaceSymbols({ index: basic }, 'Describe').map(s => `${s.sort}${s.detail}`), ['function(tcAccount, tnWidth)']);
+
+// --- the header scan against the parser --------------------------------------
+// The regex is what makes indexing a large tree possible, and it is the thing most likely to drift. Every fixture in the repository is read both ways and the two must agree on what the file defines and what it names.
+
+const corpus = collect('./test-files').filter(f => !f.includes('workspace'));
+const divergent: string[] = [];
+for (const file of corpus) {
+	const text = read(file);
+	let parsed;
+	try {
+		parsed = parse(text);
+	} catch {
+		continue; // a fixture that records a syntax error has no tree to compare against
+	}
+	const tier2 = extract(file, parsed as never, text.split(/\r\n|\r|\n/));
+	const tier1 = scanHeader(file, text);
+	const difference = compare(tier1, tier2);
+	if (difference) divergent.push(`${file}: ${difference}`);
+}
+check('the header scan finds what the parser finds', divergent, []);
+
+// A declaration rather than a const: the parity loop above runs before this point in the file, and only a declaration is hoisted to meet it.
+function refKey(ref: Reference): string {
+	return `${ref.kind}:${ref.dynamic ? '&' : upper(ref.name)}@${ref.range.start.line}`;
+}
+
+/** What the two tiers must agree on: the definitions, and the references tier 1 claims to cover. Ranges are compared by line, since one reads a whole line and the other a node. */
+function compare(tier1: FileRecord, tier2: FileRecord): string | null {
+	const routines = (r: FileRecord) => [...r.routines, ...r.classes.flatMap(c => c.methods)].map(x => `${x.owner ?? ''}.${x.key}(${x.params.join(',')})${x.isFunction ? '!' : ''}@${x.range.start.line}`).sort();
+	const classes = (r: FileRecord) => r.classes.map(c => `${c.key} AS ${c.base ?? ''}@${c.range.start.line}`).sort();
+	const constants = (r: FileRecord) => r.constants.map(c => `${c.key}=${c.value ?? ''}@${c.range.start.line}`).sort();
+	const refs = (r: FileRecord) => r.refs.filter(x => headerRefKinds.has(x.kind)).map(refKey).sort();
+	for (const [what, of] of [['routines', routines], ['classes', classes], ['constants', constants], ['references', refs]] as const) {
+		const a = of(tier1).join(' | ');
+		const b = of(tier2).join(' | ');
+		if (a !== b) return `${what}\n    scan   ${a}\n    parse  ${b}`;
+	}
+	return tier1.mainParams?.join(',') === tier2.mainParams?.join(',') ? null : `main parameters\n    scan   ${tier1.mainParams}\n    parse  ${tier2.mainParams}`;
+}
+
+function collect(dir: string): string[] {
+	return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry =>
+		entry.isDirectory() ? collect(`${dir}/${entry.name}`) : entry.name.endsWith('.prg') ? [`${dir}/${entry.name}`] : []);
+}
+
+// --- the exclude globs -------------------------------------------------------
+
+check('a ** glob crosses directories', globToRegExp('**/node_modules/**').test('c:/src/app/node_modules/x/y.prg'), true);
+check('it matches at the root too', globToRegExp('**/node_modules/**').test('node_modules/x.prg'), true);
+check('a * stops at a separator', globToRegExp('*.prg').test('a/b.prg'), false);
+check('an unrelated path is kept', globToRegExp('**/out/**').test('c:/src/app/outbound/x.prg'), false);
+
+// The client watches one glob and the server indexes one list of extensions. If they drift the index quietly stops hearing about a whole kind of file, which nothing else here would catch.
+const watcherGlob = /createFileSystemWatcher\('([^']+)'\)/.exec(read('./client/src/extension.ts'))?.[1];
+check('the client watches exactly the extensions the server indexes',
+	watcherGlob, `**/*.{${indexedExtensions.map(e => e.slice(1)).join(',')}}`);
+
+report('Workspace checks');

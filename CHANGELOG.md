@@ -2,7 +2,32 @@
 
 ## Unreleased
 
-### Groundwork for reading across files
+### The workspace, not just the file
+
+Until now nothing in the server knew another file existed. It now indexes every `.prg`, `.mpr`, `.spr`
+and `.h` in the workspace folders, and three editor features read it: **Go to Definition** on a `DO`, a
+call, an `#INCLUDE`, a `SET PROCEDURE TO` or a `SET CLASSLIB TO`; **Hover**, showing the signature and
+the comment block above the routine, which is what VFP code carries instead of documentation; and **Go
+to Symbol in Workspace** over every routine, class, method and constant in the tree.
+
+**Resolution follows VFP's own order** — the file doing the calling, then the libraries it loads with
+`SET PROCEDURE`, then the rest of the tree. A name defined twice is not ambiguous, it is shadowed, and
+the jump lands where FoxPro would.
+
+**A name assembled at run time is left alone.** `DO &lcProc`, `DO (lcName)` and a target built by
+concatenation say so rather than being guessed at. One shared test decides this, so the rules that read
+across files in the next release all refuse the same set.
+
+**The index is read twice over.** A regex reads the headers of the whole tree at startup — under a
+second on several thousand files, with the editor usable throughout — and the parser reads a file when
+its tree is wanted. A test holds one to the other over every fixture in the repository, which is what
+keeps the fast path honest; writing it turned up seven constructs the regex had been missing, `ON ERROR
+DO handler` among them.
+
+Three settings: `foxpro.workspace.enabled`, `foxpro.workspace.exclude` and
+`foxpro.workspace.searchPath`, the last being the equivalent of `SET PATH`.
+
+### Groundwork
 
 `DO foo IN lib.prg` is read whole: `IN` took an identifier only, so the `.prg` was left behind as an
 unsupported statement of its own. And `DO`'s target is now the node it names rather than a pair with the

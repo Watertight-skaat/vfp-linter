@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { ExtensionContext } from 'vscode';
+import { ExtensionContext, workspace } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node';
 
 let client: LanguageClient;
@@ -19,7 +19,13 @@ export function activate(context: ExtensionContext) {
 	};
 
 	const clientOptions: LanguageClientOptions = {
-		documentSelector: [{ scheme: 'file', language: 'foxpro' }]
+		documentSelector: [{ scheme: 'file', language: 'foxpro' }],
+		synchronize: {
+			// The index has to hear about files that are edited, added or deleted outside the editor -- a branch switch, a build, another tool. Header files are in the list because a #DEFINE lives in one.
+			fileEvents: workspace.createFileSystemWatcher('**/*.{prg,mpr,spr,h}')
+		},
+		// Where the index caches what it has read, so a restart does not re-read the whole tree.
+		initializationOptions: { storagePath: context.globalStorageUri.fsPath }
 	};
 
 	// Create the language client and start the client.

@@ -44,6 +44,7 @@ node shapes and a real node type would only force a cast at every one of them.
 | `run-severity-tests.ts`   | Each rule follows `foxpro.rules`; locked rules and syntax errors ignore it; suppression comments; `package.json` and the README name every rule |
 | `run-keyword-tests.ts`    | Every keyword literal in the grammar still allows an identifier that starts with it       |
 | `run-fix-tests.ts`        | Each quick fix produces the expected text and makes its own finding go away; the Outline and folding ranges |
+| `run-workspace-tests.ts`  | The workspace index: what a crawl finds, how a name resolves across files, what an edit invalidates, go to definition, hover, workspace symbols — and the header scan held to the parser over every fixture |
 
 Fixtures live in three places. `test-files/*.prg` is the coverage corpus: the grammar is expected to
 read all of it. A `.expected` file against one of those records either a grammar gap or a rule
@@ -60,9 +61,25 @@ application rather than on the grammar: same rule as the top level -- it must pa
 for the rule findings and grammar gaps that need surrounding code to show what they cost. Its
 `README.md` says what each file covers and `SEE-ALSO.md` records what reading that source turned up.
 
+`test-files/workspace/` is the fourth, and the only one `run-all-tests.ts` skips: a case there is a
+*directory*, because its point is what one file reports once the others are visible. Each case is
+indexed on its own, every `.prg` in it is linted with that index, and each gets its own `.expected`.
+An optional `case.json` sets a `searchPath`, per-rule severities, or the tier to index at.
+
 A fixture with no `.expected` file must produce nothing. To accept a change, run
 `bun run test:update` and review the resulting diff: that diff is the point, because it makes a
 changed severity or message visible rather than silently absorbed.
+
+**The header scan is held to the parser.** `server/src/index.ts` reads a file two ways: a regex over the
+line-anchored constructs, fast enough to run over a whole tree at startup, and a walk of the parsed tree.
+`run-workspace-tests.ts` runs both over every fixture in the repository and fails when they disagree
+about what a file defines or names. Writing that check is what found seven constructs the regex had been
+missing. If you touch the scan, that test is the one that matters.
+
+`bun run lint:dir <directory>` runs the linter over any directory with a real index behind it and prints
+what it finds, with per-rule counts. A cross-file rule cannot be judged on fixtures alone — how often it
+fires on a real tree is what decides whether it is usable — so a new one should be run over the Watertight
+source before its default severity is settled.
 
 > Use `bun run test`, not `bun test`. `bun test` is Bun's own test runner and ignores the
 > `test` script -- it picks up the suites under `client/src/test`, which need a running

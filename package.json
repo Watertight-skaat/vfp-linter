@@ -167,6 +167,33 @@
 						}
 					}
 				},
+				"foxpro.workspace.enabled": {
+					"scope": "window",
+					"type": "boolean",
+					"default": true,
+					"description": "Index the whole workspace, so Go to Definition, Hover and Go to Symbol in Workspace can reach code in other files."
+				},
+				"foxpro.workspace.exclude": {
+					"scope": "window",
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [
+						"**/node_modules/**",
+						"**/.git/**"
+					],
+					"description": "Globs the workspace index skips."
+				},
+				"foxpro.workspace.searchPath": {
+					"scope": "window",
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [],
+					"description": "Extra directories a file name is looked for in, the equivalent of FoxPro's SET PATH. Searched after the file's own folder and the workspace folders."
+				},
 				"foxpro.trace.server": {
 					"scope": "window",
 					"type": "string",
@@ -192,8 +219,9 @@
 		"watch:bundle": "node ./scripts/build.mjs --watch",
 		"typecheck": "tsc -p client/tsconfig.json && tsc -p server/tsconfig.json && tsc -p test/tsconfig.json",
 		"postinstall": "bun run build:parser",
-		"test": "bun ./test/run-all-tests.ts && bun ./test/run-ast-tests.ts && bun ./test/run-parse-tests.ts && bun ./test/run-scope-tests.ts && bun ./test/run-severity-tests.ts && bun ./test/run-keyword-tests.ts && bun ./test/run-fix-tests.ts",
-		"test:update": "bun ./test/run-all-tests.ts --update",
+		"test": "bun ./test/run-all-tests.ts && bun ./test/run-ast-tests.ts && bun ./test/run-parse-tests.ts && bun ./test/run-scope-tests.ts && bun ./test/run-severity-tests.ts && bun ./test/run-keyword-tests.ts && bun ./test/run-fix-tests.ts && bun ./test/run-workspace-tests.ts",
+		"test:update": "bun ./test/run-all-tests.ts --update && bun ./test/run-workspace-tests.ts --update",
+		"lint:dir": "bun ./test/lint-dir.ts",
 		"release": "node ./scripts/publish.mjs",
 		"e2e": "bun run compile && node ./scripts/build.mjs --tests && node client/out/test/runTest.js"
 	},

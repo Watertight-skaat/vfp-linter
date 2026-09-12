@@ -2,7 +2,7 @@
 
 ## Editor
 
-- **Go to definition and hover** — a `DO x` or `x()` whose routine is in the same file can jump to it, and hovering a variable can show its declaration and type. Both come off the symbol table; cross-file needs a workspace index and a `SET PROCEDURE` reading, which is a larger step.
+- **Hover over a variable** — the routine-level features landed with the workspace index, but hovering a *variable* still shows nothing. Its declaration and inferred type are both in the symbol table already; this is the one part of the original item the index did not cover.
 - **Misc "Quick fixes"** — `empty-branch` (remove the branch), `try-without-catch` (add `CATCH TO loErr`), `select-without-into` (append `INTO CURSOR`, naming it after the first table). Same shape as the three that exist: a title and the edits, carried on the diagnostic.
 
 ## Potential Rules

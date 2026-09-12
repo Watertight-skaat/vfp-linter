@@ -89,7 +89,14 @@ Code:
 
 Done when `bun run test` is green and `DoStatement.target` is a node.
 
-## Phase 1: harness, index, plumbing, definition, symbols, hover (4 days)
+## Phase 1: harness, index, plumbing, definition, symbols, hover (4 days) -- done
+
+Landed as planned, with three notes for whoever picks up phase 2:
+
+- **`isDynamic` moved forward from phase 2**, because `extract()` needs it to mark a reference. Its test is a corpus-wide one rather than the unit list the plan sketched: the header scan and the parser must agree on which references are dynamic over every fixture, which is a stronger check than any set of hand-written cases. Phase 2 still owns the rules that consult it.
+- **`dynamic.ts` takes `'target' | 'name'`, not `'target' | 'callee'`.** Only `DO` and `DO FORM` accept the parenthesised runtime form, so an `Identifier` is dynamic in exactly those two positions and is a plain name everywhere else -- a call's callee, a `SET PROCEDURE` argument, an `#INCLUDE` path. Getting this wrong was what made `SET PROCEDURE TO lib1, lib2` read as two macros.
+- **The header scan reads more than line-anchored constructs.** `ON ERROR DO handler`, `ON KEY LABEL F5 DO refresh` and `ON SELECTION BAR 1 OF menu DO x` all put a real call in the middle of a line, and the corpus is full of them. The scan masks string contents and then searches, so `lcMsg = "DO NOT EDIT"` is not mistaken for one.
+- **A file appearing or vanishing is its own invalidation**, filed under `file:<name>` with and without the extension so `SET PROCEDURE TO lib` and the `lib.prg` that satisfies it meet without resolving a search path on every re-index. That is groundwork `missing-file` needs in phase 2; it is wired and tested now because leaving it half-built was worse than finishing it.
 
 ### Tests first
 - `test/run-workspace-tests.ts` (~150 lines): for every `test-files/workspace/<case>/`, optionally read `case.json` (`searchPath`, `rules`, `tier: 1|2`), build the index over the directory with `workspace.ts`, lint every `.prg` with `options.workspace`, diff against per-file `.expected` using the shared formatter, support `--update`. Below the fixture loop, `check()`-style assertions for the index API: `resolveRoutine` ordering, `resolveFile` extension defaulting and search order, `upsert` change sets, `dependentsOf`.
