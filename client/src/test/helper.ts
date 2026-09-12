@@ -45,3 +45,14 @@ export async function setTestContent(content: string): Promise<boolean> {
 	);
 	return editor.edit(eb => eb.replace(all, content));
 }
+
+/** Polls until the document has exactly `count` diagnostics, so a test waits on the server rather than on a fixed sleep. */
+export async function waitForDiagnostics(uri: vscode.Uri, count = 1, timeout = 20000): Promise<vscode.Diagnostic[]> {
+	const deadline = Date.now() + timeout;
+	for (;;) {
+		const diagnostics = vscode.languages.getDiagnostics(uri);
+		if (diagnostics.length === count) return diagnostics;
+		if (Date.now() > deadline) throw new Error(`timed out waiting for ${count} diagnostics on ${uri.fsPath}, got ${diagnostics.length}`);
+		await sleep(100);
+	}
+}

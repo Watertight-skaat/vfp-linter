@@ -31,5 +31,25 @@ jobs:
       # Regenerates the parser, type-checks both projects, then bundles.
       - run: bun run compile
 
-      # Must be `bun run test`: bare `bun test` is Bun's own runner, which picks up the VS Code e2e fixtures and reports meaningless failures. `bun run e2e` is not run here -- it downloads VS Code and needs a display.
+      # Must be `bun run test`: bare `bun test` is Bun's own runner, which picks up the VS Code e2e fixtures and reports meaningless failures. The e2e suite has a job of its own below.
       - run: bun run test
+
+  # The only thing that drives the LSP over the wire, and it is the flakiest thing here: it downloads VS Code and runs a real window under a virtual display. It reports rather than blocks, because the suite was red for two releases and nobody knew.
+  e2e:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: bun install --frozen-lockfile
+
+      # `bun run e2e` compiles, bundles the suites and launches VS Code. xvfb-run gives the window a display; -a picks a free one.
+      - run: xvfb-run -a bun run e2e

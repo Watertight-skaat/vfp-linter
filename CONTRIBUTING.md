@@ -75,6 +75,16 @@ hidden behind a fully passing corpus, and `SET TOPIC TO "x"` read as `SET TO` wi
 tree in `run-parse-tests.ts`, and the symbol table's reads and writes in `run-scope-tests.ts` when the
 change reaches a name.
 
+### End to end
+
+`bun run e2e` is the only suite that speaks the protocol. It bundles `client/src/test` to JS, downloads
+the VS Code named in `runTest.ts` -- the `engines.vscode` floor rather than whatever `stable` is today --
+and runs Mocha inside the extension host against the fixtures in `client/testFixture`. It covers what the
+server publishes and what the editor asks it for: diagnostics on a file with a gap and silence on one
+without, the quick fixes (offered, then applied through `applyEdit` until the finding goes away), the
+Outline and the folding ranges. The runner fails when the glob finds no suites, because Mocha reports
+zero failures for zero tests and the job would otherwise pass on a build that produced nothing.
+
 ### CI
 
 `.github/workflows/ci.yml` runs on every push to `master` and every pull request:
@@ -82,7 +92,10 @@ change reaches a name.
 node 22. `client/` and `server/` are workspaces of the root package, so there is one lockfile and
 `--frozen-lockfile` is the whole guard.
 
-`bun run e2e` is not part of CI: it downloads VS Code and needs a display.
+`bun run e2e` runs in a second job, under `xvfb-run` and marked `continue-on-error`, so it reports
+without blocking. It downloads VS Code and drives a real window, which makes it the flakiest thing in the
+file -- but it is also the only thing exercising the LSP over the wire, and it was red for two releases,
+on two counts, with nothing to say so.
 
 ### The parser is generated, not tracked
 
