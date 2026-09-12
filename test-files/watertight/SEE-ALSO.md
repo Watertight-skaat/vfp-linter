@@ -211,8 +211,8 @@ Counted over the whole source. The one-line ledger is in `../diagnostics/still-u
 the two that need surrounding code to show the cost have a fixture here.
 
 The counts are the measurement and are left as they were taken. Every row below is read now except
-`CAST` with a computed width and the last row's `ON("error")`, bare `?` and `DO FORM <a-b>` -- those
-are what the ledger still records. `@ ... EDIT` is the one remaining half of the `@` row.
+the last row's `ON("error")` and bare `?` -- those are what the ledger still records. `@ ... EDIT` is
+the one remaining half of the `@` row.
 
 | Construct | Uses | Note |
 | --- | --- | --- |
@@ -228,8 +228,8 @@ are what the ledger still records. `@ ... EDIT` is the one remaining half of the
 | `FLUSH IN (<expr>) FORCE`, `SET RELATION OFF INTO`, `SET ORDER TO <expr>` | ~55 | Same shape: a clause whose operand is an expression |
 | `IF <cond> THEN` | 20 | The `IF` is read, so the cost is a stray statement — but one the symbol table books as a read of a variable named `THEN` |
 | `DIMEN` (the abbreviation of `DIMENSION`) | 16 | |
-| `CAST(x AS C(<expr>))` — a computed width | 15 | Costs the **whole SELECT**, so its destination, joins and WHERE are invisible to every rule |
-| `ON("error")`, bare `?`, `MODIFY COMMAND (<expr>)`, `DO FORM <a-b>` | ~40 | The last of these does not announce the whole gap: the form name is read as far as the hyphen, so the statement looks read and names the wrong form |
+| `CAST(x AS C(<expr>))` — a computed width | 15 | Cost the **whole SELECT**, so its destination, joins and WHERE were invisible to every rule. The width is read as an expression now, the way `CREATE TABLE`'s already was |
+| `ON("error")`, bare `?`, `MODIFY COMMAND (<expr>)`, `DO FORM <a-b>` | ~40 | The last of these did not announce the whole gap: the form name was read as far as the hyphen, so the statement looked read while naming the wrong form. A form name is read as a file name now |
 
 ## 7. Two more found by the control tests
 

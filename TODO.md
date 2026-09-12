@@ -16,13 +16,6 @@
 
 Measured by running the linter over Watertight's codebase
 
-### Silently costs a rule rather than a statement
-
-- **`CAST(x AS C(<expr>))`** costs the whole `SELECT` its parse, so the query's destination, joins and WHERE go unchecked. The only whole-file-scale gap left: `TypeSpec` reads the width as a `NumberLiteral`, and the widths come from the schema at runtime.
-- **`DO FORM <a-b>`** reads the name as far as the hyphen, so the statement looks read and names the wrong form.
-
-### Others
-
 Every measured one is read now: `@ <row>,<col>` with no clause (147 uses), the console commands `EJECT`, `RETRY` and `SHOW GETS` (with `SHOW GET <var>`, whose operand is a read the symbol table was losing), `AS <type>` on `PRIVATE` and `PUBLIC`, `DELETE RECORD n`, `MD (<expr>)`, `MODIFY COMMAND (<expr>)`, `FLUSH IN`, `SET ORDER TO <expr>`, `IF ... THEN` and `DIMEN`. `ACTIVATE SCREEN`, `READ EVENTS`, `CANCEL`, `ADD OBJECT`, `SET RELATION OFF INTO` and the `AS` on a method return were already read when the list was written.
 
 What is left in the ledger is unmeasured, and each item costs one statement: transactions (`BEGIN`/`END TRANSACTION`, `ROLLBACK`), the database container (`CREATE`/`OPEN DATABASE`, `CREATE CONNECTION`, `FREE`/`REMOVE TABLE`, and the `DELETE DATABASE`/`VIEW`/`CONNECTION` partials), console input (`INPUT`, `ACCEPT`), `READ CYCLE` and `@ ... EDIT`. Transactions are the only one with a rule waiting behind them. All are one-liners in `test-files/diagnostics/still-unsupported.prg`.

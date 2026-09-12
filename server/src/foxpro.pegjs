@@ -808,8 +808,9 @@ MacroPrefixedArg
   = m:MacroSubstitute _ e:Expression { return { type: 'MacroPrefixed', macro: m, expression: e }; }
 
 // CAST(expr AS TypeSpec) - simple SQL style cast support
+// The width is an expression, not a literal: the widths come from the schema at runtime, so the query pads to whatever the target column declares. Read as a NumberLiteral it cost the whole SELECT its parse -- destination, joins and WHERE all invisible -- rather than the cast alone. CREATE TABLE's FieldSize already read it this way.
 TypeSpec
-  = id:Identifier _ "(" _ w:NumberLiteral _ s:("," _ NumberLiteral _)? ")" { 
+  = id:Identifier _ "(" _ w:Expression _ s:("," _ Expression _)? ")" { 
     return { kind: 'typed', name: id, size: w, scale: (s != null ? s[2] : null) }; 
   }
   / id:IdentifierOrString { return { kind: 'simple', name: id }; }
@@ -1492,7 +1493,7 @@ CaseBoundary
 // DO FORM FormName | ? [NAME VarName [LINKED]] [WITH cParameterList]
 //  [TO VarName] [NOREAD] [NOSHOW]
 DoFormStatement "do form statement"
-  = "DO FORM"i WB _ target:(StringLiteral / Identifier / "?") _
+  = "DO FORM"i WB _ target:DoFormTarget _
     namePart:("NAME"i _ nameIdent:ParameterName _ link:("LINKED"i)? { return { name: nameIdent, linked: !!link }; })?
     withPart:("WITH"i _ params:ArgumentList maybeTo:(_ "TO"i _ v:ParameterName { return v; })? { return { params, to: maybeTo }; })?
     toPart:("TO"i _ v:ParameterName { return v; })?
@@ -1510,6 +1511,14 @@ DoFormStatement "do form statement"
         noshow: flags ? flags.some(f => f[1].toUpperCase() === 'NOSHOW') : false
       });
     }
+
+// The form is named by a file, so the name holds characters an identifier cannot. `DO FORM start-up_code_mod` was read as far as the hyphen and `DO FORM myform.scx` as far as the dot, which is the expensive kind of gap: the statement looks read while it names the wrong form, and the remainder becomes a statement of its own. The parenthesised form is the documented way to name one at runtime.
+DoFormTarget
+  = "?"
+  / StringLiteral
+  / "(" _ e:Expression _ ")" { return e; }
+  / &([A-Za-z0-9_]* [-.:\\/]) p:UnquotedPath { return p; }
+  / Identifier
 
 DoStatement "do statement"
   = "DO"i WB _ 

@@ -14,6 +14,5 @@
 28:1 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'READ CYCLE'
 31:1 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '@ 3, 2 EDIT m.cUsed SIZE 17, 75 NOEDIT'
 34:10 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '= ON("error")'
-40:14 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '-up_code_mod'
-43:1 warning implicit-private 'lFlags' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
-43:15 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '(mastinfo .creditcard .or. mastinfo .ach, ",0", "")'
+40:1 warning implicit-private 'lFlags' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
+40:15 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '(mastinfo .creditcard .or. mastinfo .ach, ",0", "")'

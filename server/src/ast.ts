@@ -354,7 +354,8 @@ export interface ArrayIndexExpression extends NodeBase {
 export interface CastExpression extends NodeBase {
   type: 'CastExpression';
   expression: Expr;
-  to: { kind: 'typed'; name: string; size: NumberLiteral; scale: NumberLiteral | null } | { kind: 'simple'; name: IdentifierOrString };
+  /** The width and scale are expressions: a cast that pads to a schema-driven width writes a variable there. */
+  to: { kind: 'typed'; name: string; size: Expr; scale: Expr | null } | { kind: 'simple'; name: IdentifierOrString };
 }
 
 export interface ExistsExpression extends NodeBase {
@@ -629,7 +630,8 @@ export interface DoStatement extends NodeBase {
 
 export interface DoFormStatement extends NodeBase {
   type: 'DoFormStatement';
-  target: IdentifierOrString | '?';
+  /** A form is a file: a name carrying a hyphen, a dot or a directory is a Path, and the parenthesised form names one at runtime. */
+  target: IdentifierOrString | Path | Expr | '?';
   name: string | null;
   linked: boolean;
   arguments: (Expr | null)[];

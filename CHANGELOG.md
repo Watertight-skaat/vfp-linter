@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.3.7
+
+### Two gaps that cost more than the statement they were in
+
+Both read part of what they were given and stopped, which is the expensive failure: the statement looks
+read, so nothing says the node above it is short.
+
+**`CAST(x AS C(<expr>))` -- a computed width.** `TypeSpec` read the width as a number literal, and the
+widths in this source come from the schema at runtime: the query pads each column to whatever the target
+declares, so the width is a variable. Unread, it did not cost the cast -- it cost the **whole `SELECT`**,
+whose destination, joins and `WHERE` were then invisible to every rule that asks about a query. The width
+and scale are expressions now, the way `CREATE TABLE`'s `FieldSize` already read them, so a literal width
+returns exactly the node it did before. This was the last whole-query-scale gap in the ledger.
+
+**`DO FORM <a-b>`.** A form is named by a file, and the name was read as an identifier, so it stopped at
+the first character an identifier cannot hold: `DO FORM start-up_code_mod` ran the form called `start` and
+left `-up_code_mod` to be reported as a statement of its own, and `DO FORM myform.scx` did the same at the
+dot. A name carrying a hyphen, a dot or a directory is now read as a file name, with `DO FORM (m.cForm)`
+-- the documented way to name one at runtime -- read as the expression it is. A plain name is still a
+plain name and a quoted one still a string.
+
+Twelve parse checks, five of them controls, all run against a parser built from the previous grammar to
+confirm they fail there: the seven guarding new behaviour fail or throw, the five controls pass. The
+`gap-cast-computed-width` fixture keeps its expectation file deleted, which is how a fixed gap is
+asserted, and the `DO FORM` line leaves the ledger.
+
 ## 1.3.6
 
 ### ALTER TABLE's tail, read as clauses

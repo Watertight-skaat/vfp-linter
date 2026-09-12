@@ -36,8 +36,5 @@ m.oError = ON("error")
 * Bare ? with nothing to print, which emits a blank line.
 ?
 
-* A form name containing a hyphen. This one does not announce the whole gap: DO FORM reads the name as far as the hyphen and only the remainder is reported, so the statement looks read and names the wrong form.
-DO FORM start-up_code_mod
-
 * Whitespace between an alias and its dotted field. VFP allows it and the old report code uses it to line columns up, but it has to be told apart from the dot operators: `mastinfo .creditcard .or. mastinfo .ach` is two field reads and one operator.
 m.lFlags = IIF(mastinfo .creditcard .or. mastinfo .ach, ",0", "")

@@ -472,4 +472,24 @@ check('a tail with an unreadable clause falls back to source',
 check('and the fallback crosses a continuation as well',
 	first('ALTER TABLE items SOMETHING ODD ;\n AND MORE').options, 'SOMETHING ODD AND MORE');
 
+// CAST's width, read as a NumberLiteral. The widths come from the schema at runtime, so the query pads to whatever the target column declares -- and a variable there cost the whole SELECT its parse, not the cast alone.
+const src = 'SELECT CAST(custinfo.bfname AS C(m.nFnameLen)) AS fname FROM custinfo WHERE !EMPTY(custinfo.bemail) INTO CURSOR curContacts';
+const sel = first(src);
+check('a computed width no longer costs the query its parse', types(src), ['SelectStatement']);
+check('and its destination is visible to the rules that ask', (({ kind, name }) => [kind, name.name])(sel.destination), ['CURSOR', 'curContacts']);
+check('the width is the expression it is written as', sel.list[0].expression.to, { kind: 'typed', name: 'C', size: { type: 'MemberExpression', object: { type: 'Identifier', name: 'm' }, property: { type: 'Identifier', name: 'nFnameLen' } }, scale: null });
+check('a computed width may be any expression', first('x = CAST(a AS C(LEN(m.cKey) + 2))').expression.to.size.type, 'BinaryExpression');
+check('a literal width is unchanged',
+	first('x = CAST(a AS N(10, 2))').expression.to, { kind: 'typed', name: 'N', size: { type: 'NumberLiteral', value: 10, raw: '10', currency: false }, scale: { type: 'NumberLiteral', value: 2, raw: '2', currency: false } });
+check('and a type with no width is still simple', first('x = CAST(a AS M)').expression.to, { kind: 'simple', name: 'M' });
+
+// DO FORM's target, read as an identifier. A form is a file, so the name stopped at the first character a name cannot hold -- and the statement then looked read while naming the wrong form.
+check('a hyphen is part of the form name', first('DO FORM start-up_code_mod').target, { type: 'Path', path: 'start-up_code_mod' });
+check('and so is an extension', first('DO FORM myform.scx').target, { type: 'Path', path: 'myform.scx' });
+check('a parenthesised name is the expression that holds it', first('DO FORM (m.cFormName)').target.property.name, 'cFormName');
+check('a plain name is unchanged', first('DO FORM testform').target, 'testform');
+check('a quoted one is still a string', first('DO FORM "myform"').target, { type: 'StringLiteral', value: 'myform' });
+check('and the clauses behind the name still read',
+	(({ target, arguments: a, to }) => [target, a.map(x => x.name), to])(first('DO FORM testform WITH param1, param2 TO varname')), ['testform', ['param1', 'param2'], 'varname']);
+
 report('Parse checks');
