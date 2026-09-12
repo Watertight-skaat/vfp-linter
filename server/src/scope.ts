@@ -3,6 +3,7 @@
 // The scope-dependent rules (implicit PRIVATE from an undeclared assignment, unused LOCAL, a missing m. prefix on a name that is also a field, work-area handling) all read this structure instead of re-walking the tree themselves.
 
 import type { AstNode, DefineClass, Expr, Loc, ProcedureStatement, Program, SelectStatement, Statement } from './ast.js';
+import { walk } from './rule.js';
 
 /** Which statement brought the name into being. */
 export type SymbolKind =
@@ -560,3 +561,49 @@ function str(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
+
+// --- field names -------------------------------------------------------------
+// Which names a file shows being used as columns. There is no table to ask at lint time, so the file's own evidence is all there is: a column in a CREATE, a REPLACE target, an INSERT column list, or a reference qualified by an alias the file opens.
+
+/** Every name this file uses as a field, upper-cased. `aliases` says which qualifiers name a work area rather than an object. */
+export function collectFieldNames(ast: AstNode, aliases: Set<string>): Set<string> {
+  const fields = new Set<string>();
+  const add = (raw: unknown) => {
+    if (typeof raw !== 'string') return;
+    const parts = raw.replace(/^[@&]+/, '').split(/\.|->/).filter(Boolean);
+    if (parts.length) fields.add(parts[parts.length - 1].toUpperCase());
+  };
+  walk(ast, node => {
+    switch (node.type) {
+      case 'ColumnDefinition': add(node.name); break;
+      case 'ReplaceStatement': for (const f of node.fields) add(f.field); break;
+      case 'InsertStatement': for (const c of node.columns ?? []) add(c); break;
+      case 'MemberExpression': {
+        // `customer.cust_id` names a field only when `customer` is a work area the file opens.
+        const object = node.object;
+        if (object.type === 'Identifier' && aliases.has(object.name.toUpperCase())) add(node.property.name);
+        break;
+      }
+    }
+  });
+  return fields;
+}
+
+/** The fields written against one alias by name, as they were spelled. Narrower than collectFieldNames, which pools every field the file mentions: this is what completion after `customer.` can offer without guessing. */
+export function fieldsQualifiedBy(ast: AstNode, alias: string): Set<string> {
+  const wanted = alias.toUpperCase();
+  const fields = new Set<string>();
+  walk(ast, node => {
+    if (node.type !== 'MemberExpression') return;
+    const object = node.object;
+    if (object.type === 'Identifier' && object.name.toUpperCase() === wanted) fields.add(node.property.name);
+  });
+  return fields;
+}
+
+/** Every alias any routine in the file is seen opening. */
+export function openAliasesOf(table: SymbolTable): Set<string> {
+  const out = new Set<string>();
+  for (const scope of table.scopes) for (const alias of scope.openAliases) out.add(alias);
+  return out;
+}

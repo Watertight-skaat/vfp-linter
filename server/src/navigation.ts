@@ -1,7 +1,9 @@
 // What the editor asks about one position in one file: where a name is defined, what it is, and what the workspace holds by that name.
 // Pure, and it answers from the index rather than from the tree: a reference is a reference whether it was found by the parser or by the header scan, so the same code answers for an open file and for one the crawler has only skimmed.
 
-import { baseOf, upper, type ClassRecord, type ConstantRecord, type FileRecord, type RefKind, type RoutineRecord, type WorkspaceView } from './index.js';
+import type { AstNode } from './ast.js';
+import { baseOf, findWord, maskStrings, upper, type ClassRecord, type ConstantRecord, type FileRecord, type RefKind, type RoutineRecord, type WorkspaceView } from './index.js';
+import { fieldsQualifiedBy } from './scope.js';
 import type { Position, Range } from './rule.js';
 
 export interface Location {
@@ -213,4 +215,144 @@ function toSymbol(definition: RoutineRecord | ClassRecord | ConstantRecord): Wor
     return { name: routine.name, sort: routine.owner ? 'method' : routine.isFunction ? 'function' : 'procedure', detail: `(${routine.params.join(', ')})`, location, container: routine.owner };
   }
   return { name: definition.name, sort: 'constant', detail: definition.value ?? '', location, container: null };
+}
+
+// --- find all references -----------------------------------------------------
+
+/**
+ * Every place in the workspace that names what the cursor is on.
+ *
+ * Complete only over a tree the parser has been over: a call is invisible to the header scan, so a workspace still at tier 1 answers with the DO and SET sites alone. The caller is responsible for promoting first when it wants the whole answer.
+ */
+export function referencesAt(record: FileRecord, lines: string[], position: Position, view: WorkspaceView, includeDeclaration = true): Location[] {
+  const target = targetAt(record, lines, position);
+  if (!target || target.dynamic || !target.name) return [];
+
+  const asFile = fileTargets.has(target.kind);
+  const out = view.index.referencesTo(target.name, asFile).map(ref => ({ file: ref.file, range: ref.range }));
+  if (includeDeclaration) out.unshift(...definitionsOf(target, view));
+
+  // The same site can arrive twice -- a DO of a file is both a reference to the routine and to the file it lives in.
+  const seen = new Set<string>();
+  return out.filter(location => {
+    const key = `${location.file}:${location.range.start.line}:${location.range.start.character}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+const fileTargets: ReadonlySet<string> = new Set(['include', 'procedure', 'classlib', 'form']);
+
+// --- completion --------------------------------------------------------------
+
+export type CompletionSort = SymbolSort | 'field';
+
+export interface Completion {
+  label: string;
+  sort: CompletionSort;
+  detail: string;
+  /** The comment block above a routine, which is the only documentation VFP code carries. */
+  doc: string | null;
+}
+
+/**
+ * What could be written at the cursor.
+ *
+ * After `alias.`, the field names the file itself shows being used against that alias -- there is no table to ask at edit time, so the file's own evidence is the whole of it. Everywhere else, the routines, classes and constants the workspace holds. Variables are deliberately absent: the editor already offers the words in the document, and repeating them buries the names it could not have known.
+ */
+export function completionsAt(record: FileRecord, lines: string[], position: Position, view: WorkspaceView | undefined, context?: { ast: AstNode | null; aliases: Set<string> }): Completion[] {
+  const before = (lines[position.line] ?? '').slice(0, position.character);
+  const qualified = /([A-Za-z_]\w*)\s*(?:\.|->)\s*\w*$/.exec(before);
+
+  if (qualified) {
+    const alias = qualified[1];
+    if (!context?.ast || !context.aliases.has(upper(alias))) return [];
+    return [...fieldsQualifiedBy(context.ast, alias)].sort().map(name => ({ label: name, sort: 'field' as const, detail: `field of ${alias}`, doc: null }));
+  }
+
+  const out: Completion[] = [];
+  // This file first, so a routine written a moment ago is offered whether or not the index has caught up.
+  for (const routine of record.routines) out.push(fromRoutine(routine));
+  for (const constant of record.constants) out.push(fromConstant(constant));
+  const here = new Set(out.map(c => upper(c.label)));
+
+  if (view) {
+    for (const definition of view.index.definitions()) {
+      if (here.has(upper(definition.name))) continue;
+      // A method is reached through its object, not written bare.
+      if ('params' in definition && definition.owner) continue;
+      here.add(upper(definition.name));
+      out.push('methods' in definition ? fromClass(definition) : 'params' in definition ? fromRoutine(definition) : fromConstant(definition));
+    }
+  }
+  return out;
+}
+
+const fromRoutine = (routine: RoutineRecord): Completion => ({
+  label: routine.name,
+  sort: routine.isFunction ? 'function' : 'procedure',
+  detail: `(${routine.params.join(', ')})`,
+  doc: routine.doc
+});
+
+const fromConstant = (constant: ConstantRecord): Completion => ({
+  label: constant.name, sort: 'constant', detail: constant.value ?? '', doc: null
+});
+
+const fromClass = (klass: ClassRecord): Completion => ({
+  label: klass.name, sort: 'class', detail: klass.base ? `AS ${klass.base}` : '', doc: null
+});
+
+// --- signature help ----------------------------------------------------------
+
+export interface Signature {
+  label: string;
+  parameters: string[];
+  /** Which parameter the cursor sits in, counted from zero. */
+  activeParameter: number;
+  doc: string | null;
+}
+
+/**
+ * The routine whose arguments are being typed, and which one the cursor is in.
+ *
+ * Read from the text rather than the tree, because a line half-way through being typed is exactly the line that does not parse. String contents are blanked first, so a comma inside a literal does not advance the parameter.
+ */
+export function signatureAt(record: FileRecord, lines: string[], position: Position, view?: WorkspaceView): Signature | null {
+  const prefix = maskStrings((lines[position.line] ?? '').slice(0, position.character));
+  const open = openCallAt(prefix);
+  if (!open) return null;
+
+  const local = record.routines.filter(r => !r.owner && upper(r.name) === upper(open.name));
+  const found = local.length ? local : (view?.routines(open.name) ?? []).filter(r => !r.owner);
+  if (!found.length) return null;
+  const routine = found[0];
+  return { label: signatureOf(routine), parameters: routine.params, activeParameter: open.argument, doc: routine.doc };
+}
+
+/** The call whose argument list the end of this text is inside: the name, and how many arguments have been closed off before the cursor. */
+function openCallAt(prefix: string): { name: string; argument: number } | null {
+  // `DO Name WITH a, b` has no bracket to find, so its WITH stands in for one. Only at the top level: inside brackets a WITH belongs to something else.
+  const stack: { at: number; commas: number }[] = [];
+  for (let i = 0; i < prefix.length; i++) {
+    const c = prefix[i];
+    if (c === '(' || c === '[') stack.push({ at: i, commas: 0 });
+    else if (c === ')' || c === ']') stack.pop();
+    else if (c === ',' && stack.length) stack[stack.length - 1].commas++;
+  }
+  if (stack.length) {
+    const top = stack[stack.length - 1];
+    const name = /([A-Za-z_]\w*)\s*$/.exec(prefix.slice(0, top.at));
+    return name ? { name: name[1], argument: top.commas } : null;
+  }
+
+  const withAt = findWord(prefix, 'WITH');
+  if (withAt < 0) return null;
+  const doAt = findWord(prefix.slice(0, withAt), 'DO');
+  if (doAt < 0) return null;
+  const name = prefix.slice(doAt + 2, withAt).trim();
+  if (!/^[A-Za-z_][\w\/.:~$#@-]*$/.test(name)) return null;
+  const commas = prefix.slice(withAt + 4).split(',').length - 1;
+  return { name, argument: commas };
 }

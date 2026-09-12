@@ -1,6 +1,27 @@
 # Changelog
 
-## Unreleased
+## 1.4.0
+
+### References, completion and signature help
+
+**Find All References** lists every `DO`, call and `SET PROCEDURE` naming what the cursor is on, across
+the tree. **Completion** offers the routines, classes and constants the workspace holds, and after an
+alias the file opens, the field names that file shows being used against it — there is no table to ask
+at edit time, so the file's own evidence is the whole of it. **Signature help** shows the parameters
+while the arguments are being typed, for `Foo(` and for `DO Foo WITH` alike; it reads the line as text
+rather than as a tree, because a line half-way through being typed is exactly the line that will not
+parse.
+
+**The tree is now read twice over.** The startup crawl still reads only headers, which is what keeps it
+under a second. A second pass then parses each file in the background and pauses whenever a document is
+waiting to be linted, so typing never queues behind it. It exists because a call is invisible to a
+regex, and without it Find All References would quietly answer short; a request that arrives before it
+finishes waits for it rather than returning half an answer.
+
+**A restart is no longer a cold start.** What that pass reads is cached to disk — the extracted records,
+never the trees — with each pinned to the size and modification time of the file it came from. Over the
+Watertight corpus a cold read parses 59 files in 169 ms; the next session restores all 59 and parses
+none, in 11 ms.
 
 ### Three rules that need to see more than one file
 

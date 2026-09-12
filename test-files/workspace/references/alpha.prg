@@ -1,0 +1,2 @@
+SET PROCEDURE TO lib ADDITIVE
+DO Ping WITH "alpha"

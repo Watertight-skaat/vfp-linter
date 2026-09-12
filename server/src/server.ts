@@ -1,12 +1,13 @@
-import { createConnection, TextDocuments, ProposedFeatures, InitializeParams, DidChangeConfigurationNotification, TextDocumentSyncKind, InitializeResult, CodeAction, CodeActionKind, SymbolKind, type Diagnostic, type Location as LspLocation, type WorkspaceSymbol as LspWorkspaceSymbol } from 'vscode-languageserver/node';
+import { createConnection, TextDocuments, ProposedFeatures, InitializeParams, DidChangeConfigurationNotification, TextDocumentSyncKind, InitializeResult, CodeAction, CodeActionKind, SymbolKind, CompletionItemKind, type CompletionItem, type Diagnostic, type Location as LspLocation, type WorkspaceSymbol as LspWorkspaceSymbol } from 'vscode-languageserver/node';
 import { fileURLToPath, pathToFileURL } from 'url';
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { lint, type Fix, type LintDiagnostic, type SeverityName } from './linter.js';
 import { extract, normalizePath, WorkspaceIndex, type FileRecord } from './index.js';
-import { definitionAt, hoverAt, workspaceSymbols, type Location, type SymbolSort } from './navigation.js';
+import { completionsAt, definitionAt, hoverAt, referencesAt, signatureAt, workspaceSymbols, type CompletionSort, type Location, type SymbolSort } from './navigation.js';
+import { buildSymbolTable, openAliasesOf, type SymbolTable } from './scope.js';
 import { documentSymbols, foldingRanges } from './outline.js';
-import { buildIndex, refresh } from './workspace.js';
+import { buildIndex, cachePath, loadCache, promoteToTier2, refresh, saveCache } from './workspace.js';
 import type { Program } from './ast.js';
 
 const connection = createConnection(ProposedFeatures.all);
@@ -15,12 +16,14 @@ const documents = new TextDocuments(TextDocument);
 let hasConfigurationCapability = false;
 let hasProgressCapability = false;
 let workspaceRoots: string[] = [];
+let storagePath = '';
 
 connection.onInitialize((params: InitializeParams) => {
 	hasConfigurationCapability = !!params.capabilities.workspace?.configuration;
 	hasProgressCapability = !!params.capabilities.window?.workDoneProgress;
 	workspaceRoots = (params.workspaceFolders ?? []).map(folder => fileURLToPath(folder.uri));
 	if (!workspaceRoots.length && params.rootUri) workspaceRoots = [fileURLToPath(params.rootUri)];
+	storagePath = (params.initializationOptions as { storagePath?: string } | undefined)?.storagePath ?? '';
 	const result: InitializeResult = {
 		capabilities: {
 			textDocumentSync: TextDocumentSyncKind.Incremental,
@@ -29,7 +32,10 @@ connection.onInitialize((params: InitializeParams) => {
 			foldingRangeProvider: true,
 			definitionProvider: true,
 			hoverProvider: true,
-			workspaceSymbolProvider: true
+			workspaceSymbolProvider: true,
+			referencesProvider: true,
+			completionProvider: { triggerCharacters: ['.'] },
+			signatureHelpProvider: { triggerCharacters: ['(', ','] }
 		}
 	};
 	return result;
@@ -104,8 +110,12 @@ async function startIndexing(): Promise<void> {
 		onProgress: (done, total) => progress?.report(Math.round((done / total) * 100), `${done} of ${total} files`)
 	}).then(built => {
 		index = built;
+		promoted = false;
+		// What a previous session read, for every file that has not changed since. Cheaper than re-parsing the tree and the reason a restart is not a cold start.
+		if (cacheFile()) loadCache(built, cacheFile()!);
 		// Anything already open is ahead of what is on disk, and its findings were produced without the tree. Re-linting it publishes both: validateAndSend puts the document's own reading back into the index on its way past.
 		for (const document of documents.all()) scheduleValidation(document.uri);
+		void promoteInBackground();
 	}).catch(error => {
 		connection.console.error(`FoxPro: indexing the workspace failed: ${error}`);
 	}).finally(() => {
@@ -115,6 +125,37 @@ async function startIndexing(): Promise<void> {
 	return indexing;
 }
 
+// --- tier 2 -------------------------------------------------------------------
+// The header scan cannot see a call, so find-all-references is only complete once the parser has been over the tree. That runs in the background, pauses whenever a document is waiting to be linted, and saves what it read so the next session starts from it.
+
+let promoting: Promise<void> | null = null;
+let promoted = false;
+
+function cacheFile(): string | null {
+	return storagePath && index ? cachePath(storagePath, index.roots) : null;
+}
+
+function promoteInBackground(): Promise<void> {
+	if (promoting) return promoting;
+	const target = index;
+	if (!target) return Promise.resolve();
+	promoting = promoteToTier2(target, {
+		// Typing is what the editor is for. Anything queued to be linted goes first.
+		shouldPause: () => pendingValidations.size > 0,
+		cancelled: () => index !== target
+	}).then(() => {
+		if (index !== target) return;
+		promoted = true;
+		const file = cacheFile();
+		if (file) saveCache(target, file);
+	}).catch(error => {
+		connection.console.error(`FoxPro: reading the workspace in full failed: ${error}`);
+	}).finally(() => {
+		promoting = null;
+	});
+	return promoting;
+}
+
 connection.onDidChangeWatchedFiles(params => {
 	if (!index) return;
 	const changed = new Set<string>();
@@ -122,7 +163,8 @@ connection.onDidChangeWatchedFiles(params => {
 		const file = fileOf(event.uri);
 		// An open document is the editor's to report; re-reading it from disk would undo an unsaved edit.
 		if (documents.get(event.uri)) continue;
-		for (const key of refresh(index, file)) changed.add(key);
+		// Once the tree has been read in full, a changed file is read the same way, or find-all-references would quietly lose that file's calls.
+		for (const key of refresh(index, file, promoted ? 2 : 1)) changed.add(key);
 	}
 	relintDependents(changed);
 });
@@ -199,7 +241,7 @@ function toDiagnostic({ relatedInformation, ...rest }: LintDiagnostic): Diagnost
 }
 
 // The last tree per document, so the outline and folding requests that follow every edit do not each parse the file again. The extracted record rides along, because every cross-file request wants it and it is derived from the same parse.
-const trees = new Map<string, { version: number; ast: Program | null; record?: FileRecord }>();
+const trees = new Map<string, { version: number; ast: Program | null; record?: FileRecord; table?: SymbolTable }>();
 
 function treeFor(document: TextDocument): Program | null {
 	const cached = trees.get(document.uri);
@@ -209,14 +251,27 @@ function treeFor(document: TextDocument): Program | null {
 	return ast;
 }
 
+/** The cache entry for the document as it stands now, dropping anything derived from an older version of it. */
+function entryFor(document: TextDocument) {
+	const cached = trees.get(document.uri);
+	if (cached?.version === document.version) return cached;
+	const fresh = { version: document.version, ast: treeFor(document) };
+	trees.set(document.uri, fresh);
+	return fresh as { version: number; ast: Program | null; record?: FileRecord; table?: SymbolTable };
+}
+
 /** This document's own definitions and references, from the cached parse when there is one. */
 function recordFor(document: TextDocument): FileRecord {
-	const cached = trees.get(document.uri);
-	if (cached?.version === document.version && cached.record) return cached.record;
-	const ast = treeFor(document);
-	const record = extract(fileOf(document.uri), ast, linesOf(document));
-	trees.set(document.uri, { version: document.version, ast, record });
-	return record;
+	const entry = entryFor(document);
+	if (!entry.record) entry.record = extract(fileOf(document.uri), entry.ast, linesOf(document));
+	return entry.record;
+}
+
+/** The symbol table, cached beside the tree: completion asks for it on every keystroke and it costs a traversal of its own to build. */
+function tableFor(document: TextDocument): SymbolTable {
+	const entry = entryFor(document);
+	if (!entry.table) entry.table = buildSymbolTable(entry.ast);
+	return entry.table;
 }
 
 const linesOf = (document: TextDocument) => document.getText().split(/\r\n|\r|\n/);
@@ -272,6 +327,62 @@ const symbolKinds: Record<SymbolSort, SymbolKind> = {
 };
 
 const toLspLocation = (location: Location): LspLocation => ({ uri: pathToFileURL(location.file).href, range: location.range });
+
+// A call is only visible to the parser, so an answer given before the background read finishes would be quietly short. The request waits for it instead, under a progress note so the wait is visible rather than a hang.
+connection.onReferences(async params => {
+	const document = documents.get(params.textDocument.uri);
+	if (!document || !index) return null;
+	if (!promoted) {
+		const progress = hasProgressCapability ? await connection.window.createWorkDoneProgress() : null;
+		progress?.begin('Reading the FoxPro workspace in full', 0);
+		await promoteInBackground();
+		progress?.done();
+	}
+	if (!index) return null;
+	const record = recordFor(document);
+	return referencesAt(record, linesOf(document), params.position, index.viewFor(fileOf(document.uri)), params.context?.includeDeclaration ?? true).map(toLspLocation);
+});
+
+connection.onCompletion(params => {
+	const document = documents.get(params.textDocument.uri);
+	if (!document) return [];
+	const ast = treeFor(document);
+	const context = { ast, aliases: openAliasesOf(tableFor(document)) };
+	const found = completionsAt(recordFor(document), linesOf(document), params.position, index?.viewFor(fileOf(document.uri)), context);
+	return found.map<CompletionItem>(item => ({
+		label: item.label,
+		kind: completionKinds[item.sort],
+		detail: item.detail || undefined,
+		...(item.doc ? { documentation: item.doc } : {})
+	}));
+});
+
+connection.onSignatureHelp(params => {
+	const document = documents.get(params.textDocument.uri);
+	if (!document) return null;
+	const found = signatureAt(recordFor(document), linesOf(document), params.position, index?.viewFor(fileOf(document.uri)));
+	if (!found) return null;
+	return {
+		signatures: [{
+			label: found.label,
+			...(found.doc ? { documentation: found.doc } : {}),
+			parameters: found.parameters.map(name => ({ label: name }))
+		}],
+		activeSignature: 0,
+		// A call with more arguments than the routine takes has no parameter to highlight; too-many-arguments is what says so.
+		activeParameter: Math.min(found.activeParameter, Math.max(0, found.parameters.length - 1))
+	};
+});
+
+const completionKinds: Record<CompletionSort, CompletionItemKind> = {
+	procedure: CompletionItemKind.Function,
+	function: CompletionItemKind.Function,
+	class: CompletionItemKind.Class,
+	method: CompletionItemKind.Method,
+	property: CompletionItemKind.Property,
+	constant: CompletionItemKind.Constant,
+	field: CompletionItemKind.Field
+};
 
 // Every diagnostic can be suppressed in place; the ones that know how to fix themselves carry the edit along.
 connection.onCodeAction(params => {

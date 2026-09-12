@@ -8,9 +8,10 @@ import path from 'path';
 import { lint, type LinterOptions } from '../server/src/linter.js';
 import { extract, headerRefKinds, scanHeader, upper, WorkspaceIndex, type FileRecord, type Reference } from '../server/src/index.js';
 import { isDynamic, staticName } from '../server/src/dynamic.js';
-import { definitionAt, hoverAt, workspaceSymbols } from '../server/src/navigation.js';
+import { completionsAt, definitionAt, hoverAt, referencesAt, signatureAt, workspaceSymbols } from '../server/src/navigation.js';
+import { buildSymbolTable, openAliasesOf } from '../server/src/scope.js';
 import { parse } from '../server/src/parser.js';
-import { buildIndex, globToRegExp, indexedExtensions, recordFrom, refresh } from '../server/src/workspace.js';
+import { buildIndex, cachePath, globToRegExp, indexedExtensions, loadCache, promoteToTier2, recordFrom, refresh, saveCache } from '../server/src/workspace.js';
 import { check, report } from './check.js';
 import { format } from './format.js';
 
@@ -281,6 +282,94 @@ function compare(tier1: FileRecord, tier2: FileRecord): string | null {
 function collect(dir: string): string[] {
 	return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry =>
 		entry.isDirectory() ? collect(`${dir}/${entry.name}`) : entry.name.endsWith('.prg') ? [`${dir}/${entry.name}`] : []);
+}
+
+// --- find all references -----------------------------------------------------
+// Only the parser sees a call, so the tree is promoted to tier 2 first. That is the whole reason the promotion exists, and asserting the answer before and after is what shows it.
+
+const refDir = './test-files/workspace/references';
+const referenced = await buildIndex({ roots: [refDir], yieldEvery: 0 });
+const refAt = (name: string) => path.resolve(refDir, name);
+const sites = (file: string, line: number, character: number, withDeclaration = true) => {
+	const text = lines(path.join(refDir, file));
+	const record = extract(refAt(file), parse(text.join('\n')) as never, text);
+	return referencesAt(record, text, { line, character }, referenced.viewFor(refAt(file)), withDeclaration)
+		.map(l => `${path.basename(l.file)}:${l.range.start.line}`);
+};
+
+check('over a tree the parser has not read, a call is invisible', sites('lib.prg', 1, 12), ['lib.prg:1', 'alpha.prg:1']);
+const promoted = await promoteToTier2(referenced);
+check('promotion reads every file the crawl left at tier 1', promoted.parsed.map(f => path.basename(f)).sort(), ['alpha.prg', 'beta.prg', 'lib.prg']);
+check('and the call is then found too', sites('lib.prg', 1, 12), ['lib.prg:1', 'alpha.prg:1', 'beta.prg:2']);
+check('the declaration can be left out', sites('lib.prg', 1, 12, false), ['alpha.prg:1', 'beta.prg:2']);
+check('a name assembled at run time is not a reference to anything', sites('beta.prg', 5, 5), []);
+check('a file is referenced by the SET PROCEDURE that loads it', sites('alpha.prg', 0, 20), ['lib.prg:0', 'alpha.prg:0']);
+check('nothing is promoted twice', (await promoteToTier2(referenced)).parsed, []);
+
+// --- completion --------------------------------------------------------------
+
+const completions = (file: string, line: number, character: number) => {
+	const text = lines(path.join(refDir, file));
+	const record = extract(refAt(file), parse(text.join('\n')) as never, text);
+	return completionsAt(record, text, { line, character }, referenced.viewFor(refAt(file))).map(c => `${c.sort}:${c.label}`);
+};
+check('the routines of the workspace are offered', completions('beta.prg', 2, 10), ['procedure:Ping']);
+
+// A file with a table open is what makes field completion possible: there is no table to ask at edit time, so the file's own evidence is the whole of it.
+const fieldSource = ['USE customer', 'SELECT customer', '? customer.cust_id', '? customer.balance', 'REPLACE customer.balance WITH 0', '? customer.'];
+const fieldAst = parse(fieldSource.join('\n')) as never;
+const fieldRecord = extract('fields.prg', fieldAst, fieldSource);
+const fieldTable = buildSymbolTable(fieldAst);
+const fieldContext = { ast: fieldAst as never, aliases: openAliasesOf(fieldTable) };
+check('after an alias, the fields the file shows against it',
+	completionsAt(fieldRecord, fieldSource, { line: 5, character: 11 }, referenced.viewFor('fields.prg'), fieldContext).map(c => c.label),
+	['balance', 'cust_id']);
+check('after something that is not an open alias, nothing is guessed at',
+	completionsAt(fieldRecord, fieldSource, { line: 5, character: 11 }, referenced.viewFor('fields.prg'), { ast: fieldAst as never, aliases: new Set<string>() }), []);
+
+// --- signature help ----------------------------------------------------------
+
+const signature = (src: string) => {
+	const text = src.split('\n');
+	const at = { line: text.length - 1, character: text[text.length - 1].length };
+	const record = extract(refAt('beta.prg'), parse('PROCEDURE Ping\nLPARAMETERS tcWho\nENDPROC\n') as never, []);
+	const found = signatureAt(record, text, at, referenced.viewFor(refAt('beta.prg')));
+	return found && `${found.label} @${found.activeParameter}`;
+};
+check('a call being typed names its routine', signature('x = Ping('), 'PROCEDURE Ping(tcWho) @0');
+check('a comma advances the parameter', signature('x = Ping(1, '), 'PROCEDURE Ping(tcWho) @1');
+check('a name nothing defines has no signature to show', signature('x = NoSuchRoutine('), null);
+check('DO ... WITH counts its arguments too', signature('DO Ping WITH 1, '), 'PROCEDURE Ping(tcWho) @1');
+check('a nested call is the one being typed', signature('x = Ping(Ping('), 'PROCEDURE Ping(tcWho) @0');
+check('a closed call is not', signature('x = Ping(1) + '), null);
+check('a comma inside a string does not advance anything', signature('DO Ping WITH "a, b"'), 'PROCEDURE Ping(tcWho) @0');
+
+// --- the disk cache ----------------------------------------------------------
+// A restart must not re-read the tree. The records are cached, never the trees, and each is pinned to the file it came from.
+
+const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vfp-cache-'));
+try {
+	fs.writeFileSync(path.join(cacheDir, 'one.prg'), 'PROCEDURE One\nENDPROC\n');
+	fs.writeFileSync(path.join(cacheDir, 'two.prg'), 'DO One\n');
+	const first = await buildIndex({ roots: [cacheDir], yieldEvery: 0 });
+	check('a fresh tree is parsed once', (await promoteToTier2(first)).parsed.length, 2);
+
+	const cache = cachePath(cacheDir, [cacheDir]);
+	saveCache(first, cache);
+
+	const second = await buildIndex({ roots: [cacheDir], yieldEvery: 0 });
+	check('the cache restores every unchanged file', loadCache(second, cache), 2);
+	check('and nothing has to be parsed again', (await promoteToTier2(second)).parsed, []);
+
+	// mtime is compared to the millisecond, so a rewrite has to be a visible one.
+	await new Promise(resolve => setTimeout(resolve, 15));
+	fs.writeFileSync(path.join(cacheDir, 'two.prg'), 'DO One\n? 1\n');
+	const third = await buildIndex({ roots: [cacheDir], yieldEvery: 0 });
+	check('a file changed since is not restored from the cache', loadCache(third, cache), 1);
+	check('and it is the only one parsed again', (await promoteToTier2(third)).parsed.map(f => path.basename(f)), ['two.prg']);
+	check('two trees do not share a cache file', cachePath(cacheDir, [cacheDir]) === cachePath(cacheDir, [cacheDir, 'elsewhere']), false);
+} finally {
+	fs.rmSync(cacheDir, { recursive: true, force: true });
 }
 
 // --- the macro guard ---------------------------------------------------------

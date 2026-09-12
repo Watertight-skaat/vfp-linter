@@ -122,3 +122,90 @@ export function globToRegExp(glob: string): RegExp {
     .split(anything).join('.*');
   return new RegExp(`^${body}$`, 'i');
 }
+
+// --- tier 2 -------------------------------------------------------------------
+// A header scan cannot see a call, so find-all-references needs the parser to have been over the whole tree. That is a quarter of a second per large file, which is why it happens in the background afterwards rather than during the crawl, and why it yields between files: the editor is using the same thread.
+
+export interface PromotionOptions {
+  onProgress?: (done: number, total: number) => void;
+  /** Checked between files. While it is true the queue waits instead of parsing, so typing never queues behind the crawl. */
+  shouldPause?: () => boolean;
+  /** Checked between files. Once true the queue stops where it is and the rest stay at tier 1. */
+  cancelled?: () => boolean;
+}
+
+/** Reads every file still at tier 1 with the parser. Returns the files it actually parsed, which is what makes "the cache spared us the work" a thing a test can assert. */
+export async function promoteToTier2(index: WorkspaceIndex, options: PromotionOptions = {}): Promise<{ parsed: string[] }> {
+  const pending = [...index.files.values()].filter(record => record.tier === 1).map(record => record.file);
+  const parsed: string[] = [];
+  for (let i = 0; i < pending.length; i++) {
+    if (options.cancelled?.()) break;
+    while (options.shouldPause?.()) await delay(50);
+    const record = readRecord(pending[i], 2);
+    if (record) {
+      index.upsert(record);
+      if (record.tier === 2) parsed.push(pending[i]);
+    }
+    options.onProgress?.(i + 1, pending.length);
+    await new Promise(resolve => setImmediate(resolve));
+  }
+  return { parsed };
+}
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// --- the disk cache -----------------------------------------------------------
+// Extracted records, never trees: a record is a few hundred bytes of plain JSON and a tree is megabytes. Each is pinned to the mtime and size of the file it came from, so a file edited while the editor was closed is simply re-read.
+
+const cacheVersion = 2;
+
+interface CacheFile {
+  version: number;
+  roots: string[];
+  records: FileRecord[];
+}
+
+/** Where the cache for one set of roots lives. Keyed by the roots so two windows on two trees do not overwrite each other. */
+export function cachePath(storagePath: string, roots: string[]): string {
+  const key = roots.map(normalizePath).sort().join('|');
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) hash = (Math.imul(hash, 31) + key.charCodeAt(i)) | 0;
+  return path.join(storagePath, `index-${(hash >>> 0).toString(36)}.json`);
+}
+
+export function saveCache(index: WorkspaceIndex, file: string): void {
+  const payload: CacheFile = { version: cacheVersion, roots: index.roots, records: [...index.files.values()] };
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(payload));
+  } catch {
+    // A cache that cannot be written costs a re-parse next time and nothing else.
+  }
+}
+
+/** Restores every cached record whose file is unchanged on disk. Returns how many were taken. */
+export function loadCache(index: WorkspaceIndex, file: string): number {
+  let payload: CacheFile;
+  try {
+    payload = JSON.parse(fs.readFileSync(file, 'utf-8')) as CacheFile;
+  } catch {
+    return 0;
+  }
+  if (payload?.version !== cacheVersion || !Array.isArray(payload.records)) return 0;
+
+  let restored = 0;
+  for (const record of payload.records) {
+    if (!record?.file) continue;
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(record.file);
+    } catch {
+      continue; // deleted since, so the crawl will not have it either
+    }
+    // The file has to be the one the record was made from, to the millisecond and the byte.
+    if (stat.mtimeMs !== record.mtime || stat.size !== record.size) continue;
+    index.upsert(record);
+    restored++;
+  }
+  return restored;
+}

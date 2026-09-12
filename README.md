@@ -51,10 +51,13 @@ The extension indexes every `.prg`, `.mpr`, `.spr` and `.h` in your workspace fo
 - **Go to Definition** (F12) on a `DO`, a call, an `#INCLUDE`, a `SET PROCEDURE TO` or a `SET CLASSLIB TO` jumps to it. A routine defined in the same file wins, then one in a library the file loads with `SET PROCEDURE`, then the rest of the tree — the order FoxPro itself resolves them in.
 - **Hover** shows the signature, the parameter names, and the comment block written above the routine, which is what VFP code carries instead of documentation. A `#DEFINE` shows its value.
 - **Go to Symbol in Workspace** (Ctrl+T) lists every routine, class, method and constant in the tree.
+- **Find All References** (Shift+F12) lists every `DO`, call and `SET PROCEDURE` naming what the cursor is on.
+- **Completion** offers the routines, classes and constants the workspace holds. After an alias the file opens, it offers the field names that file shows being used against it — there is no table to ask at edit time, so your own code is the only evidence.
+- **Signature help** shows the parameters while you type the arguments, for both `Foo(` and `DO Foo WITH`.
 
 Names assembled at run time are left alone rather than guessed at. `DO &lcProc`, `DO (lcName)` and a target built by concatenation all report that they are named at run time, because nothing in the source says what they refer to.
 
-The first crawl reads only the headers of each file, which takes well under a second on a tree of several thousand files, and the editor is usable while it runs. Files are re-read as they change, including changes made outside the editor such as a branch switch.
+The tree is read twice over. The first crawl reads only the headers of each file, which takes well under a second on several thousand files, and the editor is usable throughout. A second pass then parses each file in the background, pausing whenever you type, because a call is invisible to the header scan and Find All References would otherwise be quietly short. What that pass reads is cached, so a later session starts from it instead of parsing the tree again. Files are re-read as they change, including changes made outside the editor such as a branch switch.
 
 ### In the editor
 

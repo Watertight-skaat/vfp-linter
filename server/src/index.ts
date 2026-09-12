@@ -101,7 +101,7 @@ export function baseOf(file: string): string {
 
 const join = (dir: string, name: string) => (dir ? `${dir.replace(/[\\/]$/, '')}/${name}` : name).replace(/\\/g, '/');
 
-const isAbsolute = (name: string) => /^([A-Za-z]:[\\/]|[\\/]{2}|[\\/])/.test(name);
+export const isAbsolute = (name: string) => /^([A-Za-z]:[\\/]|[\\/]{2}|[\\/])/.test(name);
 
 const hasExtension = (name: string) => /\.[A-Za-z0-9]+$/.test(baseOf(name));
 
@@ -177,6 +177,26 @@ export class WorkspaceIndex {
     const out = new Set<string>();
     for (const key of keys) for (const file of this.referencing.get(key) ?? []) out.add(file);
     return out;
+  }
+
+  /**
+   * Every reference to a name, anywhere in the tree.
+   *
+   * Only the files the reverse map already names are read, so this costs the size of the answer rather than the size of the workspace. Calls are found only in a file the parser has been over, which is what the tier-2 promotion is for: across a tree still at tier 1 this returns the DO and SET sites and nothing else.
+   */
+  referencesTo(name: string, asFile = false): Reference[] {
+    const key = upper(name);
+    const candidates = new Set<string>(this.referencing.get(key) ?? []);
+    // A file is filed with and without its extension, and the two have to meet: `SET PROCEDURE TO lib` and `DO lib.prg` name the same file.
+    if (asFile) for (const alias of fileKeys(name)) for (const file of this.referencing.get(alias) ?? []) candidates.add(file);
+    const out: Reference[] = [];
+    for (const file of candidates) {
+      for (const ref of this.get(file)?.refs ?? []) {
+        if (ref.dynamic) continue;
+        if (ref.key === key || (asFile && fileRefKinds.has(ref.kind) && sameFileName(ref.name, name))) out.push(ref);
+      }
+    }
+    return out.sort((a, b) => a.file.localeCompare(b.file) || a.range.start.line - b.range.start.line);
   }
 
   /**
@@ -325,6 +345,14 @@ function referencedKeys(record: FileRecord): Set<string> {
     if (fileRefKinds.has(ref.kind)) for (const key of fileKeys(ref.name)) out.add(key);
   }
   return out;
+}
+
+/** Whether two names denote the same file, with or without the extension either was written with. */
+function sameFileName(a: string, b: string): boolean {
+  const forms = (name: string) => new Set(fileKeys(name));
+  const mine = forms(a);
+  for (const key of forms(b)) if (mine.has(key)) return true;
+  return false;
 }
 
 function fileKeys(nameOrPath: string): string[] {
@@ -625,7 +653,7 @@ function splitRanges(mask: string, from: number, to: number): [number, number][]
 }
 
 /** The first index of a whole word, outside brackets, or -1. */
-function findWord(mask: string, word: string, from = 0): number {
+export function findWord(mask: string, word: string, from = 0): number {
   let depth = 0;
   for (let i = from; i <= mask.length - word.length; i++) {
     const c = mask[i];
@@ -680,7 +708,7 @@ function countArguments(mask: string): number {
 }
 
 /** The line with every string's contents blanked, so a search can tell code from text without moving a single offset. */
-function maskStrings(line: string): string {
+export function maskStrings(line: string): string {
   let out = '';
   let quote = '';
   for (const c of line) {

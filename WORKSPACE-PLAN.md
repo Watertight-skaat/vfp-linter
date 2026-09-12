@@ -144,7 +144,14 @@ Landed as planned. Four notes:
 
 Done when the three fixtures pass, `test/lint-dir.ts test-files/watertight` reports nothing for the three rules, and the README table has three new rows.
 
-## Phase 3: tier 2, references, completion, signature help (3 days)
+## Phase 3: tier 2, references, completion, signature help (3 days) -- done
+
+Landed as planned. Four notes:
+
+- **No `run-navigation-tests.ts`.** Everything the plan put there is in `run-workspace-tests.ts` instead, next to the index assertions it depends on. One suite for one subject beat a second suite that would have had to build the same fixtures.
+- **Signature help reads the text, not the tree.** A line being typed is the one line that does not parse, so the open call is found by scanning the masked prefix for an unclosed bracket, and `DO Foo WITH a, b` by finding a top-level `WITH`. That also means it works while the rest of the file is broken.
+- **Completion offers no variables.** The editor already suggests every word in the document; repeating them would bury the names it could not have known. Routines, classes, constants, and fields after an alias.
+- **A changed file is re-read at the tier the tree is already at.** Once the background pass has finished, the watcher re-reads with the parser rather than the scanner, or that file's calls would silently drop out of Find All References.
 
 ### Tests first
 - Workspace suite: `references/` case asserting `referencesAt` over a directory finds `DO`, call, and `SET PROCEDURE` sites in three files and skips a `&` site.

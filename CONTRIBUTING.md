@@ -44,7 +44,7 @@ node shapes and a real node type would only force a cast at every one of them.
 | `run-severity-tests.ts`   | Each rule follows `foxpro.rules`; locked rules and syntax errors ignore it; suppression comments; `package.json` and the README name every rule |
 | `run-keyword-tests.ts`    | Every keyword literal in the grammar still allows an identifier that starts with it       |
 | `run-fix-tests.ts`        | Each quick fix produces the expected text and makes its own finding go away; the Outline and folding ranges |
-| `run-workspace-tests.ts`  | The workspace index: what a crawl finds, how a name resolves across files, what an edit invalidates, go to definition, hover, workspace symbols — and the header scan held to the parser over every fixture |
+| `run-workspace-tests.ts`  | The workspace index: what a crawl finds, how a name resolves across files, what an edit invalidates, the editor requests that read it, the tier-2 promotion and its disk cache — and the header scan held to the parser over every fixture |
 
 Fixtures live in three places. `test-files/*.prg` is the coverage corpus: the grammar is expected to
 read all of it. A `.expected` file against one of those records either a grammar gap or a rule

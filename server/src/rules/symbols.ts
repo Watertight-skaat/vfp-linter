@@ -1,8 +1,8 @@
 // The rules that read the symbol table: a name nothing declared, a declaration nothing uses, and a variable that shares its name with a field.
 
-import type { AstNode, Loc } from '../ast.js';
-import { onFile, Severity, walk, type Fix, type RuleContext } from '../rule.js';
-import { type Scope, type SymbolEntry, type SymbolRef } from '../scope.js';
+import type { Loc } from '../ast.js';
+import { onFile, Severity, type Fix, type RuleContext } from '../rule.js';
+import { collectFieldNames, type Scope, type SymbolEntry, type SymbolRef } from '../scope.js';
 
 
 export const implicitPrivate = onFile({
@@ -81,29 +81,6 @@ function scopeLabel(scope: Scope) {
 //   const alias = aliasInEffectAt(scope, line);
 //   return alias ? ` while ${alias} is open` : '';
 // }
-
-function collectFieldNames(ast: AstNode, aliases: Set<string>): Set<string> {
-  const fields = new Set<string>();
-  const add = (raw: unknown) => {
-    if (typeof raw !== 'string') return;
-    const parts = raw.replace(/^[@&]+/, '').split(/\.|->/).filter(Boolean);
-    if (parts.length) fields.add(parts[parts.length - 1].toUpperCase());
-  };
-  walk(ast, node => {
-    switch (node.type) {
-      case 'ColumnDefinition': add(node.name); break;
-      case 'ReplaceStatement': for (const f of node.fields) add(f.field); break;
-      case 'InsertStatement': for (const c of node.columns ?? []) add(c); break;
-      case 'MemberExpression': {
-        // `customer.cust_id` names a field only when `customer` is a work area the file opens.
-        const object = node.object;
-        if (object.type === 'Identifier' && aliases.has(object.name.toUpperCase())) add(node.property.name);
-        break;
-      }
-    }
-  });
-  return fields;
-}
 
 // --- quick fixes -----------------------------------------------------------
 
