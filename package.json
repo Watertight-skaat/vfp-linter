@@ -186,8 +186,8 @@
 		"watch:bundle": "node ./scripts/build.mjs --watch",
 		"typecheck": "tsc -p client/tsconfig.json && tsc -p server/tsconfig.json",
 		"postinstall": "bun run build:parser",
-		"test": "bun ./test-files/run-all-tests.js && bun ./test-files/run-ast-tests.js && bun ./test-files/run-parse-tests.js && bun ./test-files/run-scope-tests.js && bun ./test-files/run-severity-tests.js && bun ./test-files/run-keyword-tests.js && bun ./test-files/run-fix-tests.js",
-		"test:update": "bun ./test-files/run-all-tests.js --update",
+		"test": "bun ./test/run-all-tests.js && bun ./test/run-ast-tests.js && bun ./test/run-parse-tests.js && bun ./test/run-scope-tests.js && bun ./test/run-severity-tests.js && bun ./test/run-keyword-tests.js && bun ./test/run-fix-tests.js",
+		"test:update": "bun ./test/run-all-tests.js --update",
 		"release": "node ./scripts/publish.mjs",
 		"e2e": "bun run compile && node ./scripts/build.mjs --tests && node client/out/test/runTest.js"
 	},

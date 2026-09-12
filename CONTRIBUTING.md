@@ -25,6 +25,9 @@
 
 ### Tests
 
+The suites live in `test/`; `test-files/` is fixtures only, because `run-all-tests.js` walks that
+whole tree and treats every `.prg` in it as one. All of them are run from the repository root.
+
 | Suite                     | What it asserts                                                                        |
 | ------------------------- | -------------------------------------------------------------------------------------- |
 | `run-all-tests.js`        | Each fixture's diagnostics match its recorded `.expected` file, exactly                 |
@@ -136,6 +139,8 @@ git history and re-add `eslint`, `@eslint/js`, `@stylistic/eslint-plugin`,
 │   │   └── extension.ts // Language Client entry point
 ├── language-configuration.json // Comments, brackets and indentation for the editor
 ├── package.json // The extension manifest, including the foxpro.rules settings schema
+├── test // The suites `bun run test` runs, and the assertion helper they share
+├── test-files // Fixtures only: the .prg corpora and their recorded .expected diagnostics
 └── server // Language Server
     └── src
         ├── ast.ts // Typed AST: a discriminated union over every node the grammar emits
@@ -267,7 +272,7 @@ work-area changes in source order so `aliasInEffectAt()` can say which alias is 
 
 `missing-memvar-prefix` reads it today. Still to come from the same structure: unused `LOCAL`, the
 implicit `PRIVATE` created by an undeclared assignment, and work-area handling.
-`test-files/run-scope-tests.js` asserts its contents against `test-files/scope.prg`.
+`test/run-scope-tests.js` asserts its contents against `test-files/scope.prg`.
 
 Two deliberate subtleties. A name that was never declared still gets an entry, with kind
 `implicit` and no declaration site -- that is exactly the implicit-`PRIVATE` case, and it keeps

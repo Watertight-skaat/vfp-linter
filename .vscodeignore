@@ -13,6 +13,7 @@ server/src/**
 client/out/test/**
 client/testFixture/**
 scripts/**
+test/**
 test-files/**
 eslint.config.mjs
 .vscode/**
