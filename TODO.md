@@ -27,10 +27,6 @@ Every measured one is read now: `@ <row>,<col>` with no clause (147 uses), the c
 
 What is left in the ledger is unmeasured, and each item costs one statement: transactions (`BEGIN`/`END TRANSACTION`, `ROLLBACK`), the database container (`CREATE`/`OPEN DATABASE`, `CREATE CONNECTION`, `FREE`/`REMOVE TABLE`, and the `DELETE DATABASE`/`VIEW`/`CONNECTION` partials), console input (`INPUT`, `ACCEPT`), `READ CYCLE` and `@ ... EDIT`. Transactions are the only one with a rule waiting behind them. All are one-liners in `test-files/diagnostics/still-unsupported.prg`.
 
-### Older items, still open
-
-- **UNIQUE / FOREIGN KEY after the column list in `CREATE TABLE`** — column-level `UNIQUE`, `CHECK` and `REFERENCES` are read; a constraint written after the column list is not, and it costs the whole `CREATE TABLE` its parse. A second `ADD COLUMN` on `ALTER TABLE` is the same shape, 91 uses.
-
 ## Cleanup
 
 - **e2e in CI** — `bun run e2e` is the only thing exercising the LSP over the wire, and it passes again as of this pass. It downloads VS Code and needs a display, so it would need `xvfb-run` and would be the flakiest job in the file. The case for a separate, non-blocking job: the suite was red for two releases, on two counts, and nobody knew. Two things to fix on the way: the runner exits 0 when Mocha finds no test files, and the quick fixes, Outline and folding have no e2e coverage yet.

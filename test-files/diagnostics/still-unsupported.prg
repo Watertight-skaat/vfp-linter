@@ -30,10 +30,6 @@ READ CYCLE
 * The @ ... EDIT control. The rest of @ is read, including the bare coordinates that only move the print head.
 @ 3, 2 EDIT m.cUsed SIZE 17, 75 NOEDIT
 
-* A second ADD COLUMN clause on ALTER TABLE. The first is read and the rest of the list is not, so the statement reports a gap that is really about everything after it.
-ALTER TABLE items ADD COLUMN billcode c(6) ;
-                  ADD COLUMN ledacct c(8)
-
 * ON() reporting the current handler, in a file where ON is also a command word.
 m.oError = ON("error")
 

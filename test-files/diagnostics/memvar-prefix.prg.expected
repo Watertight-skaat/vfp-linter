@@ -1,2 +1,3 @@
 6:2 warning missing-memvar-prefix 'cust_id' is both a variable and a column name. prefer 'm.cust_id' to avoid accidentally updating the column
 14:2 warning missing-memvar-prefix 'total' is both a variable and a column name. prefer 'm.total' to avoid accidentally updating the column
+23:2 warning missing-memvar-prefix 'billcode' is both a variable and a column name. prefer 'm.billcode' to avoid accidentally updating the column

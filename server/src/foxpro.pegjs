@@ -57,6 +57,10 @@
     if (expr.type === 'WithMemberExpression') return isBareName(expr.expression);
     return expr.type === 'Identifier' || expr.type === 'ImplicitGlobal';
   }
+  // Every ALTER TABLE clause is one node with one action, so a rule can read the list without knowing which alternative matched.
+  function alterClause(action, extra) {
+    return node('AlterTableClause', { action, column: null, constraint: null, name: null, newName: null, modifiers: null, kind: null, tag: null, expression: null, error: null, save: false, novalidate: false, ...extra });
+  }
   function flatten(list) {
     const out = [];
     for (const item of list) {
@@ -600,9 +604,9 @@ AtBody
   // No verb at all, which just moves the print head -- the most common @ in the corpus. It has to end the line: a verb the grammar has not learned, `@ 3, 2 EDIT ...`, would otherwise read as this and leave its tail behind as a statement, which reports the gap in the wrong place.
   / &(PartialLineComment / LineTerminator / EOF) { return { verb: null, expression: null, target: null, endRow: null, endColumn: null, options: null }; }
 
-// The rest of a command line, verbatim, for option tails the grammar does not model yet.
+// The rest of a command line, verbatim, for option tails the grammar does not model yet. A semicolon continues the command, so the tail crosses one: stopping at the physical line left everything after the semicolon behind as a statement of its own, which reported a gap on a line that is really the middle of this one.
 RawOptions
-  = _ o:$((!(LineTerminator / PartialLineComment) .)*) { return o.trim() || null; }
+  = _ o:$((LineContinuation / (!(LineTerminator / PartialLineComment) .))*) { return o.replace(/[ \t]*;[ \t]*(&&[^\r\n]*)?\r?\n[ \t]*/g, ' ').trim() || null; }
 
 IncludeStatement
   = "#include"i _ path:(StringLiteral / UnquotedPath) {
@@ -1630,7 +1634,7 @@ ColumnDefinition
   = name:Identifier __ 
     ftype:FieldType _
     fsize:FieldSize? _
-    nullability:("NULL"i / "NOT NULL"i)? _
+    nullability:ColumnNullability? _
     check:("CHECK"i __ expr:Expression _ err:("ERROR"i __ msg:StringLiteral)? { return { expr, error: err ? err[2] : null }; })? _
     autoinc:("AUTOINC"i _ nv:("NEXTVALUE"i __ nv:(NumberLiteral / Identifier) _ step:("STEP"i __ st:(NumberLiteral / Identifier))?)? { return { nextValue: nv ? nv[2] : null, step: (nv && nv[4]) ? nv[4][2] : null }; })? _
     def:("DEFAULT"i __ d:Expression { return d; })? _
@@ -1644,7 +1648,7 @@ ColumnDefinition
         name,
         fieldType: ftype,
         size: fsize || null,
-        nullability: nullability ? (Array.isArray(nullability) ? 'NOT NULL' : 'NULL') : null,
+        nullability: nullability || null,
         check: check || null,
         autoinc: autoinc || null,
         default: def || null,
@@ -1654,6 +1658,11 @@ ColumnDefinition
       });
     }
 
+// NOT NULL read as NULL: the two spellings were one literal each and only the shape of what they returned told them apart, which made every NOT NULL column report the opposite of what it says. NOT comes first, since NULL is a prefix of nothing else here but the reverse order would leave `NOT` unmatched.
+ColumnNullability
+  = "NOT"i WB __ "NULL"i WB { return 'NOT NULL'; }
+  / "NULL"i WB { return 'NULL'; }
+
 FieldType
   = t:$([A-Za-z]+) { return t.toUpperCase(); }
 
@@ -1661,12 +1670,15 @@ FieldSize
   = "(" _ w:Expression _ "," _ p:Expression _ ")" { return { width: w, precision: p }; }
   / "(" _ w:Expression _ ")" { return { width: w, precision: null }; }
 
+// The FOR clause is ALTER TABLE's alone -- it filters the records the index tag covers -- but the three keyed forms are otherwise the ones CREATE TABLE takes, so they are read here rather than spelled a second time.
 TableConstraint
-  = "PRIMARY"i __ "KEY"i __ expr:Expression __ "TAG"i __ tag:Identifier { return node('TableConstraint', { kind: 'PRIMARY KEY', expression: expr, tag }); }
-  / "UNIQUE"i __ expr:Expression __ "TAG"i __ tag:Identifier _ coll:("COLLATE"i __ cs:IdentifierOrString { return cs; })? { return node('TableConstraint', { kind: 'UNIQUE', expression: expr, tag, collate: coll }); }
-  / "FOREIGN"i __ "KEY"i __ expr:Expression __ "TAG"i __ tag:Identifier _ nodup:("NODUP"i)? _ coll:("COLLATE"i __ cs:IdentifierOrString { return cs; })? __ "REFERENCES"i __ tbl:IdentifierOrString _ reftag:("TAG"i __ rt:Identifier { return rt; })? { return node('TableConstraint', { kind: 'FOREIGN KEY', expression: expr, tag, nodup: !!nodup, collate: coll, references: { table: tbl, tag: reftag } }); }
+  = "PRIMARY"i __ "KEY"i __ expr:Expression __ "TAG"i __ tag:Identifier _ filter:ConstraintFilter? { return node('TableConstraint', { kind: 'PRIMARY KEY', expression: expr, tag, for: filter }); }
+  / "UNIQUE"i __ expr:Expression __ "TAG"i __ tag:Identifier _ filter:ConstraintFilter? _ coll:("COLLATE"i __ cs:IdentifierOrString { return cs; })? { return node('TableConstraint', { kind: 'UNIQUE', expression: expr, tag, collate: coll, for: filter }); }
+  / "FOREIGN"i __ "KEY"i __ expr:Expression __ "TAG"i __ tag:Identifier _ nodup:("NODUP"i)? _ filter:ConstraintFilter? _ coll:("COLLATE"i __ cs:IdentifierOrString { return cs; })? __ "REFERENCES"i __ tbl:IdentifierOrString _ reftag:("TAG"i __ rt:Identifier { return rt; })? { return node('TableConstraint', { kind: 'FOREIGN KEY', expression: expr, tag, nodup: !!nodup, collate: coll, for: filter, references: { table: tbl, tag: reftag } }); }
   / "CHECK"i __ expr:Expression _ err:("ERROR"i __ msg:StringLiteral)? { return node('TableConstraint', { kind: 'CHECK', expression: expr, error: err ? err[2] : null }); }
 
+ConstraintFilter
+  = "FOR"i WB __ e:Expression { return e; }
 
 // TRY [ tryCommands ] [ CATCH [ TO VarName ] [ WHEN lExpression ] [ catchCommands ] ] [ THROW [ eUserExpression ] ] [ EXIT ] [ FINALLY [ finallyCommands ] ] ENDTRY
 TryStatement "try-catch statement"
@@ -1763,11 +1775,57 @@ ModifyStatement
       return node('ModifyStatement', { what: what.toUpperCase(), options: opts });
     }
 
-// ALTER TABLE's tail is a DDL of its own. The table is the part a rule would ask about; the rest is source.
+// ALTER TABLE's tail is the same DDL CREATE TABLE's is, one clause at a time: columns and constraints added, changed and dropped. Reading it as clauses rather than as source is what puts an added column in front of the rules that ask what the file's field names are, and what carries a DEFAULT or CHECK expression to the symbol table. A tail with a clause the list does not know falls back to the raw form, so it still costs nothing.
 AlterTableStatement
-  = "ALTER"i WB __ "TABLE"i WB __ name:IdentifierOrString opts:RawOptions {
-      return node('AlterTableStatement', { name, options: opts });
+  = "ALTER"i WB __ "TABLE"i WB __ name:IdentifierOrString _ clauses:AlterTableClauseList &(_ (PartialLineComment / LineTerminator / EOF)) {
+      return node('AlterTableStatement', { name, clauses, options: null });
     }
+  / "ALTER"i WB __ "TABLE"i WB __ name:IdentifierOrString opts:RawOptions {
+      return node('AlterTableStatement', { name, clauses: [], options: opts });
+    }
+
+// The clauses are comma-separated where they add columns and space-separated where they work on constraints. VFP takes either, and the corpus writes both.
+AlterTableClauseList
+  = head:AlterTableClause tail:(_ ","? _ c:AlterTableClause { return c; })* { return [head, ...tail]; }
+
+// COLUMN is optional on every form that names one, so `ADD PRIMARY KEY ...` and a column called `primary` open alike. The spelling that says COLUMN is read as a column first, the constraint keywords next, and a bare column last -- which leaves a column named for one of those keywords readable everywhere except where it is written without COLUMN and cannot be told apart.
+AlterTableClause
+  = "ADD"i WB __ "COLUMN"i WB __ c:AlterColumn { return alterClause('ADD COLUMN', c); }
+  / "ADD"i WB __ con:TableConstraint _ nv:NoValidate? { return alterClause('ADD CONSTRAINT', { constraint: con, novalidate: !!nv }); }
+  / "ADD"i WB __ c:AlterColumn { return alterClause('ADD COLUMN', c); }
+  / "ALTER"i WB __ ("COLUMN"i WB __)? m:AlterColumnModify { return alterClause('ALTER COLUMN', m); }
+  / "ALTER"i WB __ ("COLUMN"i WB __)? c:AlterColumn { return alterClause('ALTER COLUMN', c); }
+  / "DROP"i WB __ "PRIMARY"i WB __ "KEY"i WB { return alterClause('DROP CONSTRAINT', { kind: 'PRIMARY KEY' }); }
+  / "DROP"i WB __ "UNIQUE"i WB __ "TAG"i WB __ tag:Identifier { return alterClause('DROP CONSTRAINT', { kind: 'UNIQUE', tag }); }
+  / "DROP"i WB __ "FOREIGN"i WB __ "KEY"i WB __ "TAG"i WB __ tag:Identifier _ save:("SAVE"i WB)? { return alterClause('DROP CONSTRAINT', { kind: 'FOREIGN KEY', tag, save: !!save }); }
+  / "DROP"i WB __ "CHECK"i WB { return alterClause('DROP CHECK', {}); }
+  / "DROP"i WB __ ("COLUMN"i WB __)? name:Identifier { return alterClause('DROP COLUMN', { name }); }
+  / "SET"i WB __ "CHECK"i WB __ expr:Expression _ err:ConstraintError? { return alterClause('SET CHECK', { expression: expr, error: err }); }
+  / "RENAME"i WB __ ("COLUMN"i WB __)? name:Identifier __ "TO"i WB __ to:Identifier { return alterClause('RENAME COLUMN', { name, newName: to }); }
+  / NoValidate { return alterClause('NOVALIDATE', { novalidate: true }); }
+
+// The full column definition, which ADD and ALTER share with CREATE TABLE; only NOVALIDATE is ALTER's own.
+AlterColumn
+  = c:ColumnDefinition _ nv:NoValidate? { return { column: c, novalidate: !!nv }; }
+
+// ALTER's other form, which names a column that already exists and changes one thing about it, so it carries no type. At least one change is required: without that it would match the name alone and swallow the definition form.
+AlterColumnModify
+  = name:Identifier mods:(_ m:AlterColumnModifier { return m; })+ { return { name, modifiers: mods }; }
+
+AlterColumnModifier
+  = "NOT"i WB __ "NULL"i WB { return { kind: 'NOT NULL', expression: null, error: null }; }
+  / "NULL"i WB { return { kind: 'NULL', expression: null, error: null }; }
+  / "SET"i WB __ "DEFAULT"i WB __ e:Expression { return { kind: 'SET DEFAULT', expression: e, error: null }; }
+  / "SET"i WB __ "CHECK"i WB __ e:Expression _ err:ConstraintError? { return { kind: 'SET CHECK', expression: e, error: err }; }
+  / "DROP"i WB __ "DEFAULT"i WB { return { kind: 'DROP DEFAULT', expression: null, error: null }; }
+  / "DROP"i WB __ "CHECK"i WB { return { kind: 'DROP CHECK', expression: null, error: null }; }
+  / NoValidate { return { kind: 'NOVALIDATE', expression: null, error: null }; }
+
+ConstraintError
+  = "ERROR"i WB __ msg:StringLiteral { return msg; }
+
+NoValidate
+  = "NOVALIDATE"i WB { return true; }
 
 // RUN, and its `!` shorthand: everything after it goes to the shell, so none of it is FoxPro.
 RunStatement

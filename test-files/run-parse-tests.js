@@ -432,4 +432,44 @@ check('the clauses behind it still read',
 check('the leading ALL is unchanged', first('REPLACE ALL invbal WITH 0').scope, 'ALL');
 check('and a field whose name begins with one is still a field', first('REPLACE allowance WITH 0').fields[0].field, 'allowance');
 
+// A column's nullability, which was read by the shape of what the alternative returned rather than by which one matched, so both spellings came back as NULL.
+check('NOT NULL is NOT NULL', first('CREATE TABLE t (invbal N(12, 2) NOT NULL)').columns[0].nullability, 'NOT NULL');
+check('NULL is still NULL', first('CREATE TABLE t (invbal N(12, 2) NULL)').columns[0].nullability, 'NULL');
+check('and a column with neither has none', first('CREATE TABLE t (invbal N(12, 2))').columns[0].nullability, null);
+
+// ALTER TABLE's tail, which used to be kept as source. The clause list is what a rule reads; `options` is the fallback, and a null there is the assertion that the tail was understood.
+const alterActions = src => first(src).clauses.map(c => c.action);
+// The tail stopped at the physical line, so everything after the semicolon was left behind as a statement of its own and reported as a gap.
+check('a clause on a continuation line belongs to the statement',
+	types('ALTER TABLE items ADD COLUMN billcode C(6) ;\n ADD COLUMN ledacct C(8)'), ['AlterTableStatement']);
+check('and both clauses are read', alterActions('ALTER TABLE items ADD COLUMN billcode C(6), ADD COLUMN ledacct C(8)'), ['ADD COLUMN', 'ADD COLUMN']);
+check('the added column is a column definition, which is what names a field',
+	first('ALTER TABLE items ADD COLUMN billcode C(6)').clauses[0].column,
+	{ type: 'ColumnDefinition', name: 'billcode', fieldType: 'C', size: { width: { type: 'NumberLiteral', value: 6, raw: '6', currency: false }, precision: null }, nullability: null, check: null, autoinc: null, default: null, key: null, references: null, nocptrans: false });
+check('a change that restates the type is a column definition too',
+	(({ action, column }) => [action, column.fieldType, column.nullability])(first('ALTER TABLE items ALTER COLUMN ledacct C(12) NOT NULL').clauses[0]), ['ALTER COLUMN', 'C', 'NOT NULL']);
+// The form that carries no type: SET would otherwise read as the field type and DEFAULT as the column's own.
+check('and one that does not is a list of changes to a named column',
+	(({ action, name, modifiers }) => [action, name, modifiers.map(m => m.kind)])(first('ALTER TABLE items ALTER COLUMN billcode SET DEFAULT m.cCode DROP CHECK').clauses[0]),
+	['ALTER COLUMN', 'billcode', ['SET DEFAULT', 'DROP CHECK']]);
+check('a DEFAULT expression is kept, so the variable it reads is one the symbol table sees',
+	first('ALTER TABLE items ALTER COLUMN billcode SET DEFAULT m.cCode').clauses[0].modifiers[0].expression.property.name, 'cCode');
+check('the constraint forms read as constraints',
+	first('ALTER TABLE items ADD FOREIGN KEY ledacct TAG ledacct REFERENCES ledger TAG acct').clauses[0].constraint,
+	{ type: 'TableConstraint', kind: 'FOREIGN KEY', expression: { type: 'Identifier', name: 'ledacct' }, tag: 'ledacct', nodup: false, collate: null, for: null, references: { table: 'ledger', tag: 'acct' } });
+check('FOR filters the tag it indexes', first('ALTER TABLE items ADD UNIQUE billcode TAG billcode FOR qty > 0').clauses[0].constraint.for.operator, '>');
+check('a dropped constraint names which one and its tag',
+	(({ action, kind, tag, save }) => [action, kind, tag, save])(first('ALTER TABLE items DROP FOREIGN KEY TAG ledacct SAVE').clauses[0]), ['DROP CONSTRAINT', 'FOREIGN KEY', 'ledacct', true]);
+check('DROP CHECK is the table check, not a column called CHECK', alterActions('ALTER TABLE items DROP CHECK'), ['DROP CHECK']);
+check('a column whose name begins with one of those keywords is still a column',
+	(({ action, name }) => [action, name])(first('ALTER TABLE items DROP COLUMN check_flag').clauses[0]), ['DROP COLUMN', 'check_flag']);
+check('clauses stand side by side without commas', alterActions('ALTER TABLE items DROP COLUMN postdate ADD PRIMARY KEY itemno TAG itemno'), ['DROP COLUMN', 'ADD CONSTRAINT']);
+check('RENAME names both halves',
+	(({ name, newName }) => [name, newName])(first('ALTER TABLE items RENAME COLUMN billcode TO bill_code').clauses[0]), ['billcode', 'bill_code']);
+// The floor the change has to keep: a clause the list cannot read costs the tail, not the statement.
+check('a tail with an unreadable clause falls back to source',
+	(({ clauses, options }) => [clauses, options])(first('ALTER TABLE items ADD COLUMN whatever C(6) SOMETHING ODD')), [[], 'ADD COLUMN whatever C(6) SOMETHING ODD']);
+check('and the fallback crosses a continuation as well',
+	first('ALTER TABLE items SOMETHING ODD ;\n AND MORE').options, 'SOMETHING ODD AND MORE');
+
 report('Parse checks');

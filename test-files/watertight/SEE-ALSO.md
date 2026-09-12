@@ -211,15 +211,14 @@ Counted over the whole source. The one-line ledger is in `../diagnostics/still-u
 the two that need surrounding code to show the cost have a fixture here.
 
 The counts are the measurement and are left as they were taken. Every row below is read now except
-`ADD COLUMN` past the first clause, `CAST` with a computed width, and the last row's `ON("error")`,
-bare `?` and `DO FORM <a-b>` -- those are what the ledger still records. `@ ... EDIT` is the one
-remaining half of the `@` row.
+`CAST` with a computed width and the last row's `ON("error")`, bare `?` and `DO FORM <a-b>` -- those
+are what the ledger still records. `@ ... EDIT` is the one remaining half of the `@` row.
 
 | Construct | Uses | Note |
 | --- | --- | --- |
 | `WAIT CLEAR` | 426 in 185 files | The most common unparsed statement there is: every routine that puts a status message up takes it down again. `WAIT "" TIMEOUT n` and `WAIT <msg> WINDOW` are the same family |
 | `@ <row>, <col>` with no clause | 147 | Moves the print head. `@ ... EDIT` is the other unread form |
-| `ADD COLUMN`, second clause onward on `ALTER TABLE` | 91 | The first is read and the rest of the list is not |
+| `ADD COLUMN`, second clause onward on `ALTER TABLE` | 91 | The tail was kept as source and stopped at the physical line, so a clause on a continuation line was left behind. The whole tail is read as clauses now |
 | `ACTIVATE SCREEN`, `EJECT`, `READ EVENTS`, `RETRY`, `CANCEL`, `SHOW GETS` | ~220 | The console and full-screen commands |
 | `AS <type>` on `PRIVATE` / `PUBLIC`, and on a method return | ~120 | `LOCAL` takes a type and the others do not, so the name is read and the type falls off. `... OF <file>.prg` is unread on all of them |
 | `DELETE RECORD <n> [IN <alias>]` | 59 | A record number as a scope clause |

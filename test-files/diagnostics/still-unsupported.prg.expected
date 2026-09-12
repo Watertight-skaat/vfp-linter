@@ -13,8 +13,7 @@
 25:1 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'ACCEPT 'Name: ' TO lcName'
 28:1 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'READ CYCLE'
 31:1 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '@ 3, 2 EDIT m.cUsed SIZE 17, 75 NOEDIT'
-35:19 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'ADD COLUMN ledacct c(8)'
-38:10 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '= ON("error")'
-44:14 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '-up_code_mod'
-47:1 warning implicit-private 'lFlags' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
-47:15 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '(mastinfo .creditcard .or. mastinfo .ach, ",0", "")'
+34:10 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '= ON("error")'
+40:14 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '-up_code_mod'
+43:1 warning implicit-private 'lFlags' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
+43:15 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '(mastinfo .creditcard .or. mastinfo .ach, ",0", "")'

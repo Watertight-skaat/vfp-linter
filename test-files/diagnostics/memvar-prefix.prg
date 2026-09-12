@@ -15,6 +15,15 @@ PROCEDURE ReadTotal
 	? m.total
 ENDPROC
 
+* A column ALTER TABLE adds is evidence the same way one in a CREATE is. While the tail was kept as source there was none, so this went unreported.
+PROCEDURE AddBillcode
+	LOCAL billcode
+	USE items
+	ALTER TABLE items ADD COLUMN billcode C(6)
+	billcode = "000001"
+	? m.billcode
+ENDPROC
+
 * No evidence that either name is a field, so neither is reported.
 PROCEDURE NoCollision
 	LOCAL lcName, lnCount

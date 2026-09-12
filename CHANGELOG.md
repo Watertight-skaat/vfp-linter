@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.3.6
+
+### ALTER TABLE's tail, read as clauses
+
+The last of the older grammar items. `CREATE TABLE` learned its table-level constraints a release ago;
+`ALTER TABLE` kept its whole tail as source, on the grounds that the table was the part a rule would ask
+about. That cost it twice.
+
+**A clause on a continuation line was left behind.** The raw tail stopped at the physical line, so
+`ALTER TABLE items ADD COLUMN billcode C(6) ;` followed by a second `ADD COLUMN` reported the second one
+as a statement of its own that the linter cannot parse -- a gap announced in the middle of a statement
+that had in fact been read. The raw form now crosses a semicolon, which is what a semicolon means, so
+every command that keeps an option tail verbatim -- `@ ... SAY`, `MODIFY`, `DEFINE`, `PUSH`/`POP` --
+gets the rest of its own line back.
+
+**The columns it adds were invisible.** `missing-memvar-prefix` asks what the file shows being used as a
+field, and a column in a `CREATE` counted while one added by `ALTER` did not, so a `LOCAL` colliding with
+it went unreported. The tail is now a list of clauses: `ADD`/`ALTER`/`DROP`/`RENAME COLUMN`, the
+constraint forms added and dropped, `SET`/`DROP CHECK` and `NOVALIDATE`, with the column definition
+`CREATE TABLE` already reads behind the first two and the expressions in `DEFAULT` and `CHECK` kept, in
+SQL context, so a bare name is taken for a field and `m.cValue` still records the variable it reads. A
+tail holding a clause the list cannot read falls back to the raw form, so an unrecognised one still
+costs nothing.
+
+**`NOT NULL` was read as `NULL`.** Found by the fixture for the above. The two spellings were one string
+literal each and the action told them apart by the *shape* of what the alternative returned -- an array
+for one, a string for the other -- which both literals returned as a string, so every `NOT NULL` column
+in a `CREATE TABLE` or an `ALTER` reported the opposite of what it says. They are now one rule that names
+which matched.
+
+Sixteen parse checks assert each on the field that was lost, with two controls beside them, and all
+eighteen were run against a parser built from the previous grammar to confirm they fail there: the
+sixteen guarding new behaviour fail or throw, the two controls pass.
+
 ## 1.3.5
 
 ### Three rules that read less than their own comment claimed

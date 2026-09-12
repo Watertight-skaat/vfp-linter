@@ -401,6 +401,10 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
         workArea(scope, 'open', node.name, 'CREATE ' + node.kind, at);
         if (node.fromArray) reference(scope, node.fromArray, 'read', at);
         return;
+      // ALTER TABLE's clauses name columns, not variables, so they are read in SQL context: a bare name is taken for a field, while `DEFAULT m.cValue` still records the variable it reads.
+      case 'AlterTableStatement':
+        visitSql(node, scope);
+        return;
       case 'SelectStatement': {
         const switched = workAreaSwitch(node);
         if (switched !== undefined) {

@@ -814,6 +814,8 @@ export interface TableConstraint extends NodeBase {
   kind: 'PRIMARY KEY' | 'UNIQUE' | 'FOREIGN KEY' | 'CHECK';
   expression: Expr;
   tag?: string;
+  /** ALTER TABLE's FOR, which filters the records the index tag covers. */
+  for?: Expr | null;
   collate?: IdentifierOrString | null;
   nodup?: boolean;
   references?: TableReference;
@@ -962,8 +964,38 @@ export interface ModifyStatement extends NodeBase {
 export interface AlterTableStatement extends NodeBase {
   type: 'AlterTableStatement';
   name: IdentifierOrString;
-  /** The DDL tail, kept as source: recognising the statement is what stops the false positive. */
+  clauses: AlterTableClause[];
+  /** The DDL tail kept as source, for a tail holding a clause the grammar cannot read; null once the clauses are. */
   options: string | null;
+}
+
+/** One clause of an ALTER TABLE tail. The fields a given action does not use are null, so the list reads without knowing which form matched. */
+export interface AlterTableClause extends NodeBase {
+  type: 'AlterTableClause';
+  action: 'ADD COLUMN' | 'ALTER COLUMN' | 'DROP COLUMN' | 'RENAME COLUMN' | 'ADD CONSTRAINT' | 'DROP CONSTRAINT' | 'SET CHECK' | 'DROP CHECK' | 'NOVALIDATE';
+  /** ADD COLUMN, and the ALTER COLUMN form that restates the type. */
+  column: ColumnDefinition | null;
+  constraint: TableConstraint | null;
+  /** The column named by DROP, RENAME, and the ALTER COLUMN form that changes one thing about it. */
+  name: string | null;
+  newName: string | null;
+  /** The ALTER COLUMN form that carries no type. */
+  modifiers: AlterColumnModifier[] | null;
+  /** Which constraint DROP CONSTRAINT drops. */
+  kind: 'PRIMARY KEY' | 'UNIQUE' | 'FOREIGN KEY' | null;
+  tag: string | null;
+  /** SET CHECK's condition. */
+  expression: Expr | null;
+  error: StringLiteral | null;
+  /** DROP FOREIGN KEY ... SAVE, which keeps the index tag. */
+  save: boolean;
+  novalidate: boolean;
+}
+
+export interface AlterColumnModifier {
+  kind: 'NULL' | 'NOT NULL' | 'SET DEFAULT' | 'SET CHECK' | 'DROP DEFAULT' | 'DROP CHECK' | 'NOVALIDATE';
+  expression: Expr | null;
+  error: StringLiteral | null;
 }
 
 export interface RunStatement extends NodeBase {
@@ -1691,6 +1723,7 @@ export type Statement =
   | PushPopStatement
   | ExternalStatement
   | ModifyStatement
+  | AlterTableClause
   | AlterTableStatement
   | RunStatement
   | TotalStatement
