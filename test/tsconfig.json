@@ -1,0 +1,12 @@
+{
+	"extends": "../tsconfig.json",
+	"compilerOptions": {
+		// Listed explicitly for the same reason as client and server: TypeScript 7 does not reliably discover ambient @types here.
+		"types": ["node"],
+		// run-severity-tests.ts reads the settings schema out of package.json and checks it against the rules.
+		"resolveJsonModule": true
+	},
+	"include": [
+		"."
+	]
+}

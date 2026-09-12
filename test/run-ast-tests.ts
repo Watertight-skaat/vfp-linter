@@ -1,12 +1,12 @@
 // Re-derives the node types and property names the grammar actually emits, and asserts server/src/ast.ts declares exactly those. A hand-written union is only useful while it is true, so the grammar is the source of truth and this suite fails the build when the two drift apart.
-const fs = require('fs');
-const { check, report } = require('./check.js');
+import fs from 'fs';
+import { check, report } from './check.js';
 
 const grammar = fs.readFileSync('./server/src/foxpro.pegjs', 'utf-8');
 const astSource = fs.readFileSync('./server/src/ast.ts', 'utf-8');
 
 // Read the balanced {...} that starts at `open` and return its text.
-function balanced(text, open) {
+function balanced(text: string, open: number): string {
 	let depth = 0;
 	for (let i = open; i < text.length; i++) {
 		const c = text[i];
@@ -20,9 +20,9 @@ function balanced(text, open) {
 }
 
 // Top-level keys of an object literal body, plus any `...spread` markers.
-function keysOf(body) {
+function keysOf(body: string): string[] {
 	const stripped = body.replace(/\/\/[^\n]*/g, '');
-	const parts = [];
+	const parts: string[] = [];
 	let depth = 0;
 	let buf = '';
 	for (const c of stripped) {
@@ -42,7 +42,7 @@ function keysOf(body) {
 }
 
 // The rule body that defines `RuleName`, up to the next rule at column 0.
-function ruleBody(name) {
+function ruleBody(name: string): string {
 	const start = grammar.search(new RegExp(`^\\s*${name}\\s*("[^"]*")?\\s*$|^\\s*${name}\\s*("[^"]*")?\\s*=`, 'm'));
 	if (start < 0) return '';
 	const rest = grammar.slice(start + name.length);
@@ -51,7 +51,7 @@ function ruleBody(name) {
 }
 
 // A spread either names a local object built earlier in the action, or the result of another rule.
-function resolveSpread(spread, context) {
+function resolveSpread(spread: string, context: string): string[] {
 	const id = spread.slice(3);
 	const local = context.indexOf(`const ${id} = {`);
 	if (local >= 0) return keysOf(balanced(context, context.indexOf('{', local)));
@@ -63,18 +63,18 @@ function resolveSpread(spread, context) {
 }
 
 // --- what the grammar emits -------------------------------------------------
-const fromGrammar = new Map();
+const fromGrammar = new Map<string, Set<string>>();
 for (const m of grammar.matchAll(/node\(\s*['"]([A-Za-z_]\w*)['"]\s*,\s*\{/g)) {
 	const open = m.index + m[0].length - 1;
 	// The action this node() call sits in, so a spread can be resolved against it.
 	const context = grammar.slice(Math.max(0, m.index - 4000), m.index);
 	const keys = keysOf(balanced(grammar, open)).flatMap(k => (k.startsWith('...') ? resolveSpread(k, context) : [k]));
 	if (!fromGrammar.has(m[1])) fromGrammar.set(m[1], new Set());
-	for (const k of keys) fromGrammar.get(m[1]).add(k);
+	for (const k of keys) fromGrammar.get(m[1])!.add(k);
 }
 
 // --- what ast.ts declares --------------------------------------------------
-const fromAst = new Map();
+const fromAst = new Map<string, Set<string>>();
 for (const m of astSource.matchAll(/export interface (\w+) extends NodeBase \{/g)) {
 	const body = balanced(astSource, m.index + m[0].length - 1);
 	const typeName = body.match(/\btype:\s*'([^']+)'/);
@@ -84,19 +84,19 @@ for (const m of astSource.matchAll(/export interface (\w+) extends NodeBase \{/g
 }
 
 // --- the unions ------------------------------------------------------------
-function unionMembers(name) {
+function unionMembers(name: string): string[] {
 	const at = astSource.indexOf(`export type ${name} =`);
 	const body = astSource.slice(at, astSource.indexOf(';', at));
 	return body.split('|').slice(1).map(s => s.trim()).filter(Boolean);
 }
-const interfaceOfType = new Map();
+const interfaceOfType = new Map<string, string>();
 for (const m of astSource.matchAll(/export interface (\w+) extends NodeBase \{/g)) {
 	const body = balanced(astSource, m.index + m[0].length - 1);
 	const typeName = body.match(/\btype:\s*'([^']+)'/);
 	if (typeName) interfaceOfType.set(typeName[1], m[1]);
 }
 
-const sorted = set => [...set].sort();
+const sorted = (set: Iterable<string>) => [...set].sort();
 
 check('every node type the grammar emits is declared in ast.ts',
 	sorted(fromGrammar.keys()).filter(n => !fromAst.has(n)), []);
@@ -104,7 +104,7 @@ check('ast.ts declares no node type the grammar never emits',
 	sorted(fromAst.keys()).filter(n => !fromGrammar.has(n)), []);
 check('node type count', fromAst.size, fromGrammar.size);
 
-const propMismatches = [];
+const propMismatches: { node: string; missing: string[]; extra: string[] }[] = [];
 for (const [name, expected] of [...fromGrammar].sort()) {
 	const actual = fromAst.get(name);
 	if (!actual) continue;

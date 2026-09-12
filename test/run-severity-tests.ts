@@ -1,7 +1,9 @@
 // Asserts that unsupported syntax follows foxpro.unsupportedSyntaxSeverity while genuinely broken code does not.
 // The fixture harness runs everything at 'error', so without this suite the default reporting level has no coverage.
-const { lint, ruleDefaults } = require('../server/src/linter.ts');
-const { check, report } = require('./check.js');
+import fs from 'fs';
+import { lint, ruleDefaults, type LinterOptions, type SeverityName } from '../server/src/linter.js';
+import pkg from '../package.json';
+import { check, report } from './check.js';
 
 // A statement the grammar does not cover, so it reaches UnknownStatement. Deliberately not a real FoxPro command: this suite tests the severity mapping, and it should not need editing every time the grammar learns another construct. test-files/diagnostics/still-unsupported.prg tracks the real ones.
 const unsupported = 'ZZNOTACOMMAND 1\n';
@@ -10,7 +12,7 @@ const unterminated = 'IF .T.\n? 1\n';
 // A dangling terminator: a block terminator with nothing open for it to close. The parser absorbs it rather than throwing, so it is a rule's finding like any other.
 const broken = 'ENDIF\n';
 
-const codes = (src, options) => lint(src, options).diagnostics.map(d => `${d.severity} ${d.code}`);
+const codes = (src: string, options?: LinterOptions) => lint(src, options).diagnostics.map(d => `${d.severity} ${d.code}`);
 
 check('unsupported syntax defaults to information', codes(unsupported), ['3 unsupported-syntax']);
 check('it can be raised to error', codes(unsupported, { unsupportedSyntaxSeverity: 'error' }), ['1 unsupported-syntax']);
@@ -19,7 +21,7 @@ check('it can be a hint', codes(unsupported, { unsupportedSyntaxSeverity: 'hint'
 check('it can be turned off', codes(unsupported, { unsupportedSyntaxSeverity: 'off' }), []);
 
 // An unterminated block is wrong rather than unsupported, so the setting must not be able to quiet it.
-for (const severity of ['information', 'error', 'hint', 'off']) {
+for (const severity of ['information', 'error', 'hint', 'off'] as const) {
 	check(`an unterminated block stays an error at '${severity}'`,
 		codes(unterminated, { unsupportedSyntaxSeverity: severity }), ['1 unterminated-block']);
 }
@@ -43,18 +45,18 @@ check('the deprecated setting still applies on its own', codes(unsupported, { un
 check('a locked rule ignores the settings', codes(unterminated, { rules: { 'unterminated-block': 'off', 'unsupported-syntax': 'off' } }), ['1 unterminated-block']);
 
 // The settings schema in package.json must name exactly the rules that can be configured, with each default the rule declares.
-const schema = require('../package.json').contributes.configuration.properties['foxpro.rules'].properties;
+const schema = pkg.contributes.configuration.properties['foxpro.rules'].properties as Record<string, { default: SeverityName }>;
 check('package.json lists every configurable rule',
 	Object.keys(schema).sort(), ruleDefaults.filter(r => !r.locked).map(r => r.code).sort());
 check('package.json defaults match the rules',
 	Object.fromEntries(Object.entries(schema).map(([code, p]) => [code, p.default])),
 	Object.fromEntries(ruleDefaults.filter(r => !r.locked).map(r => [r.code, r.severity])));
 // The README's rule table is the user-facing list, so it must name every rule too.
-const readme = require('fs').readFileSync('./README.md', 'utf-8');
+const readme = fs.readFileSync('./README.md', 'utf-8');
 check('README documents every rule', ruleDefaults.map(r => r.code).filter(c => !readme.includes('`' + c + '`')), []);
 
 // --- suppression comments ---------------------------------------------------
-const lines = (src, options) => lint(src, options).diagnostics.map(d => `${d.range.start.line + 1} ${d.code}`);
+const lines = (src: string, options?: LinterOptions) => lint(src, options).diagnostics.map(d => `${d.range.start.line + 1} ${d.code}`);
 check('disable-next-line silences one code on the next line',
 	lines('LOCAL lcUnused\n* vfp-lint-disable-next-line implicit-private\nlnA = 1\nlnB = 2\n'), ['1 unused-local', '4 implicit-private']);
 check('disable-next-line with no code silences everything on that line',

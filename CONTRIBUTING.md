@@ -17,26 +17,33 @@
 | ------------------- | ---------------------------------------------------------------------- |
 | `bun install`       | Installs the workspace: root, client and server                        |
 | `bun run compile`   | Regenerates the parser, type-checks, and bundles client + server       |
-| `bun run dev`       | Watches the grammar, the bundles and both type-check projects          |
-| `bun run typecheck` | Type-checks only (esbuild does not type-check)                         |
+| `bun run dev`       | Watches the grammar, the bundles and all three type-check projects     |
+| `bun run typecheck` | Type-checks client, server and test (esbuild does not type-check)      |
 | `bun run test`        | Runs the suites below                                           |
 | `bun run test:update` | Re-records the expected diagnostics for every fixture                |
 | `bun run e2e`       | Launches VS Code and runs the end-to-end suite in `client/src/test`    |
 
 ### Tests
 
-The suites live in `test/`; `test-files/` is fixtures only, because `run-all-tests.js` walks that
+The suites live in `test/`; `test-files/` is fixtures only, because `run-all-tests.ts` walks that
 whole tree and treats every `.prg` in it as one. All of them are run from the repository root.
+
+They are TypeScript, and `test/tsconfig.json` is a third project `bun run typecheck` builds, so a
+suite that calls `lint()` or the symbol table with the wrong shape fails the build instead of
+asserting something quietly meaningless. `bun` runs them from source; nothing here is compiled or
+shipped. The assertions themselves stay untyped on purpose -- `check()` takes `unknown`, and
+`run-parse-tests.ts` reads a location-stripped tree as `any`, because those assertions are partial
+node shapes and a real node type would only force a cast at every one of them.
 
 | Suite                     | What it asserts                                                                        |
 | ------------------------- | -------------------------------------------------------------------------------------- |
-| `run-all-tests.js`        | Each fixture's diagnostics match its recorded `.expected` file, exactly                 |
-| `run-ast-tests.js`        | `ast.ts` declares exactly the node types and properties the grammar emits               |
-| `run-parse-tests.js`      | The tree the parser returns for one construct, asserted directly                        |
-| `run-scope-tests.js`      | The contents of the symbol table built from `test-files/scope.prg`                       |
-| `run-severity-tests.js`   | Each rule follows `foxpro.rules`; locked rules and syntax errors ignore it; suppression comments; `package.json` and the README name every rule |
-| `run-keyword-tests.js`    | Every keyword literal in the grammar still allows an identifier that starts with it       |
-| `run-fix-tests.js`        | Each quick fix produces the expected text and makes its own finding go away; the Outline and folding ranges |
+| `run-all-tests.ts`        | Each fixture's diagnostics match its recorded `.expected` file, exactly                 |
+| `run-ast-tests.ts`        | `ast.ts` declares exactly the node types and properties the grammar emits               |
+| `run-parse-tests.ts`      | The tree the parser returns for one construct, asserted directly                        |
+| `run-scope-tests.ts`      | The contents of the symbol table built from `test-files/scope.prg`                       |
+| `run-severity-tests.ts`   | Each rule follows `foxpro.rules`; locked rules and syntax errors ignore it; suppression comments; `package.json` and the README name every rule |
+| `run-keyword-tests.ts`    | Every keyword literal in the grammar still allows an identifier that starts with it       |
+| `run-fix-tests.ts`        | Each quick fix produces the expected text and makes its own finding go away; the Outline and folding ranges |
 
 Fixtures live in three places. `test-files/*.prg` is the coverage corpus: the grammar is expected to
 read all of it. A `.expected` file against one of those records either a grammar gap or a rule
@@ -65,7 +72,7 @@ changed severity or message visible rather than silently absorbed.
 the linter *reports*, and a misparse that still produces a valid tree reports nothing -- several have
 hidden behind a fully passing corpus, and `SET TOPIC TO "x"` read as `SET TO` with a setting called
 `PIC` for as long as the rule existed. When a grammar change alters what a node carries, assert the
-tree in `run-parse-tests.js`, and the symbol table's reads and writes in `run-scope-tests.js` when the
+tree in `run-parse-tests.ts`, and the symbol table's reads and writes in `run-scope-tests.ts` when the
 change reaches a name.
 
 ### CI
@@ -139,7 +146,7 @@ git history and re-add `eslint`, `@eslint/js`, `@stylistic/eslint-plugin`,
 │   │   └── extension.ts // Language Client entry point
 ├── language-configuration.json // Comments, brackets and indentation for the editor
 ├── package.json // The extension manifest, including the foxpro.rules settings schema
-├── test // The suites `bun run test` runs, and the assertion helper they share
+├── test // The suites `bun run test` runs, the assertion helper they share, and their tsconfig
 ├── test-files // Fixtures only: the .prg corpora and their recorded .expected diagnostics
 └── server // Language Server
     └── src
@@ -183,7 +190,7 @@ and sorts what is left.
 
 To add a rule: write it in the module its family lives in, add it to `rules/index.ts`, add its code and
 default to the `foxpro.rules` schema in `package.json`, and add a row to the README table.
-`run-severity-tests.js` fails until the last two are done, so the settings UI and the docs cannot
+`run-severity-tests.ts` fails until the last two are done, so the settings UI and the docs cannot
 drift from the registry.
 
 A fix is a title and a list of edits. It travels on the diagnostic's `data`, which the client hands back
@@ -191,7 +198,7 @@ untouched with a code-action request, so `server.ts` never recomputes anything: 
 quick fix and adds the generic *Suppress on this line* action beside it. A fix must be safe where it
 lands -- the `LOCAL` for `implicit-private` goes at the top of the routine rather than above the first
 write, because `LOCAL` resets the variable and the first write is often inside a loop -- and
-`run-fix-tests.js` asserts each one by applying it and linting the result.
+`run-fix-tests.ts` asserts each one by applying it and linting the result.
 
 The user-facing list of rules and what they report is in [README.md](README.md). Three implementation
 notes that do not belong there:
@@ -248,7 +255,7 @@ that is how every `DO CASE` came to drop all of its branches. A body guarded as
 over all 101 node types, which lets a rule `switch (node.type)` and get a checked set of properties
 instead of indexing into an untyped bag.
 
-A hand-written union is only worth having while it is true, so `run-ast-tests.js` re-derives the
+A hand-written union is only worth having while it is true, so `run-ast-tests.ts` re-derives the
 node names and property names from `foxpro.pegjs` and fails if `ast.ts` disagrees — a missing node,
 an invented one, a renamed property, or a node left out of the `Statement`/`Expr` unions. The
 grammar is the source of truth; the union is checked against it on every test run.
@@ -272,7 +279,7 @@ work-area changes in source order so `aliasInEffectAt()` can say which alias is 
 
 `missing-memvar-prefix` reads it today. Still to come from the same structure: unused `LOCAL`, the
 implicit `PRIVATE` created by an undeclared assignment, and work-area handling.
-`test/run-scope-tests.js` asserts its contents against `test-files/scope.prg`.
+`test/run-scope-tests.ts` asserts its contents against `test-files/scope.prg`.
 
 Two deliberate subtleties. A name that was never declared still gets an entry, with kind
 `implicit` and no declaration site -- that is exactly the implicit-`PRIVATE` case, and it keeps

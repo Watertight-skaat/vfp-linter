@@ -1,22 +1,22 @@
 // Asserts the contents of the per-routine symbol table against test-files/scope.prg.
-// run-all-tests.js only checks that a fixture produces no error-severity diagnostic, which cannot test a structure; these are explicit assertions about what each routine declares.
-const fs = require('fs');
-const parser = require('../server/src/parser.js');
-const { buildSymbolTable, aliasInEffectAt } = require('../server/src/scope.ts');
-const { check, report } = require('./check.js');
+// run-all-tests.ts only checks that a fixture produces no error-severity diagnostic, which cannot test a structure; these are explicit assertions about what each routine declares.
+import fs from 'fs';
+import { parse } from '../server/src/parser.js';
+import { aliasInEffectAt, buildSymbolTable, type Scope, type SymbolEntry } from '../server/src/scope.js';
+import { check, report } from './check.js';
 
 const src = fs.readFileSync('./test-files/scope.prg', 'utf-8');
-const table = buildSymbolTable(parser.parse(src, { grammarSource: 'scope.prg' }));
+const table = buildSymbolTable(parse(src, { grammarSource: 'scope.prg' }));
 
-const scope = name => {
+const scope = (name: string): Scope => {
 	const found = table.scopes.find(s => s.name === name);
 	if (!found) throw new Error(`no scope named ${name} (have: ${table.scopes.map(s => s.name).join(', ')})`);
 	return found;
 };
-const sym = (scopeName, varName) => scope(scopeName).symbols.get(varName) ?? null;
-const names = scopeName => [...scope(scopeName).symbols.keys()].sort();
+const sym = (scopeName: string, varName: string): SymbolEntry | null => scope(scopeName).symbols.get(varName) ?? null;
+const names = (scopeName: string) => [...scope(scopeName).symbols.keys()].sort();
 // A symbol reduced to what matters, so a mismatch prints something readable.
-const shape = (scopeName, varName) => {
+const shape = (scopeName: string, varName: string) => {
 	const s = sym(scopeName, varName);
 	if (!s) return null;
 	return { kind: s.kind, type: s.declaredType, array: s.isArray, declared: !!s.declaredAt, reads: s.reads.length, writes: s.writes.length };
@@ -57,8 +57,8 @@ check('LOCAL ARRAY is an array', shape('CountRows', 'LABUFFER'),
 	{ kind: 'local', type: null, array: true, declared: true, reads: 0, writes: 1 });
 check('DIMENSION is an array', shape('CountRows', 'LAGRID'),
 	{ kind: 'dimension', type: null, array: true, declared: true, reads: 0, writes: 0 });
-check('PRIVATE', sym('CountRows', 'PNSEED').kind, 'private');
-check('PUBLIC', sym('CountRows', 'GNTOTAL').kind, 'public');
+check('PRIVATE', sym('CountRows', 'PNSEED')!.kind, 'private');
+check('PUBLIC', sym('CountRows', 'GNTOTAL')!.kind, 'public');
 check('AS clause is kept', shape('Describe', 'LCOUT'),
 	{ kind: 'local', type: 'Character', array: false, declared: true, reads: 1, writes: 1 });
 // PRIVATE and PUBLIC do not document AS, and the code writes it anyway. Unread, the type fell off and the rest of the line reported as unsupported.
@@ -73,8 +73,8 @@ check('typed parameter', shape('Describe', 'TCNAME'),
 // lnRows = tnStart / lnUndeclared = lnRows + 1 / m.lnRows = m.lnRows + 1 / RETURN lnRows
 check('reads and writes are counted', shape('CountRows', 'LNROWS'),
 	{ kind: 'local', type: null, array: false, declared: true, reads: 3, writes: 2 });
-check('the m. prefix is recorded per reference', sym('CountRows', 'LNROWS').writes.map(w => w.memvarPrefix), [false, true]);
-check('STORE writes every target', [sym('CountRows', 'PNSEED').writes.length, sym('CountRows', 'GNTOTAL').writes.length], [1, 1]);
+check('the m. prefix is recorded per reference', sym('CountRows', 'LNROWS')!.writes.map(w => w.memvarPrefix), [false, true]);
+check('STORE writes every target', [sym('CountRows', 'PNSEED')!.writes.length, sym('CountRows', 'GNTOTAL')!.writes.length], [1, 1]);
 check('a FOR variable is written', shape('CountRows', 'LNI'),
 	{ kind: 'implicit', type: null, array: false, declared: false, reads: 2, writes: 1 });
 
@@ -88,11 +88,11 @@ check('an undeclared assignment is implicit', shape('CountRows', 'LNUNDECLARED')
 check('a called function is not a symbol', sym('Describe', 'ALLTRIM'), null);
 // A bare name in a SQL statement may be a column; the table records the ambiguity rather than guessing, so a rule can treat it as a weak reference instead of a real variable read.
 check('a SQL column is flagged, not resolved',
-	sym('CountRows', 'CUST_ID').reads.map(r => [r.sqlContext, r.memvarPrefix]), [[true, false]]);
+	sym('CountRows', 'CUST_ID')!.reads.map(r => [r.sqlContext, r.memvarPrefix]), [[true, false]]);
 check('an ordinary read is not in SQL context',
-	sym('Describe', 'TCNAME').reads.map(r => r.sqlContext), [false]);
+	sym('Describe', 'TCNAME')!.reads.map(r => r.sqlContext), [false]);
 check('THIS and its properties are not symbols', names('Widget.Label'), ['LCLABEL']);
-check('class-body assignments are properties', [sym('Widget', 'CNAME').kind, sym('Widget', 'NCOUNT').kind], ['property', 'property']);
+check('class-body assignments are properties', [sym('Widget', 'CNAME')!.kind, sym('Widget', 'NCOUNT')!.kind], ['property', 'property']);
 check('a method body does not leak into the class', names('Widget.Init'), []);
 
 // A DO CASE used to drop every branch it had, contents and all, so nothing inside one reached the symbol table. These assertions fail again if that regresses.
@@ -156,7 +156,7 @@ check('a name inside a TEXTMERGE body is not a reference', sym('Records', 'INVNU
 
 // SCAN takes FOR and WHILE in either order. The fixed order left the second clause to the catch-all, which reported a missing ENDFOR for a block that was never opened; both operands must reach the tree.
 check('SCAN reads both clauses with WHILE written first',
-	[shape('Reordered', 'TNCOLS').reads, shape('Reordered', 'TNLIMIT').reads], [1, 1]);
+	[shape('Reordered', 'TNCOLS')!.reads, shape('Reordered', 'TNLIMIT')!.reads], [1, 1]);
 
 // A keyword after the dot is a property name. TO, FROM and CLASS appearing in this list would mean each reference had been cut at the dot and the keyword booked as a memory variable of its own.
 check('keyword members are not variables', names('KeywordMembers'), ['LCJOINED', 'TOMESSAGE']);

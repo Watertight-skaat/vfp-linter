@@ -1,16 +1,18 @@
 // Quick fixes, the Outline and folding: what the server hands the editor beyond diagnostics.
 // A fix is asserted by applying it and reading the text the user ends up with, and then by linting that text: a fix that does not make its own finding go away is not a fix.
-const { lint } = require('../server/src/linter.ts');
-const { documentSymbols, foldingRanges } = require('../server/src/outline.ts');
-const { check, report } = require('./check.js');
+import { lint, type Fix } from '../server/src/linter.js';
+import { documentSymbols, foldingRanges } from '../server/src/outline.js';
+import { check, report } from './check.js';
 
-const fixFor = (src, code) => lint(src).diagnostics.find(d => d.code === code)?.data?.fix ?? null;
-const codesIn = src => lint(src).diagnostics.map(d => d.code);
+type OutlineSymbol = ReturnType<typeof documentSymbols>[number];
 
-function apply(src, fix) {
+const fixFor = (src: string, code: string): Fix | null => lint(src).diagnostics.find(d => d.code === code)?.data?.fix ?? null;
+const codesIn = (src: string) => lint(src).diagnostics.map(d => d.code);
+
+function apply(src: string, fix: Fix) {
 	const starts = [0];
 	for (let i = 0; i < src.length; i++) if (src[i] === '\n') starts.push(i + 1);
-	const offset = p => starts[p.line] + p.character;
+	const offset = (p: { line: number; character: number }) => starts[p.line] + p.character;
 	let out = src;
 	for (const e of [...fix.edits].sort((a, b) => offset(b.range.start) - offset(a.range.start)))
 		out = out.slice(0, offset(e.range.start)) + e.newText + out.slice(offset(e.range.end));
@@ -18,7 +20,7 @@ function apply(src, fix) {
 }
 
 // Applies the fix for `code` and checks both the text and that the finding is gone.
-function fixed(label, src, code, expected) {
+function fixed(label: string, src: string, code: string, expected: string) {
 	const fix = fixFor(src, code);
 	check(`${label}: has a fix`, !!fix, true);
 	if (!fix) return;
@@ -39,7 +41,7 @@ fixed('a write inside a loop is declared at the routine top',
 	'PROCEDURE Sum\n\tLPARAMETERS tnCount\n\tLOCAL i\n\tLOCAL lnTotal\n\tFOR i = 1 TO tnCount\n\t\tlnTotal = lnTotal + i\n\tENDFOR\n\tRETURN lnTotal\nENDPROC\n');
 fixed('a method declares in the method', 'DEFINE CLASS A AS Custom\n\tPROCEDURE Init\n\t\tlnX = 1\n\tENDPROC\nENDDEFINE\n', 'implicit-private',
 	'DEFINE CLASS A AS Custom\n\tPROCEDURE Init\n\t\tLOCAL lnX\n\t\tlnX = 1\n\tENDPROC\nENDDEFINE\n');
-check('the fix keeps the spelling of the first write', fixFor('lnCamelCase = 1\n', 'implicit-private').title, "Declare 'lnCamelCase' as LOCAL");
+check('the fix keeps the spelling of the first write', fixFor('lnCamelCase = 1\n', 'implicit-private')!.title, "Declare 'lnCamelCase' as LOCAL");
 
 // --- unused-local: remove the declaration ----------------------------------
 fixed('the only name on the line removes the line', 'LOCAL lcUnused\n? 1\n', 'unused-local', '? 1\n');
@@ -53,7 +55,7 @@ check('a declaration continued across lines is left alone', fixFor('LOCAL lcUnus
 // --- missing-memvar-prefix: insert m. --------------------------------------
 const shadowed = 'USE customer\nLOCAL cust_id\ncust_id = 1\nREPLACE cust_id WITH cust_id + 1\n';
 check('the collision is reported twice', lint(shadowed).diagnostics.filter(d => d.code === 'missing-memvar-prefix').map(d => `${d.range.start.line + 1}:${d.range.start.character + 1}`), ['3:1', '4:22']);
-check('each site gets its own fix', lint(shadowed).diagnostics.filter(d => d.code === 'missing-memvar-prefix').map(d => apply(shadowed, d.data.fix)),
+check('each site gets its own fix', lint(shadowed).diagnostics.filter(d => d.code === 'missing-memvar-prefix').map(d => apply(shadowed, d.data!.fix)),
 	['USE customer\nLOCAL cust_id\nm.cust_id = 1\nREPLACE cust_id WITH cust_id + 1\n', 'USE customer\nLOCAL cust_id\ncust_id = 1\nREPLACE cust_id WITH m.cust_id + 1\n']);
 // STORE names its target as a plain string, so the reference is pinned to the whole statement; a prefix inserted there would land on the STORE keyword.
 check('a statement-wide reference offers no fix', fixFor('USE customer\nLOCAL cust_id\nSTORE 1 TO cust_id\n', 'missing-memvar-prefix'), null);
@@ -78,24 +80,24 @@ const source = [
 ].join('\n');
 const lines = source.split('\n');
 const { ast } = lint(source);
-const brief = s => `${s.name}:${s.kind}:${s.detail ?? ''}:${s.range.start.line}-${s.range.end.line}` + (s.children ? `[${s.children.map(brief).join(' ')}]` : '');
+const brief = (s: OutlineSymbol): string => `${s.name}:${s.kind}:${s.detail ?? ''}:${s.range.start.line}-${s.range.end.line}` + (s.children ? `[${s.children.map(brief).join(' ')}]` : '');
 // SymbolKind: Function 12, Method 6, Class 5, Property 7, Constant 14.
-check('outline', documentSymbols(ast, lines).map(brief), [
+check('outline', documentSymbols(ast!, lines).map(brief), [
 	'MAX_ROWS:14:10:0-0',
 	'Alpha:12:PROCEDURE (tcName, tnCount):1-3',
 	'Beta:12:FUNCTION (tnX):4-6',
 	'Widget:5:AS Custom:8-13[cName:7::9-9 Init:6:PROCEDURE:10-12]'
 ]);
-check('a selection range sits on the first line', documentSymbols(ast, lines)[1].selectionRange, { start: { line: 1, character: 0 }, end: { line: 1, character: 'PROCEDURE Alpha'.length } });
+check('a selection range sits on the first line', documentSymbols(ast!, lines)[1].selectionRange, { start: { line: 1, character: 0 }, end: { line: 1, character: 'PROCEDURE Alpha'.length } });
 
 // The member declarations name properties too, and a method carrying PROTECTED used to leave the outline with the rest of the class.
 const memberSource = ['DEFINE CLASS Poster AS Custom', '\tPROTECTED cName, nAge', '\tADD OBJECT cmdPost AS CommandButton', '\tPROTECTED PROCEDURE Post', '\tENDPROC', 'ENDDEFINE', ''].join('\n');
 check('class members reach the outline',
-	documentSymbols(lint(memberSource).ast, memberSource.split('\n'))[0].children.map(brief),
+	documentSymbols(lint(memberSource).ast!, memberSource.split('\n'))[0].children!.map(brief),
 	['cName:7:PROTECTED:1-1', 'nAge:7:PROTECTED:1-1', 'cmdPost:19:AS CommandButton:2-2', 'Post:6:PROCEDURE:3-4']);
 
 // --- folding --------------------------------------------------------------------
-const folds = src => foldingRanges(lint(src).ast, src.split('\n')).map(r => `${r.startLine}-${r.endLine}`);
+const folds = (src: string) => foldingRanges(lint(src).ast!, src.split('\n')).map(r => `${r.startLine}-${r.endLine}`);
 check('a routine without ENDPROC folds to its last statement; one with it keeps the terminator visible',
 	folds(source), ['1-3', '4-5', '8-12', '10-11']);
 check('IF keeps ENDIF visible', folds('IF .T.\n? 1\n? 2\nENDIF\n'), ['0-2']);
@@ -105,6 +107,6 @@ check('a query over several lines folds', folds('SELECT a ;\n\tFROM b ;\n\tINTO 
 // A stray terminator used to throw, which cost the file its outline and its folding along with every diagnostic below the line. lint() still returns a null ast if the parser ever does throw and server.ts guards for it, but no input reaches that path now.
 const strayOutline = 'ENDIF\nPROCEDURE Foo\n? 1\nENDPROC\n';
 check('a stray terminator no longer costs the file its outline',
-	documentSymbols(lint(strayOutline).ast, strayOutline.split('\n')).map(s => s.name), ['Foo']);
+	documentSymbols(lint(strayOutline).ast!, strayOutline.split('\n')).map(s => s.name), ['Foo']);
 
 report('Fix, outline and folding checks');

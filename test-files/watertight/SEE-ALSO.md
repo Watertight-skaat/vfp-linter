@@ -103,7 +103,7 @@ Each is reproduced by a fixture, so the expectation file changes the day it is f
 These are the dangerous kind: an unsupported statement at least *says* it was not read, while a
 silent misparse looks read. The statement parses, the tree is wrong, and every rule downstream
 quietly sees the wrong thing. **A diagnostics fixture cannot catch one**, which is why each is now
-pinned by a structural assertion in `run-scope-tests.js` instead.
+pinned by a structural assertion in `run-scope-tests.ts` instead.
 
 Three were found by reading the Watertight source:
 
@@ -185,7 +185,7 @@ cannot ever have compiled and one is still unattributed -- see section 8.
 
 All thirteen are read now. Each fixture below parses clean and has lost its `.expected` file, so it
 guards the fix the way the rest of the corpus does; the tree each one produces is asserted in
-`run-parse-tests.js`, because a fixture can only say a file is clean and a misparse satisfies that
+`run-parse-tests.ts`, because a fixture can only say a file is clean and a misparse satisfies that
 just as well as a correct parse. The corpus itself has not been re-run since, so the 47 and the 5525
 above are still the pre-fix numbers.
 
@@ -247,7 +247,7 @@ construct respelled must parse clean. Two gaps turned up in the second half of t
 33. **`BROWSE NORMAL` is read as `NORM` plus a leftover `AL` -- fixed.** `BrowseOption` matched
     `"NORM"i` with no word boundary, so the four-letter abbreviation won and the rest of the word fell
     through to the unsupported fallback while the `BROWSE` itself still looked read. This is exactly
-    the class `run-keyword-tests.js` exists to catch, one level in: that harness probes keywords at
+    the class `run-keyword-tests.ts` exists to catch, one level in: that harness probes keywords at
     the *start* of a statement, and this one is an option *inside* a command. The check in that file
     now asserts that both spellings are one statement.
 

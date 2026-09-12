@@ -1,13 +1,14 @@
 // What the parser returns for one construct, asserted directly.
-// run-all-tests.js can only say that a fixture produced no diagnostic, which a misparse satisfies just as well as a correct parse: `x = 0x1F` read as the literal zero is a clean parse and a wrong tree, and `SET TOPIC TO "x"` read as SET TO with a setting called PIC reported nothing at all. Everything here is a shape a fixture cannot check.
-const parser = require('../server/src/parser.js');
-const { check, report } = require('./check.js');
+// run-all-tests.ts can only say that a fixture produced no diagnostic, which a misparse satisfies just as well as a correct parse: `x = 0x1F` read as the literal zero is a clean parse and a wrong tree, and `SET TOPIC TO "x"` read as SET TO with a setting called PIC reported nothing at all. Everything here is a shape a fixture cannot check.
+import { parse } from '../server/src/parser.js';
+import { check, report } from './check.js';
 
 // Locations are dropped so a mismatch prints something readable.
-const strip = value => JSON.parse(JSON.stringify(value, (k, v) => (k === 'location' ? undefined : v)) ?? 'null');
-const body = src => strip(parser.parse(src).body);
-const first = src => body(src)[0];
-const types = src => body(src).map(s => s.type);
+// `any` is deliberate: every assertion below reads a partial shape off a location-stripped tree, and a real node type would only force a cast at each one.
+const strip = (value: unknown): any => JSON.parse(JSON.stringify(value, (k, v) => (k === 'location' ? undefined : v)) ?? 'null');
+const body = (src: string) => strip(parse(src).body);
+const first = (src: string) => body(src)[0];
+const types = (src: string) => body(src).map((s: { type: string }) => s.type);
 
 // --- SELECT() as a function --------------------------------------------------
 // SELECT is in the Keyword list, so Identifier refuses it and the whole assignment fell to the catch-all; lnArea was then reported as an unused local.
@@ -40,10 +41,10 @@ check('and a call to one', first('note(1)').expression.type, 'CallExpression');
 // --- #IF bodies ---------------------------------------------------------------
 const pp = first('#IF .T.\nLOCAL x\n#ENDIF');
 check('the condition is kept raw', [pp.directive, pp.test], ['IF', '.T.']);
-check('the body is parsed', pp.consequent.body.map(s => s.type), ['LocalDeclaration']);
+check('the body is parsed', pp.consequent.body.map((s: any) => s.type), ['LocalDeclaration']);
 check('a nested #IF ends at its own #ENDIF',
-	first('#IF .T.\n#IF .F.\nLOCAL a\n#ENDIF\nLOCAL b\n#ENDIF').consequent.body.map(s => s.type), ['PreprocessorIfStatement', 'LocalDeclaration']);
-check('#ELSE fills the branch below', first('#IF .F.\n? 1\n#ELSE\n? 2\n#ENDIF').alternate.body.map(s => s.type), ['PrintStatement']);
+	first('#IF .T.\n#IF .F.\nLOCAL a\n#ENDIF\nLOCAL b\n#ENDIF').consequent.body.map((s: any) => s.type), ['PreprocessorIfStatement', 'LocalDeclaration']);
+check('#ELSE fills the branch below', first('#IF .F.\n? 1\n#ELSE\n? 2\n#ENDIF').alternate.body.map((s: any) => s.type), ['PrintStatement']);
 check('an #ELIF link stands alone in that branch', first('#IF a\n? 1\n#ELIF b\n? 2\n#ENDIF').alternate.body[0].directive, 'ELIF');
 check('#IFDEF is read too', first('#IFDEF FOO\nLOCAL x\n#ENDIF').directive, 'IFDEF');
 
@@ -58,14 +59,14 @@ check('and is still usable as a name', first('NEXT = 1').type, 'Assignment');
 
 // --- SET: argument lists and clauses of their own --------------------------------
 const classlib = first('SET CLASSLIB TO mylib IN app ALIAS al');
-check('SET ... IN ... ALIAS', [classlib.command, classlib.arguments.map(a => a.name), classlib.inTarget, classlib.alias], ['CLASSLIB', ['mylib'], 'app', 'al']);
+check('SET ... IN ... ALIAS', [classlib.command, classlib.arguments.map((a: any) => a.name), classlib.inTarget, classlib.alias], ['CLASSLIB', ['mylib'], 'app', 'al']);
 const procs = first('SET PROCEDURE TO lib1, lib2 ADDITIVE');
-check('the argument is a list', [procs.arguments.map(a => a.name), procs.additive], [['lib1', 'lib2'], true]);
+check('the argument is a list', [procs.arguments.map((a: any) => a.name), procs.additive], [['lib1', 'lib2'], true]);
 check('SET ... OFF INTO ...', (({ state, into }) => ({ state, into }))(first('SET RELATION OFF INTO orders')), { state: 'OFF', into: 'orders' });
 check('SET ... TO ... INTO ...', first('SET SKIP TO custid INTO orders').into, 'orders');
 // Without a word boundary the TO literal matched the first two letters of TOPIC, which produced a valid tree and reported nothing.
 check('a setting whose name begins with TO', first('SET TOPIC TO "x"').command, 'TOPIC');
-check('a bare value is still the argument', first('SET STATUS BAR OFF').arguments.map(a => a.name), ['BAR']);
+check('a bare value is still the argument', first('SET STATUS BAR OFF').arguments.map((a: any) => a.name), ['BAR']);
 check('SET FILTER TO on its own still clears', first('SET FILTER TO').cleared, true);
 check('SET TO <expr> is still its own node', first('SET TO m.x').type, 'SetTo');
 
@@ -102,12 +103,12 @@ check('a call to a routine of that name is untouched', first('debugout(1)').expr
 // --- DEFINE CLASS member declarations -----------------------------------------
 // The access words on a method used to leave the whole class unreadable, so every method in it left the outline and the symbol table together.
 const cls = first('DEFINE CLASS Poster AS Custom\nPROTECTED cName, nAge\nHIDDEN lDirty\nIMPLEMENTS IPoster IN "poster.dll"\nADD OBJECT cmdPost AS CommandButton WITH Caption = "Post", Top = 1\nPROTECTED PROCEDURE Post\nENDPROC\nFUNCTION Other\nENDFUNC\nENDDEFINE');
-check('every member is read', cls.body.map(s => s.type),
+check('every member is read', cls.body.map((s: any) => s.type),
 	['ClassAccessStatement', 'ClassAccessStatement', 'ImplementsStatement', 'AddObjectStatement', 'ProcedureStatement', 'ProcedureStatement']);
 check('PROTECTED names the properties', [cls.body[0].access, cls.body[0].names], ['PROTECTED', ['cName', 'nAge']]);
 check('IMPLEMENTS keeps its library', cls.body[2].library, { type: 'StringLiteral', value: 'poster.dll' });
 check('ADD OBJECT keeps its class and its WITH pairs',
-	[cls.body[3].base, cls.body[3].properties.map(p => p.name)], ['CommandButton', ['Caption', 'Top']]);
+	[cls.body[3].base, cls.body[3].properties.map((p: any) => p.name)], ['CommandButton', ['Caption', 'Top']]);
 // A method carrying the word is still a sibling of the one after it: read as a property list, the name was consumed and the class ran on unterminated to the end of the file.
 check('a PROTECTED method is a routine, not a property list', [cls.body[4].name, cls.body[4].access], ['Post', 'PROTECTED']);
 check('and the routine after it is its sibling', cls.body[5].name, 'Other');
@@ -148,7 +149,7 @@ check('RETURN with a value is untouched', (({ argument, to }) => [argument.value
 check('a bare Windows path is the argument', first('SET DEFAULT TO c:\\temp').arguments, [{ type: 'Path', path: 'c:\\temp' }]);
 check('SET ... TO FILE marks the destination', (({ file, arguments: a }) => [file, a[0].path])(first('SET PRINTER TO FILE output.txt')), [true, 'output.txt']);
 check('DELIMITERS TO is a clause, not two settings',
-	first('SET TEXTMERGE ON DELIMITERS TO "<<", ">>"').delimiters.map(d => d.value), ['<<', '>>']);
+	first('SET TEXTMERGE ON DELIMITERS TO "<<", ">>"').delimiters.map((d: any) => d.value), ['<<', '>>']);
 check('the state beside it still reads', first('SET TEXTMERGE ON DELIMITERS TO "<<", ">>"').state, 'ON');
 check('an ordinary argument is still an expression', first('SET CENTURY TO 19').arguments[0].type, 'NumberLiteral');
 
@@ -262,7 +263,7 @@ check('a bare name is still an expression, because it may be a variable holding 
 check('an m. prefix is still a memvar, not a path', first('SET HELP TO m.cHelpFile').arguments[0].type, 'MemberExpression');
 check('a parenthesised argument too', first('SET PROCEDURE TO (m.cLib) ADDITIVE').arguments[0].type, 'MemberExpression');
 check('a mixed list reads each item for what it is',
-	first('SET PROCEDURE TO lib1.prg, (m.cLib)').arguments.map(a => a.type), ['Path', 'MemberExpression']);
+	first('SET PROCEDURE TO lib1.prg, (m.cLib)').arguments.map((a: any) => a.type), ['Path', 'MemberExpression']);
 check('a drive or a share reads as one path too', first('SET HELP TO \\\\srv\\share\\vfp.hlp').arguments, [{ type: 'Path', path: '\\\\srv\\share\\vfp.hlp' }]);
 check('the clause after the file still reads', first('SET ALTERNATE TO out.txt ADDITIVE').additive, true);
 check('a SET outside the file list keeps the expression reader',
@@ -300,14 +301,14 @@ check('a method declares its return type without a parameter list',
 
 // A second CATCH, which is the shape of every retry loop.
 check('every CATCH is read, with its own WHEN and body',
-	first('TRY\nx=1\nCATCH TO m.e WHEN m.e.ErrorNo = 1707\ny=1\nCATCH TO m.e\nz=1\nENDTRY').catchClauses.map(c => [c.to, c.when ? c.when.type : null, c.body.body.length]),
+	first('TRY\nx=1\nCATCH TO m.e WHEN m.e.ErrorNo = 1707\ny=1\nCATCH TO m.e\nz=1\nENDTRY').catchClauses.map((c: any) => [c.to, c.when ? c.when.type : null, c.body.body.length]),
 	[['m.e', 'BinaryExpression', 1], ['m.e', null, 1]]);
 check('a TRY with none still says so', first('TRY\nx=1\nENDTRY').catchClauses, []);
 
 // LOOP and CLASS as plain names. Neither is reserved in VFP, and both are metadata column names here.
 check('LOOP is a variable where one is meant', first('DO WHILE loop\nx=1\nENDDO').test, { type: 'Identifier', name: 'loop' });
 check('and an assignment to it is an assignment, not the loop-control word',
-	first('DO WHILE .t.\nloop = .f.\nENDDO').body.body.map(s => s.type), ['Assignment']);
+	first('DO WHILE .t.\nloop = .f.\nENDDO').body.body.map((s: any) => s.type), ['Assignment']);
 check('LOOP on its own is still the loop-control word', first('DO WHILE .t.\nLOOP\nENDDO').body.body[0].type, 'ContinueStatement');
 check('CLASS is a field name where one is meant', first('IF class == "frame"\nx=1\nENDIF').test.left, { type: 'Identifier', name: 'class' });
 check('DEFINE CLASS is untouched beside it', first('DEFINE CLASS X AS Session\nENDDEFINE').base, 'Session');
@@ -320,13 +321,13 @@ check('a bare DO CASE leaves it null', first('DO CASE\nCASE x = 1\ny=1\nENDCASE'
 
 // A second OTHERWISE. VFP runs the first; the rest are dead, and are kept apart from it rather than merged into it.
 check('the first OTHERWISE is the branch and the rest are dead',
-	(({ otherwise, deadOtherwise }) => [otherwise.body.length, deadOtherwise.map(o => o.body.length)])(first('DO CASE\nCASE x=1\na=1\nOTHERWISE\nb=1\nOTHERWISE\nc=1\nENDCASE')),
+	(({ otherwise, deadOtherwise }) => [otherwise.body.length, deadOtherwise.map((o: any) => o.body.length)])(first('DO CASE\nCASE x=1\na=1\nOTHERWISE\nb=1\nOTHERWISE\nc=1\nENDCASE')),
 	[1, [1]]);
 check('one OTHERWISE leaves the dead list empty', first('DO CASE\nCASE x=1\na=1\nOTHERWISE\nb=1\nENDCASE').deadOtherwise, []);
 
 // DEFINE CLASS with no AS: VFP defaults the parent to Custom.
 check('a class with no parent still reads its body',
-	(({ name, base, body }) => [name, base, body.map(s => s.type)])(first('DEFINE CLASS X\nPROCEDURE Run\nENDPROC\nENDDEFINE')),
+	(({ name, base, body }) => [name, base, body.map((s: any) => s.type)])(first('DEFINE CLASS X\nPROCEDURE Run\nENDPROC\nENDDEFINE')),
 	['X', null, ['ProcedureStatement']]);
 
 // COPY TO ... NEXT n. NEXT is also a loop terminator, so the leftover closed the enclosing DO WHILE.
@@ -338,9 +339,9 @@ check('and the clauses after it still read', first('COPY TO out.dbf NEXT 5 FOR x
 
 // A #IF fence that does not nest with the block structure around it. The preprocessor is a text pass, so VFP allows it; a block node cannot represent it, and the code's own blocks matter more than the fence.
 check('the code blocks nest and the directives stand alone',
-	body('IF m.n > 0\nx=1\n#IF R\ny=1\nENDIF\n#ENDIF').map(s => s.type === 'IfStatement' ? ['IfStatement', s.consequent.body.map(c => c.type)] : [s.type, s.directive]),
+	body('IF m.n > 0\nx=1\n#IF R\ny=1\nENDIF\n#ENDIF').map((s: any) => s.type === 'IfStatement' ? ['IfStatement', s.consequent.body.map((c: any) => c.type)] : [s.type, s.directive]),
 	[['IfStatement', ['Assignment', 'PreprocessorDirective', 'Assignment']], ['PreprocessorDirective', 'ENDIF']]);
-check('a fence that does nest is still one block', first('#IF A\nx=1\n#ELSE\n#IF B\ny=1\n#ENDIF\n#ENDIF').alternate.body.map(s => s.type), ['PreprocessorIfStatement']);
+check('a fence that does nest is still one block', first('#IF A\nx=1\n#ELSE\n#IF B\ny=1\n#ENDIF\n#ENDIF').alternate.body.map((s: any) => s.type), ['PreprocessorIfStatement']);
 
 // --- the ledger's volume half ------------------------------------------------------
 // Nine constructs that announced themselves rather than parsing, in the order they were measured over the corpus. Each is asserted on the field that was lost, and each has a control beside it: the shape that already worked has to keep working, because every one of these widens a rule that a name of its own could now be eaten by.
@@ -393,7 +394,7 @@ check('MODIFY COMMAND over an expression', (({ what, options }) => [what, option
 
 // The optional THEN, which the symbol table booked as a read of a variable named THEN.
 check('THEN is punctuation, not the first statement of the branch',
-	first('IF m.stat = 3 THEN\n? 1\nENDIF').consequent.body.map(s => s.type), ['PrintStatement']);
+	first('IF m.stat = 3 THEN\n? 1\nENDIF').consequent.body.map((s: any) => s.type), ['PrintStatement']);
 check('the condition is unchanged beside it', first('IF m.stat = 3 THEN\n? 1\nENDIF').test.operator, '=');
 // It is claimed on the condition's own line only, so the word on the line below is still a name.
 check('a variable called THEN is still a variable', first('IF x\nTHEN = 1\nENDIF').consequent.body, [{ type: 'Assignment', target: { type: 'Identifier', name: 'THEN' }, expression: { type: 'NumberLiteral', value: 1, raw: '1', currency: false } }]);
@@ -426,7 +427,7 @@ check('RECORD after the field list is the scope',
 	first('REPLACE invbal WITH 0 RECORD 5').scope, { type: 'RECORD', number: { type: 'NumberLiteral', value: 5, raw: '5', currency: false } });
 // Unread, NEXT fell to the dangling-terminator rule and closed the enclosing FOR, so the loop lost every statement after it.
 check('NEXT there is the scope, not the end of the loop',
-	first('FOR i = 1 TO 3\nREPLACE invbal WITH 0 NEXT 3\n? 1\nNEXT').body.body.map(s => s.type), ['ReplaceStatement', 'PrintStatement']);
+	first('FOR i = 1 TO 3\nREPLACE invbal WITH 0 NEXT 3\n? 1\nNEXT').body.body.map((s: any) => s.type), ['ReplaceStatement', 'PrintStatement']);
 check('the clauses behind it still read',
 	(({ forCondition, inTarget, noOptimize }) => [forCondition.operator, inTarget, noOptimize])(first('REPLACE invbal WITH 0 REST FOR invbal > 0 IN invinfo NOOPTIMIZE')), ['>', 'invinfo', true]);
 check('the leading ALL is unchanged', first('REPLACE ALL invbal WITH 0').scope, 'ALL');
@@ -438,7 +439,7 @@ check('NULL is still NULL', first('CREATE TABLE t (invbal N(12, 2) NULL)').colum
 check('and a column with neither has none', first('CREATE TABLE t (invbal N(12, 2))').columns[0].nullability, null);
 
 // ALTER TABLE's tail, which used to be kept as source. The clause list is what a rule reads; `options` is the fallback, and a null there is the assertion that the tail was understood.
-const alterActions = src => first(src).clauses.map(c => c.action);
+const alterActions = (src: any) => first(src).clauses.map((c: any) => c.action);
 // The tail stopped at the physical line, so everything after the semicolon was left behind as a statement of its own and reported as a gap.
 check('a clause on a continuation line belongs to the statement',
 	types('ALTER TABLE items ADD COLUMN billcode C(6) ;\n ADD COLUMN ledacct C(8)'), ['AlterTableStatement']);
@@ -450,7 +451,7 @@ check('a change that restates the type is a column definition too',
 	(({ action, column }) => [action, column.fieldType, column.nullability])(first('ALTER TABLE items ALTER COLUMN ledacct C(12) NOT NULL').clauses[0]), ['ALTER COLUMN', 'C', 'NOT NULL']);
 // The form that carries no type: SET would otherwise read as the field type and DEFAULT as the column's own.
 check('and one that does not is a list of changes to a named column',
-	(({ action, name, modifiers }) => [action, name, modifiers.map(m => m.kind)])(first('ALTER TABLE items ALTER COLUMN billcode SET DEFAULT m.cCode DROP CHECK').clauses[0]),
+	(({ action, name, modifiers }) => [action, name, modifiers.map((m: any) => m.kind)])(first('ALTER TABLE items ALTER COLUMN billcode SET DEFAULT m.cCode DROP CHECK').clauses[0]),
 	['ALTER COLUMN', 'billcode', ['SET DEFAULT', 'DROP CHECK']]);
 check('a DEFAULT expression is kept, so the variable it reads is one the symbol table sees',
 	first('ALTER TABLE items ALTER COLUMN billcode SET DEFAULT m.cCode').clauses[0].modifiers[0].expression.property.name, 'cCode');
@@ -490,6 +491,6 @@ check('a parenthesised name is the expression that holds it', first('DO FORM (m.
 check('a plain name is unchanged', first('DO FORM testform').target, 'testform');
 check('a quoted one is still a string', first('DO FORM "myform"').target, { type: 'StringLiteral', value: 'myform' });
 check('and the clauses behind the name still read',
-	(({ target, arguments: a, to }) => [target, a.map(x => x.name), to])(first('DO FORM testform WITH param1, param2 TO varname')), ['testform', ['param1', 'param2'], 'varname']);
+	(({ target, arguments: a, to }) => [target, a.map((x: any) => x.name), to])(first('DO FORM testform WITH param1, param2 TO varname')), ['testform', ['param1', 'param2'], 'varname']);
 
 report('Parse checks');

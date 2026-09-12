@@ -1,28 +1,28 @@
 // None of FoxPro's command words is reserved: CLEAR, LIST, SEEK, COUNT and the rest are all legal variable and function names. A statement rule whose keyword literal has no word boundary therefore matches the start of a longer identifier -- "DO"i swallows the DO in DoSomething() -- and because the statement rules sit above AssignmentStatement, the wrong one wins silently.
 // This re-derives every keyword literal from the grammar and probes each one as an identifier prefix, so adding a command word without a boundary fails the build rather than the user's file.
-const fs = require('fs');
-const parser = require('../server/src/parser.js');
-const { check, report } = require('./check.js');
+import fs from 'fs';
+import { parse } from '../server/src/parser.js';
+import { check, report } from './check.js';
 
 const grammar = fs.readFileSync('./server/src/foxpro.pegjs', 'utf-8');
 
 // Every single-word case-insensitive literal the grammar matches. Multi-word literals ("SET ORDER TO") cannot start an identifier, and the character classes are not keywords.
 const literals = [...new Set([...grammar.matchAll(/"([A-Za-z][A-Za-z0-9_]*)"i/g)].map(m => m[1].toUpperCase()))].sort();
 
-const parseType = src => {
+const parseType = (src: string): string => {
 	try {
-		const body = parser.parse(src).body;
+		const body = parse(src).body;
 		const first = Array.isArray(body[0]) ? body[0][0] : body[0];
 		return first ? first.type : 'empty';
-	} catch (e) {
+	} catch {
 		return 'syntax-error';
 	}
 };
 
 // Three statement shapes, because each reaches a different part of the Statement list. A bare call is the one that matters: an assignment is decided by AssignmentStatement, which sits above most command rules and hides a missing boundary below it, while a bare call has to get past every one of them.
-const assigned = [];
-const called = [];
-const printed = [];
+const assigned: string[] = [];
+const called: string[] = [];
+const printed: string[] = [];
 for (const word of literals) {
 	const name = word + 'zzz';
 	if (parseType(`${name} = 1`) !== 'Assignment') assigned.push(word);
@@ -46,8 +46,8 @@ check('the command words themselves still parse', [
 ]);
 
 // The boundary has to hold inside a command too, not just at its start. VFP lets most keywords be abbreviated to four letters, so an option written as its abbreviation and an option written in full are the same option -- but a rule that matches only the abbreviation and has no boundary takes the four letters and leaves the rest of the word behind as a statement of its own. `BROWSE NORMAL` found this: "NORM"i matched, "AL" fell through to the unsupported fallback, and the BROWSE still looked read.
-const statementCount = src => {
-	try { return parser.parse(src).body.flat().filter(s => s && s.type).length; } catch (e) { return 'syntax-error'; }
+const statementCount = (src: string): number | string => {
+	try { return parse(src).body.flat().filter((s: { type?: string }) => s && s.type).length; } catch { return 'syntax-error'; }
 };
 check('the abbreviation and the full spelling are both one statement', [
 	statementCount('BROWSE NORM'), statementCount('BROWSE NORMAL'),
