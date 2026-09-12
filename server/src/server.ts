@@ -1,7 +1,8 @@
-import { createConnection, TextDocuments, ProposedFeatures, InitializeParams, DidChangeConfigurationNotification, TextDocumentSyncKind, InitializeResult, CodeAction, CodeActionKind } from 'vscode-languageserver/node';
+import { createConnection, TextDocuments, ProposedFeatures, InitializeParams, DidChangeConfigurationNotification, TextDocumentSyncKind, InitializeResult, CodeAction, CodeActionKind, type Diagnostic } from 'vscode-languageserver/node';
+import { pathToFileURL } from 'url';
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { lint, type Fix, type SeverityName } from './linter.js';
+import { lint, type Fix, type LintDiagnostic, type SeverityName } from './linter.js';
 import { documentSymbols, foldingRanges } from './outline.js';
 import type { Program } from './ast.js';
 
@@ -97,7 +98,12 @@ async function validateAndSend(document: TextDocument): Promise<void> {
 	const settings = await getDocumentSettings(document.uri);
 	const { diagnostics, ast } = lint(document.getText(), settings);
 	trees.set(document.uri, { version: document.version, ast });
-	connection.sendDiagnostics({ uri: document.uri, diagnostics: diagnostics.slice(0, Math.max(0, settings.maxNumberOfProblems)) });
+	connection.sendDiagnostics({ uri: document.uri, diagnostics: diagnostics.slice(0, Math.max(0, settings.maxNumberOfProblems)).map(toDiagnostic) });
+}
+
+// The linter names a related place by file path so it needs no language-server import; the protocol wants a URI.
+function toDiagnostic({ relatedInformation, ...rest }: LintDiagnostic): Diagnostic {
+	return relatedInformation ? { ...rest, relatedInformation: relatedInformation.map(r => ({ location: { uri: pathToFileURL(r.file).href, range: r.range }, message: r.message })) } : rest;
 }
 
 // The last tree per document, so the outline and folding requests that follow every edit do not each parse the file again.

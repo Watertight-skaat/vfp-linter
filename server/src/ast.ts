@@ -623,8 +623,10 @@ export interface ContinueStatement extends NodeBase {
 
 export interface DoStatement extends NodeBase {
   type: 'DoStatement';
+  /** A Path for `DO foo` and `DO dir\foo.prg`; an expression only for the parenthesised runtime form, so an Identifier here is `DO (lcName)`, never a bare name. */
   target: Expr | Path | QualifiedTable;
-  inSession: number | string | StringLiteral | null;
+  /** IN: the file holding the routine. A bare name is a string, a name with a dot or directory a Path. */
+  inSession: number | string | StringLiteral | Path | null;
   arguments: (Expr | null)[];
 }
 

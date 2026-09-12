@@ -384,6 +384,18 @@ check('the first OTHERWISE is the branch and the rest are dead',
 	[1, [1]]);
 check('one OTHERWISE leaves the dead list empty', first('DO CASE\nCASE x=1\na=1\nOTHERWISE\nb=1\nENDCASE').deadOtherwise, []);
 
+// --- DO's target and its IN clause -------------------------------------------
+// The target came back as a pair, the guard's result beside the node, so anything reading it saw an array. Nothing did until the workspace index needed the name.
+check('DO names its target directly', first('DO foo').target, { type: 'Path', path: 'foo' });
+check('a path target is a Path', first('DO S:\\apps\\thing.prg WITH 1').target, { type: 'Path', path: 'S:\\apps\\thing.prg' });
+check('the parenthesised form is the expression itself', first('DO (lcName)').target, { type: 'Identifier', name: 'lcName' });
+check('a macro target keeps its ampersand', first('DO &lcName').target, { type: 'Path', path: '&lcName' });
+check('IN takes a bare name', first('DO foo IN bar').inSession, 'bar');
+// IN read an identifier only, so the `.prg` of a file name was left behind as a statement of its own.
+check('IN takes a file', first('DO foo IN lib\\bar.prg').inSession, { type: 'Path', path: 'lib\\bar.prg' });
+check('nothing is left behind after a file in IN', types('DO foo IN bar.prg\nx = 1'), ['DoStatement', 'Assignment']);
+check('IN and WITH in either order', (({ inSession, arguments: a }) => [inSession, a.length])(first('DO foo WITH 1, 2 IN bar.prg')), [{ type: 'Path', path: 'bar.prg' }, 2]);
+
 // DEFINE CLASS with no AS: VFP defaults the parent to Custom.
 check('a class with no parent still reads its body',
 	(({ name, base, body }) => [name, base, body.map((s: any) => s.type)])(first('DEFINE CLASS X\nPROCEDURE Run\nENDPROC\nENDDEFINE')),

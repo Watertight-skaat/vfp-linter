@@ -4,6 +4,7 @@ import fs from 'fs';
 import { lint, ruleDefaults, type LinterOptions, type SeverityName } from '../server/src/linter.js';
 import pkg from '../package.json';
 import { check, report } from './check.js';
+import { format } from './format.js';
 
 // A statement the grammar does not cover, so it reaches UnknownStatement. Deliberately not a real FoxPro command: this suite tests the severity mapping, and it should not need editing every time the grammar learns another construct. test-files/diagnostics/still-unsupported.prg tracks the real ones.
 const unsupported = 'ZZNOTACOMMAND 1\n';
@@ -112,5 +113,10 @@ const closed = [
 for (const src of closed) {
 	check(`a closed block is clean: ${JSON.stringify(src.replace(/\n/g, ' / '))}`, codes(src), []);
 }
+
+// The fixture formatter writes a related location as an indented line under the finding, named by file rather than path so an .expected file reads the same on every checkout. No rule carries one yet; the workspace rules will, and the format must not drift before they arrive.
+check('a related location is recorded under its finding',
+	format({ severity: 2, range: { start: { line: 4, character: 0 }, end: { line: 4, character: 3 } }, code: 'duplicate-routine', message: 'twice', source: 'x', relatedInformation: [{ file: 'C:\\src\\lib.prg', range: { start: { line: 9, character: 2 }, end: { line: 9, character: 5 } }, message: 'the other' }] }),
+	'5:1 warning duplicate-routine twice\n  -> lib.prg:10:3 the other');
 
 report('Severity checks');

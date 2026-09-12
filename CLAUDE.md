@@ -8,4 +8,5 @@ Code style conventions:
 Notes:
 - If `bun run dev` is already running, the parser is rebuilt on save and you do not need to rebuild it yourself.
 - We want very high test coverage for rules and test cases to prevent regressions.
-- When implementing a new grammar or rule, make the test(s) first
+- When implementing a new grammar or rule, make the test(s) first.
+- Verify by running the actual parser against syntax, not just by reading the grammar file

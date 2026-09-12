@@ -1533,17 +1533,18 @@ DoFormTarget
   / &([A-Za-z0-9_]* [-.:\\/]) p:UnquotedPath { return p; }
   / Identifier
 
+// The guard and the target are labelled apart: labelling the pair returned `[null, target]`, and nothing read the field until the workspace index needed the name.
 DoStatement "do statement"
-  = "DO"i WB _ 
-    target:(!("FORM"i WB / "CASE"i WB / "WHILE"i WB) PathOrExpression) _
+  = "DO"i WB _
+    target:(!("FORM"i WB / "CASE"i WB / "WHILE"i WB) t:PathOrExpression { return t; }) _
     // Allow IN and WITH in either order
     first:(
       ("WITH"i _ params:ArgumentList { return { kind: 'WITH', params }; })
-      / ("IN"i _ n:( $([0-9]+) { return Number(n); } / Identifier / StringLiteral ) { return { kind: 'IN', value: n }; })
+      / ("IN"i _ n:DoInTarget { return { kind: 'IN', value: n }; })
     )?
     rest:( _ (
       ("WITH"i _ params:ArgumentList { return { kind: 'WITH', params }; })
-      / ("IN"i _ n:( $([0-9]+) { return Number(n); } / Identifier / StringLiteral ) { return { kind: 'IN', value: n }; })
+      / ("IN"i _ n:DoInTarget { return { kind: 'IN', value: n }; })
     ))?
     {
       let withArgs = [];
@@ -1553,6 +1554,13 @@ DoStatement "do statement"
       if (rest) apply(rest[1]);
       return node("DoStatement", { target, inSession, arguments: withArgs });
     }
+
+// IN names the file the routine lives in. Read as an identifier alone, `DO foo IN lib.prg` stopped at the dot and left `.prg` behind as a statement of its own; a name carrying a dot or a directory is read as the file it is, the same way DoFormTarget does.
+DoInTarget
+  = n:$([0-9]+) { return Number(n); }
+  / &([A-Za-z0-9_]* [-.:\\/]) p:UnquotedPath { return p; }
+  / Identifier
+  / StringLiteral
 
 ExitStatement "exit"
   = ("EXIT"i / "QUIT"i) WB { return node("ExitStatement", {}); }

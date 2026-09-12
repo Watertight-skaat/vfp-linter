@@ -2,6 +2,7 @@
 
 import { SymbolKind, type DocumentSymbol, type FoldingRange } from 'vscode-languageserver';
 import type { DefineClass, Loc, ProcedureStatement, Program, Statement } from './ast.js';
+import { routineParameters } from './routine.js';
 import { toRange, walk } from './rule.js';
 
 export function documentSymbols(ast: Program, lines: string[]): DocumentSymbol[] {
@@ -15,11 +16,7 @@ export function documentSymbols(ast: Program, lines: string[]): DocumentSymbol[]
 }
 
 function routine(node: ProcedureStatement, lines: string[], kind: SymbolKind): DocumentSymbol {
-  // An LPARAMETERS line below the PROCEDURE line is the routine's first statement rather than part of its header.
-  const declared = node.body.body.find(s => s?.type === 'ParametersDeclaration');
-  const names = node.parameters.length ? node.parameters.map(p => (typeof p === 'string' ? p : p.name))
-    : declared?.type === 'ParametersDeclaration' ? declared.names : [];
-  const params = names.join(', ');
+  const params = routineParameters(node).join(', ');
   const detail = `${node.isFunction ? 'FUNCTION' : 'PROCEDURE'}${params ? ` (${params})` : ''}`;
   return symbol(node.name, kind, node.location, lines, detail);
 }

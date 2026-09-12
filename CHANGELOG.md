@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Groundwork for reading across files
+
+`DO foo IN lib.prg` is read whole: `IN` took an identifier only, so the `.prg` was left behind as an
+unsupported statement of its own. And `DO`'s target is now the node it names rather than a pair with the
+grammar's guard beside it, which nothing had read until the workspace index needed to. A finding can
+carry related locations in other files, ready for the rules that will report across them.
+
 ## 1.3.9
 
 ### A transaction that is never closed

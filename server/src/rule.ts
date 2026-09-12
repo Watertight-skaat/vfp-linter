@@ -28,12 +28,20 @@ export interface Fix {
   edits: TextEdit[];
 }
 
+/** Another place the finding involves: the other definition of a duplicated routine, the declaration a call over-supplies. A file path rather than a URI, so nothing here needs the language server. */
+export interface RelatedLocation {
+  file: string;
+  range: Range;
+  message: string;
+}
+
 export interface LintDiagnostic {
   severity: Severity;
   range: Range;
   code: string;
   message: string;
   source: string;
+  relatedInformation?: RelatedLocation[];
   /** Round-tripped through the client untouched, so a code-action request can hand the fix straight back. */
   data?: { fix: Fix };
 }
