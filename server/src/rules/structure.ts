@@ -1,11 +1,12 @@
 // The structural smells: what a block gets wrong on its own, and the catch-all for what the grammar cannot read.
 
-import { expressionKey, onNode, Severity } from '../rule.js';
+import type { AstNode, BlockStatement, Statement, TransactionStatement } from '../ast.js';
+import { expressionKey, onNode, Severity, type RuleContext } from '../rule.js';
 
 // Statements after one of these in the same block can never run.
 const terminators = new Set(['ReturnStatement', 'ExitStatement', 'ContinueStatement', 'CancelStatement']);
 
-// A routine after a file-level RETURN is a definition, not code that would have run: ending the main program with RETURN and putting the procedures below it is the normal layout.
+// The statements that open a routine of their own, so what they hold is a definition rather than code that runs where it stands.
 const routineTypes = new Set(['ProcedureStatement', 'DefineClass']);
 
 export const unreachableCode = onNode({
@@ -18,7 +19,7 @@ export const unreachableCode = onNode({
       const statement = body[i];
       const next = body[i + 1];
       if (!statement || !next || !terminators.has(statement.type)) continue;
-      if (routineTypes.has(next.type)) continue;
+      if (routineTypes.has(next.type)) continue; // ending the main program with RETURN and putting the procedures below it is the normal layout
       const keyword = statement.type === 'ReturnStatement' ? 'RETURN'
         : statement.type === 'ContinueStatement' ? 'LOOP'
         : statement.type === 'CancelStatement' ? 'CANCEL' : 'EXIT';
@@ -88,6 +89,63 @@ export const privateAll = onNode({
   on: ['PrivateAll'],
   check(node, ctx) {
     ctx.report(node.location, 'PRIVATE ALL hides every variable of the caller from this routine and everything it calls. Name the variables it needs to hide, or declare the ones this routine owns as LOCAL.');
+  }
+});
+
+// The blocks a statement branches into, and no deeper: an IF's two arms, each CASE, a loop body, a TRY's block with its CATCHes and FINALLY. Found by shape rather than by node type, so a block-bearing statement the grammar learns later brings its blocks along with it.
+function branchesOf(statement: Statement): BlockStatement[] {
+  const blocks: BlockStatement[] = [];
+  const collect = (value: unknown) => {
+    if (Array.isArray(value)) { for (const item of value) collect(item); return; }
+    if (!value || typeof value !== 'object') return;
+    const node = value as AstNode;
+    if (node.type === 'BlockStatement') { blocks.push(node); return; } // its own statements are the block's business, not this one's
+    for (const child of Object.values(node as unknown as Record<string, unknown>)) if (child && typeof child === 'object') collect(child);
+  };
+  for (const child of Object.values(statement as unknown as Record<string, unknown>)) if (child && typeof child === 'object') collect(child);
+  return blocks;
+}
+
+/** The transaction a run of statements is inside. `done` once nothing more can be claimed about it: it has been reported, or a branch closed it on one path and no path can be called open after that. */
+interface Frame { begin: TransactionStatement; done: boolean }
+
+// Follows the frame through one run of statements and returns what is still open after them, reporting each exit that leaves one open. A branch is followed from the state the statement is reached in, and what it returns is dropped: a frame opened inside one arm may be closed after the block, and a close inside one arm says nothing about the paths that skipped it -- only that this frame can no longer be called open.
+function followFrame(statements: Statement[], frame: Frame | null, ctx: RuleContext): Frame | null {
+  for (const statement of statements) {
+    if (!statement || routineTypes.has(statement.type)) continue;
+    if (statement.type === 'TransactionStatement') {
+      // A nested BEGIN takes over as the innermost frame, which is the one a close belongs to.
+      frame = statement.action === 'BEGIN' ? { begin: statement, done: false } : null;
+      continue;
+    }
+    if (statement.type === 'ReturnStatement') {
+      if (!frame || frame.done) continue;
+      frame.done = true; // one report per frame is enough to make the point
+      ctx.report(statement.location, `The transaction from line:${frame.begin.location?.start?.line ?? 0} is still open.`);
+      continue;
+    }
+    let closedOnOnePath = false;
+    for (const branch of branchesOf(statement)) if (!followFrame(branch.body, frame, ctx)) closedOnOnePath = true;
+    if (closedOnOnePath && frame) frame.done = true;
+  }
+  return frame;
+}
+
+/**
+ * BEGIN TRANSACTION holds every write and every record lock until the frame closes, so an exit that steps over the close leaves them held.
+ *
+ * A close is only credited to the paths that actually run it: a ROLLBACK in the branch that returns is clean, and so is one in a CATCH or a FINALLY, while a commit in the other arm of the IF is not. A close on any path also ends what the rule claims about that frame, so a conditional unwind -- the `IF TXNLEVEL() > 0` guard the careful version of this code is written with -- silences it rather than being argued with.
+ *
+ * A transaction that a called routine closes is reported, because the walk stops at the routine boundary. That is the one shape this cannot tell from a forgotten close, and splitting a frame across routines is itself worth a second look; a file that means it can turn the rule off.
+ */
+export const unclosedTransaction = onNode({
+  code: 'unclosed-transaction',
+  severity: Severity.Warning,
+  on: ['Program', 'ProcedureStatement'],
+  check(node, ctx) {
+    const open = followFrame(node.type === 'Program' ? node.body : node.body.body, null, ctx);
+    if (open && !open.done)
+      ctx.report(open.begin.location, 'This transaction is never closed');
   }
 });
 

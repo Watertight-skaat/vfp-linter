@@ -1,5 +1,50 @@
 # Changelog
 
+## 1.3.9
+
+### A transaction that is never closed
+
+`BEGIN TRANSACTION` holds every buffered write and every record lock until the frame closes, so an exit
+that steps over the close leaves them held -- the writes uncommitted and the locks on records nobody is
+looking at any more. The frame has been one node since 1.3.8; this is the rule that was waiting behind it.
+
+**What it reports.** Two shapes. A `BEGIN` whose routine ends without an `END TRANSACTION` or a
+`ROLLBACK`, reported on the `BEGIN`. And a `RETURN` that leaves while a frame is open, reported on the
+`RETURN` with the line the frame was opened on -- the early exit from the middle of a frame, which is the
+shape that is actually written by accident.
+
+**What it credits.** A close counts only for the paths that run it. Each branch of a statement is followed
+from the state the statement is reached in, so the `ROLLBACK` inside the branch that returns is clean, one
+in a `CATCH` or a `FINALLY` is clean, and a commit in the *other* arm of the `IF` is not: that arm cannot
+run on the path that returns. A close on any path then ends what the rule claims about that frame, which is
+what makes `IF TXNLEVEL() > 0` / `ROLLBACK` -- the careful spelling, because a `ROLLBACK` with nothing open
+is itself an error -- silence it rather than something to be argued with. Blocks are found by shape rather
+than by node type: any `BlockStatement` a statement holds is a branch of it, so a block-bearing statement
+the grammar learns later arrives already covered.
+
+The one shape it cannot tell from a forgotten close is a frame a *called* routine closes; the walk stops at
+the routine boundary, so that is reported. Splitting a frame across routines is worth a second look anyway,
+and `foxpro.rules` can turn the rule off for a file that means it.
+
+**The count was not taken.** The practice on a new rule is to count its hits over the Watertight source
+first, and `W:\DevStaging` is not reachable from here, so this shipped on the shape rather than on a
+number. What can be said: the corpus models a codebase with no transactions in it at all, and the rule says
+nothing on any of the other 112 fixtures, so it costs that source nothing either way. Worth re-counting when
+the tree is to hand -- the frame is usually a few lines long, and if the shape does not occur there the rule
+earns its keep only for the public extension.
+
+Nine fixture cases in `test-files/diagnostics/transaction-frame.prg`, five of them clean counterparts: the
+guarded unwind, the `FINALLY`, the `CATCH`, the `ROLLBACK` that precedes its own `RETURN`, and a closed
+frame at file level. Each of the four findings, and each of the guards that keeps the five quiet, was shown
+to fail against a deliberately broken version of the walk -- following a branch from a clean slate,
+crediting a conditional close to every path, not descending into branches at all, and not stopping at the
+routine boundary. The last of those also settled a question reading could not: node properties are *not* in
+source order. A walk that takes them as they come reaches a block that starts later before one that starts
+earlier in nine corpus files, and does the same with an expression in five more -- an `IF` hands over its
+`ELSE` arm ahead of its own. So the frame is followed through the block structure rather than over a flat
+list of statements put back in order by position, and the verdict cannot turn on which arm the grammar
+happens to hand over first.
+
 ## 1.3.8
 
 ### The rest of the ledger: the container, its transaction, and the console

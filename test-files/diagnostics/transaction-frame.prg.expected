@@ -1,0 +1,4 @@
+10:2 warning unclosed-transaction This transaction is never closed, so its writes stay uncommitted and its record locks stay held. END TRANSACTION to commit it, or ROLLBACK to discard it.
+19:3 warning unclosed-transaction This RETURN leaves the transaction opened on line 16 still open, so its writes stay uncommitted and its record locks stay held. ROLLBACK before returning, or END TRANSACTION to commit.
+57:3 warning unclosed-transaction This RETURN leaves the transaction opened on line 52 still open, so its writes stay uncommitted and its record locks stay held. ROLLBACK before returning, or END TRANSACTION to commit.
+92:4 warning unclosed-transaction This RETURN leaves the transaction opened on line 88 still open, so its writes stay uncommitted and its record locks stay held. ROLLBACK before returning, or END TRANSACTION to commit.

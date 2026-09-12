@@ -17,6 +17,7 @@ The extension parses your code with a real grammar instead of matching patterns,
 | `unreachable-code` | Warning | A statement after `RETURN` / `EXIT` / `LOOP` in the same block |
 | `duplicate-case` | Warning | A `CASE` condition identical to an earlier one in the same `DO CASE` |
 | `private-all` | Warning | `PRIVATE ALL`, which hides every variable of the caller |
+| `unclosed-transaction` | Warning | A `BEGIN TRANSACTION` the routine leaves without an `END TRANSACTION` or `ROLLBACK` |
 | `unlinked-tables` | Warning | Tables in `FROM` with nothing relating them: a Cartesian product |
 | `select-without-into` | Warning | A query with no `INTO` or `TO`, which browses its whole result |
 | `having-without-group-by` | Information | `HAVING` with no `GROUP BY`, so it is only a post-filter |
@@ -51,6 +52,7 @@ A few rules would be unusable if they reported everything they could, so they ho
 - **`missing-memvar-prefix`** only reports names your own file shows being used as a field — a column in a `CREATE`, a `REPLACE` target, an `INSERT` column list, or a reference qualified by an alias the file opens. Flagging every bare reference would flag nearly every line.
 - **`unlinked-tables`** treats each table in `FROM` as a node and each condition mentioning two of them as an edge, then reports when the graph splits. A name it cannot attribute to a table, a macro, or a derived table silences it, since any of those could be the missing link. Two tables compared to the same variable count as related.
 - **`unused-local`** covers `LOCAL` only. `PUBLIC` and `PRIVATE` are meant to be read by other routines, and an unused parameter is usually just a signature the caller still passes.
+- **`unclosed-transaction`** credits a close only to the paths that run it: a `ROLLBACK` in the branch that returns is clean, a commit in the *other* arm of the `IF` is not. A close on any path also ends what it claims about that frame, so the `IF TXNLEVEL() > 0` guard silences it rather than being argued with. It reports a frame that a called routine closes, because it reads one routine at a time.
 - **`empty-branch`** is advisory because comments are not in the syntax tree, so a branch holding only a comment looks empty.
 
 ## Settings
@@ -69,12 +71,6 @@ A rule not named in `foxpro.rules` keeps its default, so a settings file only ha
   "empty-branch": "off"
 }
 ```
-
-The grammar does not cover all of FoxPro, so valid code can reach the catch-all rule; `unsupported-syntax` is advisory by default for that reason. `syntax-error` and `unterminated-block` cannot be changed, because both are genuinely wrong.
-
-## What it does not read yet
-
-Still unread, and reported as `unsupported-syntax`: db-transactions, the commands that make/open/manage a database, console input, the old `READ` screen, moving data in and out, the print job, `REGIONAL`, `SAVE`/`RESTORE MACROS`, `TOTAL TO ... ON ...` in that argument order, and three `SET`s whose argument runs past what the setting reader claims (`SET TOPIC ID TO`, `SET NOTIFY CURSOR`, `SET WINDOW OF MEMO`).
 
 Macro substitution is parsed where it appears, and `&lcCmd` counts as a read of `lcCmd`, but a macro's contents are only known at run time, so checks that depend on reading a condition skip it.
 
