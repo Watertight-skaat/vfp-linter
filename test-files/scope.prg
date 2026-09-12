@@ -181,3 +181,14 @@ PROCEDURE LegacyMenu
 	MENU TO lnChoice
 	RETURN m.lnChoice
 ENDPROC
+
+* Console input, the same shape MENU TO has: INPUT and ACCEPT both put what the user typed in the
+* variable, which is a write, and the prompt beside it is an expression whose names are reads.
+* lcCity is left undeclared on purpose: the implicit-private it earns is the proof that the write is seen.
+PROCEDURE ConsoleInput
+	LOCAL lcName, lcPrompt
+	lcPrompt = "City: "
+	INPUT "Name: " TO lcName
+	ACCEPT m.lcPrompt TO lcCity
+	RETURN m.lcName + m.lcCity
+ENDPROC

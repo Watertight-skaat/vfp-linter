@@ -39,7 +39,8 @@ check('scopes found', table.scopes.map(s => `${s.name}:${s.kind}`), [
 	'KeywordMembers:procedure',
 	'ComputedAreas:procedure',
 	'Purging:procedure',
-	'LegacyMenu:procedure'
+	'LegacyMenu:procedure',
+	'ConsoleInput:procedure'
 ]);
 check('main is the root', table.main.name, '(main)');
 check('methods hang off the class', scope('Widget').children.map(c => c.name), ['Widget.Init', 'Widget.Label']);
@@ -175,6 +176,16 @@ check('MENU TO writes the bar the user chose', shape('LegacyMenu', 'LNCHOICE'),
 	{ kind: 'local', type: null, array: false, declared: true, reads: 1, writes: 1 });
 check('MENU BAR reads the array it builds the bar from', shape('LegacyMenu', 'LABAR'),
 	{ kind: 'local', type: null, array: true, declared: true, reads: 1, writes: 1 });
+
+// --- console input ---------------------------------------------------------
+// INPUT and ACCEPT put what the user typed in the variable, which is a write, and the prompt beside them is an expression whose names are reads.
+check('INPUT writes the variable it is given', shape('ConsoleInput', 'LCNAME'),
+	{ kind: 'local', type: null, array: false, declared: true, reads: 1, writes: 1 });
+check('the prompt is an expression, so a variable in it is read', shape('ConsoleInput', 'LCPROMPT'),
+	{ kind: 'local', type: null, array: false, declared: true, reads: 1, writes: 1 });
+// The write is what creates the name, which is why an undeclared one earns an implicit-private.
+check('ACCEPT creates the name it writes', shape('ConsoleInput', 'LCCITY'),
+	{ kind: 'implicit', type: null, array: false, declared: false, reads: 1, writes: 1 });
 
 // --- DELETE, both forms ----------------------------------------------------
 check('the SQL form reaches its WHERE through the statement, not a hoisted copy', shape('Purging', 'TNBATCH'),

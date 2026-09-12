@@ -1,5 +1,48 @@
 # Changelog
 
+## 1.3.8
+
+### The rest of the ledger: the container, its transaction, and the console
+
+Nine constructs, none of which misparsed -- each announced itself and cost the one statement it was on.
+That is the cheap failure, but it is still a statement a rule cannot see, and these were the last of the
+unmeasured list.
+
+**Transactions.** `BEGIN TRANSACTION`, `END TRANSACTION` and `ROLLBACK` are one node carrying the
+action, so a rule can follow the sequence without knowing three node types. They were the only ledger
+item with a rule waiting behind them: a buffered write that is never committed now has something to hang
+off. `ROLLBACK` stands alone as a word and so refuses every shape a variable of that name takes; the
+two-word forms are told apart by their second word and need no guard.
+
+**The database container.** `CREATE`/`OPEN DATABASE`, `CREATE`/`DELETE CONNECTION`,
+`DELETE DATABASE`/`VIEW` and `FREE`/`REMOVE TABLE` are one node carrying the verb and the object it
+reached, rather than seven node types for what is one shape. The three `DELETE` forms were partials:
+`DELETE` parsed as the xbase record command and the object clause after it was what fell to the
+catch-all. `CREATE VIEW` is deliberately left out -- that is the SQL view, and claiming it here would
+turn a view whose `SELECT` cannot be read into a silently wrong tree instead of a reported gap. The name
+may be `?`, which names nothing and asks the user to pick; a macro-substituted expression, whose
+variable is then a read like any other; or a path carrying a drive and an extension.
+
+**Console input.** `INPUT` and `ACCEPT` put what the user typed in the variable, which is a write the
+symbol table never saw -- the shape `MENU TO` had. The prompt beside it is an expression, so the names in
+it are reads. The fixture leaves one of the two variables undeclared on purpose: the `implicit-private`
+it earns is the proof that the write is seen.
+
+**`READ` and `@ ... EDIT`.** The obsolete screen command and the multi-line `GET` that fills it.
+`CYCLE` is kept, because it is the difference between a read that restarts at the first `GET` and one
+that falls through; the rest of the tail varies by control and stays raw source. The bare command is
+claimed too -- a name on its own is never a statement, so nothing is taken from a variable called
+`read`, and the shapes one does take are refused. `READ EVENTS` and `READ MENU TO` are still their
+own statements. `EDIT`'s operand is the same reference `GET`'s is, so the variable it edits reaches the
+symbol table.
+
+Thirty-six parse checks, fourteen of them controls, and three scope checks, all run against a parser
+built from the previous grammar to confirm they fail there: the twenty-two guarding new behaviour fail or
+throw and the fourteen controls pass. `test-files/database.prg` is a new fixture for the container and
+the transaction frame; the console commands and `READ` join `commands.prg`, `@ ... EDIT` joins
+`at-say-get.prg`, and a `ConsoleInput` routine joins `scope.prg`. Nine lines leave the ledger, and a
+tenth goes with them: bare `?` was recorded as unsupported and has in fact been read all along.
+
 ## 1.3.7
 
 ### Two gaps that cost more than the statement they were in

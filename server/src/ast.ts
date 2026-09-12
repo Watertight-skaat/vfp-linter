@@ -789,6 +789,16 @@ export interface DeleteTriggerStatement extends NodeBase {
 
 export type TriggerEvent = 'DELETE' | 'INSERT' | 'UPDATE';
 
+/** The database container's own commands, one node for all of them: CREATE / OPEN DATABASE, CREATE / DELETE CONNECTION, DELETE DATABASE / VIEW, and FREE / REMOVE TABLE. CREATE VIEW is the SQL view above, not this. */
+export interface DatabaseStatement extends NodeBase {
+  type: 'DatabaseStatement';
+  command: 'CREATE' | 'OPEN' | 'DELETE' | 'FREE' | 'REMOVE';
+  object: 'DATABASE' | 'CONNECTION' | 'VIEW' | 'TABLE';
+  /** Null when the command was given `?`, which asks the user to pick one. */
+  name: IdentifierOrString | Expr | null;
+  options: string | null;
+}
+
 /** VALIDATE DATABASE: the check that the database container still matches what is on disk. */
 export interface ValidateDatabaseStatement extends NodeBase {
   type: 'ValidateDatabaseStatement';
@@ -1435,10 +1445,10 @@ export interface AtStatement extends NodeBase {
   type: 'AtStatement';
   row: Expr;
   column: Expr;
-  verb: 'SAY' | 'GET' | 'TO' | 'CLEAR' | null;
+  verb: 'SAY' | 'GET' | 'TO' | 'CLEAR' | 'EDIT' | null;
   /** The SAY expression. */
   expression: Expr | null;
-  /** The GET variable. */
+  /** The variable GET or EDIT is over. */
   target: Expr | null;
   endRow: Expr | null;
   endColumn: Expr | null;
@@ -1496,6 +1506,28 @@ export interface SuspendStatement extends NodeBase {
 /** CANCEL ends the program, so like RETURN nothing after it in the block runs. */
 export interface CancelStatement extends NodeBase {
   type: 'CancelStatement';
+}
+
+/** The obsolete READ screen, which runs the @ ... GET controls until one of them ends it. Not READ EVENTS, which is the event loop. */
+export interface ReadStatement extends NodeBase {
+  type: 'ReadStatement';
+  /** CYCLE, which restarts the read at the first GET rather than falling through when the last one is left. */
+  cycle: boolean;
+  options: string | null;
+}
+
+/** INPUT and ACCEPT, which prompt at the console and put what was typed in the variable. INPUT reads it back as an expression, ACCEPT as a character string. */
+export interface ConsoleInputStatement extends NodeBase {
+  type: 'ConsoleInputStatement';
+  command: 'INPUT' | 'ACCEPT';
+  message: Expr | null;
+  to: string;
+}
+
+/** BEGIN / END TRANSACTION and ROLLBACK, the frame around the buffered writes. */
+export interface TransactionStatement extends NodeBase {
+  type: 'TransactionStatement';
+  action: 'BEGIN' | 'END' | 'ROLLBACK';
 }
 
 /** READ EVENTS hands control to the event loop until CLEAR EVENTS. */
@@ -1655,6 +1687,7 @@ export type Statement =
   | CreateViewStatement
   | CreateTriggerStatement
   | DeleteTriggerStatement
+  | DatabaseStatement
   | ValidateDatabaseStatement
   | DeclareStatement
   | DefineClass
@@ -1756,6 +1789,9 @@ export type Statement =
   | SuspendStatement
   | CancelStatement
   | ReadEventsStatement
+  | ReadStatement
+  | ConsoleInputStatement
+  | TransactionStatement
   | EjectStatement
   | RetryStatement
   | ShowGetsStatement

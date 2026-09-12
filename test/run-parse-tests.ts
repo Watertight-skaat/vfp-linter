@@ -217,6 +217,65 @@ check('VALIDATE DATABASE keeps the flag that makes it write', (({ recover, optio
 	{ recover: true, options: null });
 check('the report tail stays raw', first('VALIDATE DATABASE NOCONSOLE TO FILE errs.txt').options, 'NOCONSOLE TO FILE errs.txt');
 
+// --- the container itself, and the transaction frame around writes into it ---------
+// All the container commands are one node carrying the verb and the object it reached, so these assert the pair rather than a shape each.
+const container = (src: string) => (({ command, object, name, options }) => [command, object, name, options])(first(src));
+check('CREATE DATABASE', container('CREATE DATABASE mydata'), ['CREATE', 'DATABASE', 'mydata', null]);
+check('OPEN DATABASE keeps its flags as raw source', container('OPEN DATABASE mydata EXCLUSIVE NOUPDATE'),
+	['OPEN', 'DATABASE', 'mydata', 'EXCLUSIVE NOUPDATE']);
+check('CREATE CONNECTION', container("CREATE CONNECTION myconn DATASOURCE 'dsn'"), ['CREATE', 'CONNECTION', 'myconn', "DATASOURCE 'dsn'"]);
+check('FREE TABLE', container('FREE TABLE customer'), ['FREE', 'TABLE', 'customer', null]);
+check('REMOVE TABLE', container('REMOVE TABLE customer DELETE RECYCLE'), ['REMOVE', 'TABLE', 'customer', 'DELETE RECYCLE']);
+// The three DELETE objects used to leave a partial node behind: DELETE parsed and the object clause after it was lost.
+check('DELETE DATABASE', container('DELETE DATABASE mydata DELETETABLES'), ['DELETE', 'DATABASE', 'mydata', 'DELETETABLES']);
+check('DELETE VIEW', container('DELETE VIEW myview'), ['DELETE', 'VIEW', 'myview', null]);
+check('DELETE CONNECTION', container('DELETE CONNECTION myconn'), ['DELETE', 'CONNECTION', 'myconn', null]);
+check('? names nothing: it asks the user to pick', container('OPEN DATABASE ?'), ['OPEN', 'DATABASE', null, null]);
+check('a macro-substituted container is an expression, so the variable naming it is read',
+	first('OPEN DATABASE (m.cContainer)').name.type, 'MemberExpression');
+check('a container named with a path keeps the extension', first('OPEN DATABASE data\\my.dbc').name, { type: 'Path', path: 'data\\my.dbc' });
+// CREATE VIEW is the SQL view, and claiming it here would turn a view whose SELECT cannot be read into a silently wrong tree.
+check('CREATE SQL VIEW is untouched beside it', first('CREATE SQL VIEW v AS SELECT a FROM t').type, 'CreateViewStatement');
+check('and so is CREATE TABLE', first('CREATE TABLE t (a C(10))').type, 'CreateStatement');
+check('and the xbase DELETE', first('DELETE NEXT 5').scope.type, 'NEXT');
+
+check('BEGIN TRANSACTION', first('BEGIN TRANSACTION'), { type: 'TransactionStatement', action: 'BEGIN' });
+check('END TRANSACTION', first('END TRANSACTION').action, 'END');
+check('ROLLBACK', first('ROLLBACK').action, 'ROLLBACK');
+// ROLLBACK stands alone, so it has to refuse every shape a variable of that name takes.
+check('a variable called rollback is untouched', first('rollback = .T.').type, 'Assignment');
+check('and a call to one', first('rollback()').expression.type, 'CallExpression');
+
+// --- console input ------------------------------------------------------------------
+// Both put what was typed in the variable, which is the write the symbol table was losing.
+check('INPUT names its message and the variable it writes', first("INPUT 'Name: ' TO lcName"),
+	{ type: 'ConsoleInputStatement', command: 'INPUT', message: { type: 'StringLiteral', value: 'Name: ' }, to: 'lcName' });
+check('ACCEPT is the same shape', (({ command, to }) => [command, to])(first("ACCEPT 'City: ' TO lcCity")), ['ACCEPT', 'lcCity']);
+// TO is reserved, which is what keeps the greedy message from taking it and leaving the name behind.
+check('the message may be left off', (({ message, to }) => [message, to])(first('INPUT TO lcName')), [null, 'lcName']);
+check('a variable called input is untouched', first('input = 1').type, 'Assignment');
+check('and a call to one', first('accept(1)').expression.type, 'CallExpression');
+
+// --- the obsolete READ screen --------------------------------------------------------
+check('bare READ is the command', first('READ'), { type: 'ReadStatement', cycle: false, options: null });
+check('CYCLE is kept: it restarts the read rather than falling through', (({ cycle, options }) => [cycle, options])(first('READ CYCLE MODAL SAVE')),
+	[true, 'MODAL SAVE']);
+check('the rest of the tail stays raw', first('READ TIMEOUT 30 NOMOUSE').options, 'TIMEOUT 30 NOMOUSE');
+check('READ EVENTS is still the event loop', first('READ EVENTS').type, 'ReadEventsStatement');
+check('READ MENU TO is still the menu activation', first('READ MENU TO lnChoice').type, 'MenuToStatement');
+// The call is the control that matters: an assignment is decided above ReadStatement, but a bare call has to get past it.
+check('a call to a routine called read is untouched', first('read(1)').expression.type, 'CallExpression');
+check('a variable of that name too', first('read = 1').type, 'Assignment');
+check('and a property of one', first('read.enabled = .T.').target.type, 'MemberExpression');
+
+// --- @ ... EDIT ------------------------------------------------------------------------
+// The multi-line GET. Read without it, the verb fell through to the bare-coordinates form and its tail was reported as a statement of its own.
+check('EDIT names the variable it edits', (({ verb, options }) => [verb, options])(first('@ 3, 2 EDIT m.cUsed SIZE 17, 75 NOEDIT')),
+	['EDIT', 'SIZE 17, 75 NOEDIT']);
+check('the operand is the same reference GET takes', first('@ 3, 2 EDIT m.cUsed SIZE 17, 75').target.type, 'MemberExpression');
+check('the bare coordinates still only move the print head', first('@ 8, 1').verb, null);
+check('and SAY is untouched', first('@ 2, 5 SAY "Name:"').verb, 'SAY');
+
 // --- SHUTDOWN, which is not QUIT ---------------------------------------------------
 // ON SHUTDOWN runs first, so it is a chance for code to run and the two cannot share a node.
 check('SHUTDOWN is its own statement', first('SHUTDOWN').type, 'ShutdownStatement');
@@ -351,7 +410,7 @@ check('@ with no clause is still the statement', (({ type, verb, options }) => (
 	{ type: 'AtStatement', verb: null, options: null });
 check('and its coordinates are read', (({ row, column }) => [row.type, column.value])(first('@ PROW()+1, 1')), ['BinaryExpression', 1]);
 // The bare form has to end the line, or a verb the grammar has not learned reads as it and reports the gap on the tail instead of the statement.
-check('a verb it has not learned is one gap, not a statement and a remainder', types('@ 3, 2 EDIT m.cUsed SIZE 17, 75 NOEDIT'), ['UnknownStatement']);
+check('a verb it has not learned is one gap, not a statement and a remainder', types('@ 3, 2 FILL TO 8, 40'), ['UnknownStatement']);
 check('a verb it has is untouched', first('@ 2,5 SAY "Name:"').verb, 'SAY');
 
 // The console commands.

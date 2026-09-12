@@ -330,6 +330,11 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
         reference(scope, node.to, 'write', at);
         visitChildren(node, scope);
         return;
+      case 'ConsoleInputStatement':
+        // INPUT and ACCEPT put what the user typed in the variable, so they create the name like any other write.
+        reference(scope, node.to, 'write', at);
+        visit(node.message, scope);
+        return;
       case 'MenuToStatement':
         // MENU TO puts the number of the bar the user chose in the variable, so it creates the name like any other write.
         reference(scope, node.to, 'write', at);

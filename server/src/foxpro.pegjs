@@ -108,6 +108,7 @@ Statement "statement"
   / LParameters
   / PrintStatement
   / WaitStatement
+  / ConsoleInputStatement
   / UseStatement
   / AppendStatement
   / CalculateStatement
@@ -131,8 +132,10 @@ Statement "statement"
   / ExitStatement
   / ShutdownStatement
   / ContinueStatement
+  / TransactionStatement
   / CreateTriggerStatement
   / CreateViewStatement
+  / DatabaseStatement
   / CreateStatement
   / IndexOnStatement
   / InsertStatement
@@ -173,6 +176,7 @@ Statement "statement"
   / ResumeStatement
   / CancelStatement
   / ReadEventsStatement
+  / ReadStatement
   / EjectStatement
   / RetryStatement
   / CompileStatement
@@ -372,6 +376,13 @@ WaitStatement
         }
       }
       return node("WaitStatement", { message: msg, to: o.to, window: o.window, at: o.at, nowait: o.nowait, noclear: o.noclear, clear: o.clear, timeout: o.timeout });
+    }
+
+// INPUT [cMessage] TO MemVarName reads what was typed back as an expression; ACCEPT takes it as a character string. Both create the variable, which is the write the symbol table was losing -- the shape MENU TO had.
+// The message is optional, and TO is reserved, so the greedy read of it can never take the TO for the message and leave the name behind. The required TO is also what keeps a variable of either name safe, so neither word needs a guard of its own: `accept(1)` has no TO and never reaches this rule.
+ConsoleInputStatement
+  = cmd:("INPUT"i / "ACCEPT"i) WB _ msg:(e:Expression _ { return e; })? "TO"i WB _ to:ParameterName {
+      return node('ConsoleInputStatement', { command: cmd.toUpperCase(), message: msg || null, to });
     }
 
 WaitOption
@@ -599,9 +610,11 @@ AtStatement "screen coordinate statement"
 AtBody
   = "SAY"i WB _ e:Expression o:RawOptions { return { verb: 'SAY', expression: e, target: null, endRow: null, endColumn: null, options: o }; }
   / "GET"i WB _ v:LValue o:RawOptions { return { verb: 'GET', expression: null, target: v, endRow: null, endColumn: null, options: o }; }
+  // EDIT is the multi-line GET: the control it puts on the screen edits a memo field or a variable in place, so its operand is the same reference GET's is.
+  / "EDIT"i WB _ v:LValue o:RawOptions { return { verb: 'EDIT', expression: null, target: v, endRow: null, endColumn: null, options: o }; }
   / "TO"i WB _ r:Expression _ "," _ c:Expression o:RawOptions { return { verb: 'TO', expression: null, target: null, endRow: r, endColumn: c, options: o }; }
   / "CLEAR"i WB o:RawOptions { return { verb: 'CLEAR', expression: null, target: null, endRow: null, endColumn: null, options: o }; }
-  // No verb at all, which just moves the print head -- the most common @ in the corpus. It has to end the line: a verb the grammar has not learned, `@ 3, 2 EDIT ...`, would otherwise read as this and leave its tail behind as a statement, which reports the gap in the wrong place.
+  // No verb at all, which just moves the print head -- the most common @ in the corpus. It has to end the line: a verb the grammar has not learned, `@ 3, 2 FILL TO 8, 40`, would otherwise read as this and leave its tail behind as a statement, which reports the gap in the wrong place.
   / &(PartialLineComment / LineTerminator / EOF) { return { verb: null, expression: null, target: null, endRow: null, endColumn: null, options: null }; }
 
 // The rest of a command line, verbatim, for option tails the grammar does not model yet. A semicolon continues the command, so the tail crosses one: stopping at the physical line left everything after the semicolon behind as a statement of its own, which reported a gap on a line that is really the middle of this one.
@@ -1552,6 +1565,13 @@ ShutdownStatement
 ContinueStatement "continue (LOOP)"
   = "LOOP"i WB NotNameReference { return node("ContinueStatement", {}); }
 
+// BEGIN | END TRANSACTION and ROLLBACK, the frame around the table-buffering commands that are already read. One node carrying the action, so a rule about a write that is never committed follows the sequence without knowing three node types.
+// The two-word forms are told apart by their second word, so they need no guard; ROLLBACK stands alone and is a variable name as readily as a command word, so it refuses every shape one takes.
+TransactionStatement
+  = "BEGIN"i WB _ "TRANSACTION"i WB { return node('TransactionStatement', { action: 'BEGIN' }); }
+  / "END"i WB _ "TRANSACTION"i WB { return node('TransactionStatement', { action: 'END' }); }
+  / "ROLLBACK"i WB NotNameReference { return node('TransactionStatement', { action: 'ROLLBACK' }); }
+
 // -----------------------------
 // CREATE TABLE/DBF/CURSOR/VIEW
 // -----------------------------
@@ -1580,6 +1600,25 @@ ValidateDatabaseStatement
   = "VALIDATE"i WB _ "DATABASE"i WB NotCallOrAssign _ recover:("RECOVER"i WB)? opts:RawOptions {
       return node('ValidateDatabaseStatement', { recover: !!recover, options: opts });
     }
+
+// The container's own commands: the ones that make a database and open it, and the ones that put a table into it or take it out. Each is a verb, the kind of object and a name, so they are one node carrying that pair rather than seven nodes -- a rule asks which verb reached which object, and none of them needs a shape of its own.
+// CREATE VIEW is left out deliberately: that is the SQL view above, and claiming it here would turn a view whose SELECT the grammar cannot read into a silently wrong tree instead of a reported gap.
+DatabaseStatement
+  = cmd:("CREATE"i / "OPEN"i) WB _ obj:("DATABASE"i / "CONNECTION"i) WB _ name:DatabaseObjectName opts:RawOptions {
+      return node('DatabaseStatement', { command: cmd.toUpperCase(), object: obj.toUpperCase(), name, options: opts });
+    }
+  / "DELETE"i WB _ obj:("DATABASE"i / "VIEW"i / "CONNECTION"i) WB _ name:DatabaseObjectName opts:RawOptions {
+      return node('DatabaseStatement', { command: 'DELETE', object: obj.toUpperCase(), name, options: opts });
+    }
+  / cmd:("FREE"i / "REMOVE"i) WB _ "TABLE"i WB _ name:DatabaseObjectName opts:RawOptions {
+      return node('DatabaseStatement', { command: cmd.toUpperCase(), object: 'TABLE', name, options: opts });
+    }
+
+// The name is a picker dialog as often as a name -- every one of these commands takes ? -- and when it is a file it carries a drive and an extension, which is what FileNameOrIdentifier reads.
+DatabaseObjectName
+  = "?" { return null; }
+  / "(" _ e:Expression _ ")" { return e; }
+  / FileNameOrIdentifier
 
 // CREATE [SQL] VIEW ViewName [REMOTE] [CONNECTION ConnectionName [SHARE]] AS SQLSELECTStatement
 CreateViewStatement
@@ -2712,6 +2751,13 @@ CancelStatement
 // READ EVENTS hands control to the event loop until CLEAR EVENTS. The bare READ is the obsolete screen command and is not this.
 ReadEventsStatement
   = "READ"i WB _ "EVENTS"i WB NotCallOrAssign { return node('ReadEventsStatement', {}); }
+
+// The obsolete READ screen, which runs the @ ... GET controls until one of them ends it; CYCLE makes it start over rather than fall through when the last one is left. The rest of the tail varies by control and stays raw source.
+// READ EVENTS and READ MENU TO are their own statements and are read before this one. The bare command is claimed here too: a name on its own is never a statement, so nothing is taken from a variable called read, and the shapes one does take are refused.
+ReadStatement
+  = "READ"i WB NotNameReference _ cycle:("CYCLE"i WB _ { return true; })? opts:RawOptions {
+      return node('ReadStatement', { cycle: !!cycle, options: opts });
+    }
 
 // EJECT sends a form feed to the printer; EJECT PAGE ends the page from inside a report band.
 EjectStatement
