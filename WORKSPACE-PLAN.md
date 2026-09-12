@@ -117,7 +117,14 @@ Done when: `bun run test` green, the extension opened on `test-files/watertight/
 
 Also in this phase because it falls out of the harness for free: `test/lint-dir.ts <dir> [--rule code]` builds an index over any directory and prints every finding. It is the corpus-run tool phase 4 depends on, and the same discipline `TODO.md` wants for the `SET EXACT` rule.
 
-## Phase 2: the three rules and the macro guard (2½ days)
+## Phase 2: the three rules and the macro guard (2½ days) -- done
+
+Landed as planned. Four notes:
+
+- **`ctx.record` replaced `ctx.workspace.self`.** The linter now extracts every file's own definitions and references whether or not there is an index, which is what lets `too-many-arguments` work with the workspace turned off -- most calls are in the same file as the routine, and that half needs nothing else. The extra walk is a couple of milliseconds against a quarter-second parse.
+- **The array guard earns its place.** A subscript is written like a call, so `Totals(2, 3)` against a `PROCEDURE Totals` with one parameter would report. Any name the file also declares as a variable is skipped.
+- **`routine-shadowing/` is a case of its own**, because a second definition of the name being tested changes what `too-many-arguments` measures against. Two rules firing on the same fixture is fine; two rules needing contradictory fixtures is not.
+- **The corpus gate needed reframing.** The plan said `lint-dir test-files/watertight` must report nothing for all three. `too-many-arguments` and `duplicate-routine` do. `missing-file` reports twelve, and all twelve are true: the fixture corpus is a set of standalone files modelled on the real app, not a workspace, so `Procfile.prg`, `controls.vcx` and `datasrch.scx` genuinely are not in it. Copying the tree and adding those files as empty stubs drops the count to zero, which is the check that actually proves the rule -- it resolves every kind and every naming form, and reports only what is absent.
 
 ### Tests first
 - `dynamic.ts` assertions in `run-navigation-tests.ts` (or a small block in the workspace suite): true for `MacroSubstitute`, a `Path` containing `&`, an `Identifier`/expression as a DO or DO FORM target (parenthesised form), a `MemberExpression` or `MacroSubstitute` callee, a `StringLiteral` containing `&`; false for a plain `Path`, `Identifier` callee, plain string.

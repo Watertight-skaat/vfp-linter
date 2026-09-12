@@ -239,7 +239,7 @@ connection.onDefinition(params => {
 	const document = documents.get(params.textDocument.uri);
 	if (!document || !index) return null;
 	const record = recordFor(document);
-	const found = definitionAt(record, linesOf(document), params.position, index.viewFor(fileOf(document.uri), record));
+	const found = definitionAt(record, linesOf(document), params.position, index.viewFor(fileOf(document.uri)));
 	return found.map(toLspLocation);
 });
 
@@ -247,7 +247,7 @@ connection.onHover(params => {
 	const document = documents.get(params.textDocument.uri);
 	if (!document || !index) return null;
 	const record = recordFor(document);
-	const found = hoverAt(record, linesOf(document), params.position, index.viewFor(fileOf(document.uri), record));
+	const found = hoverAt(record, linesOf(document), params.position, index.viewFor(fileOf(document.uri)));
 	return found ? { contents: { kind: 'markdown' as const, value: found.markdown }, range: found.range } : null;
 });
 

@@ -1,0 +1,7 @@
+3:13 warning unused-local 'Totals' is declared in this file, but never used.
+6:12 warning too-many-arguments 'Add' takes 2 parameters, but 3 are passed. FoxPro raises "Too many arguments" at run time.
+-> :28:1 'Add' is declared here
+8:1 warning too-many-arguments 'Report' takes 1 parameter, but 2 are passed. FoxPro raises "Too many arguments" at run time.
+-> :23:1 'Report' is declared here
+15:12 warning too-many-arguments 'Add' takes 2 parameters, but 3 are passed. FoxPro raises "Too many arguments" at run time.
+-> :28:1 'Add' is declared here

@@ -3,7 +3,7 @@
 
 import type { AstNode, AstNodeType, Loc, Program } from './ast.js';
 // Type-only: index.ts imports walk() from here, and a value import back would be a cycle. Nothing in this file needs one.
-import type { WorkspaceView } from './index.js';
+import type { FileRecord, WorkspaceView } from './index.js';
 import type { SymbolTable } from './scope.js';
 
 // The LSP DiagnosticSeverity values, inlined so this file needs no language-server import. Typed as literals rather than an enum so the result is assignable to Diagnostic[] without a cast.
@@ -56,6 +56,8 @@ export interface RuleContext {
   lines: string[];
   /** The line ending the file uses, so an inserted line matches its neighbours. */
   eol: string;
+  /** What this file defines and what it names, extracted once and shared. Present whether or not there is an index, so a rule that only needs this file's own routines works with the workspace turned off. */
+  record: FileRecord;
   /** What the rest of the workspace holds, bound to this file. Undefined when the linter was given no index -- a rule that reads across files must stay silent then rather than report on half the evidence. */
   workspace?: WorkspaceView;
   report(loc: Loc | undefined, message: string, fix?: Fix, related?: RelatedLocation[]): void;

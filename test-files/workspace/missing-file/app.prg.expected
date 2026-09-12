@@ -1,0 +1,5 @@
+6:10 warning missing-file No header file named 'gone.h' in the workspace.
+9:18 warning missing-file No procedure file named 'vanished' in the workspace.
+11:17 warning missing-file No class library named 'absent' in the workspace.
+14:4 warning missing-file No file named 'sub\gone.prg' in the workspace.
+17:1 warning missing-file No form named 'elsewhere' in the workspace.

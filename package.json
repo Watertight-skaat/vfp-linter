@@ -111,6 +111,24 @@
 							"default": "warning",
 							"description": "A variable referenced without m. whose name is also used as a field."
 						},
+						"too-many-arguments": {
+							"type": "string",
+							"enum": ["error", "warning", "information", "hint", "off"],
+							"default": "warning",
+							"description": "A call passing more arguments than the routine declares, which FoxPro refuses at run time."
+						},
+						"duplicate-routine": {
+							"type": "string",
+							"enum": ["error", "warning", "information", "hint", "off"],
+							"default": "warning",
+							"description": "The same routine name defined in two files, which FoxPro resolves by search order."
+						},
+						"missing-file": {
+							"type": "string",
+							"enum": ["error", "warning", "information", "hint", "off"],
+							"default": "warning",
+							"description": "An #INCLUDE, SET PROCEDURE, SET CLASSLIB, DO or DO FORM naming a file that is not in the workspace."
+						},
 						"unreachable-code": {
 							"type": "string",
 							"enum": ["error", "warning", "information", "hint", "off"],

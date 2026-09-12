@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+### Three rules that need to see more than one file
+
+**`too-many-arguments`** reports a call passing more arguments than the routine declares, which FoxPro
+refuses at run time with "Too many arguments". Passing fewer is legal and common -- the rest arrive as
+`.F.` -- so only over-supply is reported. Where a name is defined more than once the most permissive
+definition is measured against, and a definition in the calling file wins outright, since that is the
+one FoxPro finds first. A `DO thing.prg WITH ...` is measured against the `LPARAMETERS` at the top of
+that file. It is the one rule of the three that still works with the workspace turned off, because a
+call and the routine it names are usually in the same file.
+
+**`duplicate-routine`** reports the same routine name defined in two indexed files, with each site
+pointing at the others. FoxPro resolves it by search order, so which one runs depends on what was
+loaded when rather than on anything written at either site. A class method is keyed by its class, so a
+method named like a routine is not a collision.
+
+**`missing-file`** reports an `#INCLUDE`, `SET PROCEDURE`, `SET CLASSLIB`, `DO` of a path or `DO FORM`
+naming a file the workspace does not hold. An absolute path is left alone whether or not it resolves,
+because it may name a share this machine cannot see -- `#INCLUDE S:\Libs\Shared.h` is not evidence of
+anything. A bare `DO Foo` names a routine rather than a file and is left to a later rule.
+
+All three consult one shared test for whether a name is assembled at run time, so `DO &lcProc`,
+`DO (lcName)` and a target built by concatenation are refused by all of them identically rather than
+each rule re-deriving the same evasion. Run over the Watertight corpus the first two report nothing at
+all, and every one of the third's findings names a file that really is absent.
+
+**A finding can now belong to a file that did not change.** Re-signing a routine in one file moves the
+finding into the files that call it, so the index keeps a reverse map and the open dependents are
+re-linted when a definition's arity, existence or home changes.
+
 ### The workspace, not just the file
 
 Until now nothing in the server knew another file existed. It now indexes every `.prg`, `.mpr`, `.spr`

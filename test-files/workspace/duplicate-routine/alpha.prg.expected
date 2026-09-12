@@ -1,0 +1,2 @@
+2:1 warning duplicate-routine 'Shared' is also defined in beta.prg. FoxPro runs whichever it finds first.
+-> beta.prg:2:1 'Shared' is also defined here

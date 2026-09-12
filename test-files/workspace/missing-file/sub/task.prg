@@ -1,0 +1,3 @@
+PROCEDURE Task
+? "work"
+ENDPROC

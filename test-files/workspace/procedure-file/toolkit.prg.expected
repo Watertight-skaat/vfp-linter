@@ -1,0 +1,2 @@
+2:1 warning duplicate-routine 'Greet' is also defined in stray.prg. FoxPro runs whichever it finds first.
+-> stray.prg:1:1 'Greet' is also defined here

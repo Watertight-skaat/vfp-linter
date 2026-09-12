@@ -1,0 +1,2 @@
+2:1 warning duplicate-routine 'Announce' is also defined in lib.prg. FoxPro runs whichever it finds first.
+-> lib.prg:2:1 'Announce' is also defined here

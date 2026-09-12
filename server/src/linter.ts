@@ -23,7 +23,7 @@ export interface LintResult {
   diagnostics: LintDiagnostic[];
   /** Null when the parse failed, in which case the only diagnostic is the syntax error. */
   ast: Program | null;
-  /** What this file defines and refers to, extracted on the way past. Only built when a workspace was given, since nothing else needs it. */
+  /** What this file defines and refers to, extracted on the way past. */
   record?: FileRecord;
 }
 
@@ -47,14 +47,10 @@ export function lint(text: string, options: LinterOptions = {}): LintResult {
     const severity = resolveSeverity(rule, options);
     return severity === null ? [] : [{ rule, severity }];
   });
-  // The file's own record is extracted once and shared: the view hands it to the rules, and the caller puts it back in the index so an unsaved edit is what the next file sees.
-  let record: FileRecord | undefined;
-  let workspace: WorkspaceView | undefined;
-  if (options.workspace) {
-    record = extract(options.workspace.file, ast, lines);
-    workspace = options.workspace.index.viewFor(options.workspace.file, record);
-  }
-  const ctxBase = { ast, table: buildSymbolTable(ast), lines, eol: text.includes('\r\n') ? '\r\n' : '\n', workspace };
+  // Extracted once and shared: the rules read it for this file's own routines, and the caller puts it back in the index so an unsaved edit is what the next file sees. Without a workspace the file has no path to be known by, which only matters to the rules that compare files, and those need the index anyway.
+  const record = extract(options.workspace?.file ?? '', ast, lines);
+  const workspace: WorkspaceView | undefined = options.workspace?.index.viewFor(options.workspace.file);
+  const ctxBase = { ast, table: buildSymbolTable(ast), lines, eol: text.includes('\r\n') ? '\r\n' : '\n', record, workspace };
   const contexts = active.map(({ rule, severity }) => {
     const ctx: RuleContext = {
       ...ctxBase,
@@ -77,7 +73,7 @@ export function lint(text: string, options: LinterOptions = {}): LintResult {
   const kept = diagnostics.filter(d => !suppressed(d.range.start.line, d.code));
   // One pass appends to another, so order by position rather than by which rule produced what.
   kept.sort((a, b) => a.range.start.line - b.range.start.line || a.range.start.character - b.range.start.character);
-  return { diagnostics: kept, ast, ...(record ? { record } : {}) };
+  return { diagnostics: kept, ast, record };
 }
 
 function resolveSeverity(rule: Rule, options: LinterOptions): Severity | null {

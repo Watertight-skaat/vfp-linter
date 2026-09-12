@@ -14,6 +14,9 @@ The extension parses your code with a real grammar instead of matching patterns,
 | `implicit-private` | Warning | An assignment to an undeclared name, which FoxPro creates as a PRIVATE |
 | `unused-local` | Warning | A `LOCAL` that is never read or written |
 | `missing-memvar-prefix` | Warning | A variable referenced without `m.` whose name is also used as a field |
+| `too-many-arguments` | Warning | A call passing more arguments than the routine declares, which FoxPro refuses at run time |
+| `duplicate-routine` | Warning | The same routine name defined in two files, which FoxPro resolves by search order |
+| `missing-file` | Warning | An `#INCLUDE`, `SET PROCEDURE`, `SET CLASSLIB`, `DO` or `DO FORM` naming a file that is not there |
 | `unreachable-code` | Warning | A statement after `RETURN` / `EXIT` / `LOOP` in the same block |
 | `duplicate-case` | Warning | A `CASE` condition identical to an earlier one in the same `DO CASE` |
 | `private-all` | Warning | `PRIVATE ALL`, which hides every variable of the caller |
@@ -66,6 +69,9 @@ A few rules would be unusable if they reported everything they could, so they ho
 - **`unused-local`** covers `LOCAL` only. `PUBLIC` and `PRIVATE` are meant to be read by other routines, and an unused parameter is usually just a signature the caller still passes.
 - **`unclosed-transaction`** credits a close only to the paths that run it: a `ROLLBACK` in the branch that returns is clean, a commit in the *other* arm of the `IF` is not. A close on any path also ends what it claims about that frame, so the `IF TXNLEVEL() > 0` guard silences it rather than being argued with. It reports a frame that a called routine closes, because it reads one routine at a time.
 - **`empty-branch`** is advisory because comments are not in the syntax tree, so a branch holding only a comment looks empty.
+- **`too-many-arguments`** reports only over-supply, because passing fewer than a routine declares is legal and common — the rest arrive as `.F.`. Where a name is defined more than once the most permissive definition is measured against, and a definition in the calling file wins outright, since that is the one FoxPro finds first. A name the file also declares as a variable is skipped: a subscript is written like a call, and an array must not be measured against a routine that shares its name.
+- **`missing-file`** leaves an absolute path alone whether or not it resolves, because it may name a share this machine cannot see — `#INCLUDE S:\Libs\Shared.h` is not evidence of anything. A bare `DO Foo` is a routine rather than a file, so it is not reported here either.
+- **The three rules above need the workspace index**, so they say nothing when `foxpro.workspace.enabled` is off. `too-many-arguments` is the exception: a call and the routine it names are usually in the same file, and that half works either way.
 
 ## Settings
 

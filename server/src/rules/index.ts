@@ -4,6 +4,7 @@ import type { Rule } from '../rule.js';
 import { havingWithoutGroupBy, selectWithoutInto, unlinkedTables } from './sql.js';
 import { danglingTerminator, duplicateCase, emptyBranch, privateAll, tryWithoutCatch, unclosedTransaction, unreachableCode, unsupportedSyntax, unterminatedBlock } from './structure.js';
 import { implicitPrivate, missingMemvarPrefix, unusedLocal } from './symbols.js';
+import { duplicateRoutine, missingFile, tooManyArguments } from './workspace.js';
 
 export const rules: Rule[] = [
   danglingTerminator,
@@ -12,6 +13,9 @@ export const rules: Rule[] = [
   implicitPrivate,
   unusedLocal,
   missingMemvarPrefix,
+  tooManyArguments,
+  duplicateRoutine,
+  missingFile,
   unreachableCode,
   duplicateCase,
   privateAll,

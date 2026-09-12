@@ -75,10 +75,10 @@ export interface FileRecord {
 export interface WorkspaceView {
   index: WorkspaceIndex;
   file: string;
-  /** This file's own record, so a rule need not re-walk the tree it was just handed. */
-  self: FileRecord;
   routines(name: string): RoutineRecord[];
   resolveFile(name: string, kind: RefKind): string | null;
+  /** Whether a name says where it lives rather than being looked for. Nothing can be concluded from failing to resolve one, because it may name a drive this machine cannot see. */
+  isAbsolute(name: string): boolean;
 }
 
 // --- paths -----------------------------------------------------------------
@@ -234,13 +234,13 @@ export class WorkspaceIndex {
   }
 
   /** A view of the index bound to one file, which is what the rules and the editor requests are handed. */
-  viewFor(file: string, self: FileRecord): WorkspaceView {
+  viewFor(file: string): WorkspaceView {
     return {
       index: this,
       file,
-      self,
       routines: name => this.resolveRoutine(name, file),
-      resolveFile: (name, kind) => this.resolveFile(name, kind, file)
+      resolveFile: (name, kind) => this.resolveFile(name, kind, file),
+      isAbsolute
     };
   }
 

@@ -7,6 +7,7 @@ import os from 'os';
 import path from 'path';
 import { lint, type LinterOptions } from '../server/src/linter.js';
 import { extract, headerRefKinds, scanHeader, upper, WorkspaceIndex, type FileRecord, type Reference } from '../server/src/index.js';
+import { isDynamic, staticName } from '../server/src/dynamic.js';
 import { definitionAt, hoverAt, workspaceSymbols } from '../server/src/navigation.js';
 import { parse } from '../server/src/parser.js';
 import { buildIndex, globToRegExp, indexedExtensions, recordFrom, refresh } from '../server/src/workspace.js';
@@ -180,12 +181,34 @@ try {
 	fs.rmSync(scratch, { recursive: true, force: true });
 }
 
+// --- a finding that belongs to the file that did not change ------------------
+// The hazard the whole reverse map exists for: rename or re-sign a routine in A and the finding appears in B. Nothing about B changed, so without this its diagnostics would keep saying what was true before the edit.
+
+const stale = fs.mkdtempSync(path.join(os.tmpdir(), 'vfp-stale-'));
+try {
+	const lib = path.join(stale, 'lib.prg');
+	const caller = path.join(stale, 'caller.prg');
+	fs.writeFileSync(lib, 'PROCEDURE Greet\nLPARAMETERS tcWho, tnLevel\nENDPROC\n');
+	fs.writeFileSync(caller, 'DO Greet WITH "hello", 1\n');
+	const index = await buildIndex({ roots: [stale], yieldEvery: 0 });
+	const lintCaller = () => lint(read(caller), { workspace: { index, file: caller } }).diagnostics.map(d => d.code);
+	check('the call is within its arity to begin with', lintCaller(), []);
+
+	fs.writeFileSync(lib, 'PROCEDURE Greet\nLPARAMETERS tcWho\nENDPROC\n');
+	const changed = refresh(index, lib);
+	check('dropping a parameter in the library names the caller as needing another look',
+		[...index.dependentsOf(changed)].map(f => path.basename(f)), ['caller.prg']);
+	check('and the caller now reports, though nothing in it was touched', lintCaller(), ['too-many-arguments']);
+} finally {
+	fs.rmSync(stale, { recursive: true, force: true });
+}
+
 // --- navigation --------------------------------------------------------------
 
 const consoleFile = at('console.prg');
 const consoleLines = lines(path.join('./test-files/workspace/basic', 'console.prg'));
 const consoleRecord = extract(consoleFile, parse(consoleLines.join('\n')) as never, consoleLines);
-const view = basic.viewFor(consoleFile, consoleRecord);
+const view = basic.viewFor(consoleFile);
 const where = (line: number, character: number) => definitionAt(consoleRecord, consoleLines, { line, character }, view).map(l => `${path.basename(l.file)}:${l.range.start.line}`);
 
 check('go to definition follows a DO to another file', where(1, 5), ['ledger.prg:2']);
@@ -194,7 +217,7 @@ check('a form with no file behind it goes nowhere', where(2, 10), []);
 
 const ledgerLines = lines('./test-files/workspace/basic/ledger.prg');
 const ledgerRecord = extract(at('ledger.prg'), parse(ledgerLines.join('\n')) as never, ledgerLines);
-const ledgerView = basic.viewFor(at('ledger.prg'), ledgerRecord);
+const ledgerView = basic.viewFor(at('ledger.prg'));
 check('a routine in the same file wins', definitionAt(ledgerRecord, ledgerLines, { line: 4, character: 5 }, ledgerView).map(l => path.basename(l.file)), ['log.prg']);
 check('hover shows the signature and the comment block above it',
 	hoverAt(consoleRecord, consoleLines, { line: 1, character: 5 }, view)?.markdown.split('\n').filter(l => l && !l.startsWith('```')),
@@ -259,6 +282,26 @@ function collect(dir: string): string[] {
 	return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry =>
 		entry.isDirectory() ? collect(`${dir}/${entry.name}`) : entry.name.endsWith('.prg') ? [`${dir}/${entry.name}`] : []);
 }
+
+// --- the macro guard ---------------------------------------------------------
+// One function decides what every cross-file rule refuses, rather than each re-deriving the same evasion. The position matters: only DO and DO FORM accept the parenthesised runtime form, so an Identifier is a name written out everywhere else.
+
+const node = (src: string) => (parse(src).body[0] as { expression?: unknown; target?: unknown });
+const target = (src: string) => isDynamic(node(src).target as never, 'target');
+
+check('a macro target is dynamic', target('DO &lcProc'), true);
+check('a plain name is not', target('DO Foo'), false);
+check('a path is not', target('DO lib\\foo.prg'), false);
+check('the parenthesised runtime form is', target('DO (lcProc)'), true);
+check('an assembled target is', target('DO "dir\\" + m.lcFile'), true);
+check('a quoted name is not', target('DO "foo.prg"'), false);
+check('the same identifier written as a name is not dynamic', isDynamic({ type: 'Identifier', name: 'Foo' } as never, 'name'), false);
+check('a method call is', isDynamic({ type: 'MemberExpression' } as never, 'name'), true);
+check('a macro callee is', isDynamic({ type: 'MacroSubstitute', name: 'f' } as never, 'name'), true);
+check('a bare string carrying an ampersand is', isDynamic('pre&post', 'name'), true);
+check('and nothing at all is', isDynamic(null), true);
+check('a static name comes back as written', staticName({ type: 'Path', path: 'lib\\foo.prg' } as never), 'lib\\foo.prg');
+check('a dynamic one comes back null', staticName({ type: 'MacroSubstitute', name: 'f' } as never), null);
 
 // --- the exclude globs -------------------------------------------------------
 
