@@ -8,6 +8,7 @@ import path from 'path';
 import { lint, type LinterOptions } from '../server/src/linter.js';
 import { extract, headerRefKinds, scanHeader, upper, WorkspaceIndex, type FileRecord, type Reference } from '../server/src/index.js';
 import { isDynamic, staticName } from '../server/src/dynamic.js';
+import { isBuiltin } from '../server/src/builtins.js';
 import { completionsAt, definitionAt, hoverAt, referencesAt, signatureAt, workspaceSymbols } from '../server/src/navigation.js';
 import { buildSymbolTable, openAliasesOf } from '../server/src/scope.js';
 import { parse } from '../server/src/parser.js';
@@ -116,6 +117,26 @@ const searchPathDir = './test-files/workspace/search-path';
 const searched = await buildIndex({ roots: [searchPathDir], searchPath: [path.resolve(searchPathDir, 'lib')], yieldEvery: 0 });
 check('the search path is looked in after the roots', path.basename(searched.resolveFile('toolkit', 'procedure', path.resolve(searchPathDir, 'main.prg')) ?? ''), 'toolkit.prg');
 check('a routine in a search-path file is still indexed', searched.resolveRoutine('Shared', path.resolve(searchPathDir, 'main.prg')).length, 1);
+
+// A tree laid out by what a file is rather than by who calls it puts the caller and the callee in cousin folders, and FoxPro resolves by name over SET PATH and never by folder. So a name nothing above it matched falls back to the same name anywhere under the roots, which is the whole of the 493 missing-file findings on the Watertight tree.
+const treeDir = './test-files/workspace/resolve-across-tree';
+const tree = await buildIndex({ roots: [treeDir], yieldEvery: 0 });
+const fromApp = path.resolve(treeDir, 'programs/app/APPMAIN.prg');
+const resolvedIn = (name: string, kind: Parameters<typeof tree.resolveFile>[1]) => (tree.resolveFile(name, kind, fromApp) ?? '').replace(/\\/g, '/').split('/').slice(-2).join('/');
+check('a header file in a cousin folder is found', resolvedIn('EMAILLIB.h', 'include'), 'framework/EMAILLIB.h');
+check('a procedure file is found by name, extension and all', resolvedIn('mainset', 'procedure'), 'framework/MAINSET.prg');
+check('so is a class library the index cannot read', resolvedIn('QbInt', 'classlib'), 'framework/QBINT.vcx');
+check('and a form', resolvedIn('datasrch', 'form'), 'framework/DATASRCH.scx');
+check('a name carrying a folder matches that folder anywhere in the tree', resolvedIn('framework\\mainset', 'procedure'), 'framework/MAINSET.prg');
+check('a name nothing in the tree spells is still missing', tree.resolveFile('nosuchthing', 'procedure', fromApp), null);
+check('and the fallback does not cross a folder boundary mid-name', tree.resolveFile('app\\mainset', 'procedure', fromApp), null);
+
+// The ordered directories still come first, and where only the fallback answers the match nearest the asking file is the one taken. Two folders holding the same name is what makes either assertion mean anything, so the index is built by hand rather than from a fixture.
+const shadowed = new WorkspaceIndex({ roots: [path.resolve('/tree')] });
+for (const f of ['app/util.prg', 'far/util.prg']) shadowed.addKnown(path.resolve('/tree', f));
+const folderOf = (file: string | null) => (file ?? '').replace(/\\/g, '/').split('/').slice(-2)[0];
+check('a file beside the caller wins over the same name elsewhere', folderOf(shadowed.resolveFile('util', 'do', path.resolve('/tree/app/caller.prg'))), 'app');
+check('and the nearest match is taken when only the fallback answers', folderOf(shadowed.resolveFile('util', 'do', path.resolve('/tree/far/deep/caller.prg'))), 'far');
 
 // --- resolution order --------------------------------------------------------
 
@@ -395,6 +416,14 @@ check('a bare string carrying an ampersand is', isDynamic('pre&post', 'name'), t
 check('and nothing at all is', isDynamic(null), true);
 check('a static name comes back as written', staticName({ type: 'Path', path: 'lib\\foo.prg' } as never), 'lib\\foo.prg');
 check('a dynamic one comes back null', staticName({ type: 'MacroSubstitute', name: 'f' } as never), null);
+
+// --- the built-in names ------------------------------------------------------
+// FoxPro resolves an intrinsic before it looks for a user routine, so a routine named like one is unreachable and nothing may resolve to it. The framework has carried FUNCTION VARTYPE since the 1990s and legacy275 has PROCEDURE DATETIME beside it; measuring calls against those two was 73% of everything too-many-arguments reported.
+
+check('the names a routine cannot take are known', [isBuiltin('VARTYPE'), isBuiltin('datetime'), isBuiltin('Error'), isBuiltin('MessageBox')], [true, true, true, true]);
+check('an ordinary routine name is not one', [isBuiltin('PostCharge'), isBuiltin('LogEntry'), isBuiltin('Announce'), isBuiltin('')], [false, false, false, false]);
+// The list is measured against, so a name that is not really a built-in would silence a real finding. These are the command words that have no function of the same name.
+check('a command word alone does not make a built-in', [isBuiltin('REPLACE'), isBuiltin('SCATTER'), isBuiltin('LOCATE'), isBuiltin('THISFORM')], [false, false, false, false]);
 
 // --- the exclude globs -------------------------------------------------------
 

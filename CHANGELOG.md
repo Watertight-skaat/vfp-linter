@@ -31,7 +31,9 @@ refuses at run time with "Too many arguments". Passing fewer is legal and common
 definition is measured against, and a definition in the calling file wins outright, since that is the
 one FoxPro finds first. A `DO thing.prg WITH ...` is measured against the `LPARAMETERS` at the top of
 that file. It is the one rule of the three that still works with the workspace turned off, because a
-call and the routine it names are usually in the same file.
+call and the routine it names are usually in the same file. A routine whose name is a built-in is never
+resolved to -- FoxPro answers `VARTYPE()` with its own function whatever the tree holds, so the `FUNCTION
+VARTYPE` the framework has carried since the 1990s is dead weight rather than something a call reaches.
 
 **`duplicate-routine`** reports the same routine name defined in two indexed files, with each site
 pointing at the others. FoxPro resolves it by search order, so which one runs depends on what was
@@ -41,12 +43,15 @@ method named like a routine is not a collision.
 **`missing-file`** reports an `#INCLUDE`, `SET PROCEDURE`, `SET CLASSLIB`, `DO` of a path or `DO FORM`
 naming a file the workspace does not hold. An absolute path is left alone whether or not it resolves,
 because it may name a share this machine cannot see -- `#INCLUDE S:\Libs\Shared.h` is not evidence of
-anything. A bare `DO Foo` names a routine rather than a file and is left to a later rule.
+anything. A bare `DO Foo` names a routine rather than a file and is left to a later rule. A name is looked
+for in the calling file's folder, then the workspace roots, then `foxpro.workspace.searchPath` -- VFP's
+own order -- and last of all on its own anywhere in the tree, because FoxPro resolves a file by name over
+`SET PATH` and never by folder, and a tree filed by what a file is rather than by who calls it keeps the
+caller and the callee in cousin folders.
 
 All three consult one shared test for whether a name is assembled at run time, so `DO &lcProc`,
 `DO (lcName)` and a target built by concatenation are refused by all of them identically rather than
-each rule re-deriving the same evasion. Run over the Watertight corpus the first two report nothing at
-all, and every one of the third's findings names a file that really is absent.
+each rule re-deriving the same evasion.
 
 **A finding can now belong to a file that did not change.** Re-signing a routine in one file moves the
 finding into the files that call it, so the index keeps a reverse map and the open dependents are

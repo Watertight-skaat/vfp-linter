@@ -127,6 +127,8 @@ export class WorkspaceIndex {
   readonly files = new Map<string, FileRecord>();
   /** Every file under the roots, whatever its extension, so `SET CLASSLIB TO x` can find an x.vcx the index cannot read. Keyed by normalised path, valued by the path as written on disk. */
   readonly known = new Map<string, string>();
+  /** The same files keyed by base name, lower-cased, so a name can be looked for anywhere in the tree without walking it. */
+  private readonly knownByBase = new Map<string, string[]>();
   private readonly routinesByKey = new Map<string, RoutineRecord[]>();
   private readonly classesByKey = new Map<string, ClassRecord[]>();
   private readonly constantsByKey = new Map<string, ConstantRecord[]>();
@@ -139,11 +141,18 @@ export class WorkspaceIndex {
   }
 
   addKnown(file: string): void {
-    this.known.set(normalizePath(file), file);
+    const key = normalizePath(file);
+    // The base-name map is what a name nothing else matched falls back to, so a file has to enter it once however often the crawl, an upsert and the watcher each report it.
+    if (!this.known.has(key)) push(this.knownByBase, baseOf(key), file);
+    this.known.set(key, file);
   }
 
   removeKnown(file: string): void {
-    this.known.delete(normalizePath(file));
+    const key = normalizePath(file);
+    if (!this.known.delete(key)) return;
+    const base = baseOf(key);
+    const kept = (this.knownByBase.get(base) ?? []).filter(other => normalizePath(other) !== key);
+    if (kept.length) this.knownByBase.set(base, kept); else this.knownByBase.delete(base);
   }
 
   /**
@@ -236,7 +245,7 @@ export class WorkspaceIndex {
   /**
    * The file a name refers to, or null when nothing in the tree matches.
    *
-   * The name is tried as written and then with each extension the kind defaults to, in the directory of the file that named it, then each workspace root, then each search-path entry -- VFP's own order, with `SET PATH` last.
+   * The name is tried as written and then with each extension the kind defaults to, in the directory of the file that named it, then each workspace root, then each search-path entry -- VFP's own order, with `SET PATH` last -- and finally anywhere under the roots at all, which is what a tree filed by what a file is rather than by who calls it needs.
    */
   resolveFile(name: string, kind: RefKind, fromFile: string): string | null {
     const cleaned = name.trim().replace(/^["']|["']$/g, '');
@@ -250,7 +259,31 @@ export class WorkspaceIndex {
         if (found) return found;
       }
     }
+    // Nothing the name could be relative to holds it, so the last thing tried is the name on its own, anywhere under the roots. FoxPro resolves a file by name over SET PATH and never by folder, and a tree laid out by what a file *is* rather than by who calls it puts the caller and the callee in cousin folders: without this, every #INCLUDE and SET PROCEDURE across such a tree reads as missing. Asking the user to list the folders instead is no answer -- a first open that reports 493 files absent gets the rule turned off, not the setting filled in.
+    for (const candidate of names) {
+      const found = this.nearestNamed(candidate, fromFile);
+      if (found) return found;
+    }
     return null;
+  }
+
+  /**
+   * The known file whose path ends with this relative name, nearest the file that asked.
+   *
+   * The match is on whole segments, so `app\mainset` does not answer with `framework/mainset.prg`. Nearness is only a tie-break: a name spelled in two folders is ambiguous to VFP too, where which one wins depends on the order `SET PATH` was written in, so the one closest to the asking file is as good an answer as there is and at least a stable one.
+   */
+  private nearestNamed(name: string, fromFile: string): string | null {
+    const tail = normalizePath(name).replace(/^\/+/, '');
+    const matches = (this.knownByBase.get(baseOf(tail)) ?? []).filter(file => {
+      const full = normalizePath(file);
+      return full === tail || full.endsWith(`/${tail}`);
+    });
+    if (matches.length < 2) return matches[0] ?? null;
+    const from = normalizePath(dirOf(fromFile));
+    return [...matches].sort((a, b) =>
+      sharedDepth(normalizePath(b), from) - sharedDepth(normalizePath(a), from)
+      || a.length - b.length
+      || (normalizePath(a) < normalizePath(b) ? -1 : 1))[0];
   }
 
   /** A view of the index bound to one file, which is what the rules and the editor requests are handed. */
@@ -359,6 +392,15 @@ function fileKeys(nameOrPath: string): string[] {
   const base = normalizePath(baseOf(nameOrPath));
   const bare = base.replace(/\.[^.]+$/, '');
   return bare === base ? [`file:${base}`] : [`file:${base}`, `file:${bare}`];
+}
+
+/** How many leading segments two normalised paths share, which is how near one file is to another. */
+function sharedDepth(a: string, b: string): number {
+  const left = a.split('/');
+  const right = b.split('/');
+  let i = 0;
+  while (i < left.length && i < right.length && left[i] === right[i]) i++;
+  return i;
 }
 
 function push<T>(map: Map<string, T[]>, key: string, value: T): void {

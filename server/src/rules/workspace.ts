@@ -2,6 +2,7 @@
 // All three consult the index through ctx.workspace, and all three stay silent without one rather than reporting on half the evidence. `too-many-arguments` is the exception that still works alone, because a call and the routine it names are usually in the same file and ctx.record holds this file either way.
 
 import type { AstNode, DoStatement, Expr } from '../ast.js';
+import { isBuiltin } from '../builtins.js';
 import { isDynamic, staticName } from '../dynamic.js';
 import { baseOf, normalizePath, upper, type RefKind, type RoutineRecord } from '../index.js';
 import { onFile, Severity, walk, type RelatedLocation, type RuleContext } from '../rule.js';
@@ -22,12 +23,15 @@ export const tooManyArguments = onFile({
     const variables = new Set<string>();
     for (const scope of ctx.table.scopes) for (const key of scope.symbols.keys()) variables.add(key);
 
+    // A routine whose name is a built-in is never what a call of that name reaches: FoxPro answers with its own function first. The framework has carried `FUNCTION VARTYPE` since the 1990s and legacy275 has `PROCEDURE DATETIME` beside it, and measuring calls against those two was 73% of everything this rule reported on the Watertight tree.
+    const reachable = (routine: RoutineRecord) => !isBuiltin(routine.name);
+
     walk(ctx.ast, node => {
       const call = callOf(node);
       if (!call || variables.has(upper(call.name))) return;
 
-      const here = local.get(upper(call.name)) ?? [];
-      const declared = here.length ? here : ctx.workspace?.routines(call.name).filter(r => !r.owner) ?? [];
+      const here = (local.get(upper(call.name)) ?? []).filter(reachable);
+      const declared = here.length ? here : ctx.workspace?.routines(call.name).filter(r => !r.owner && reachable(r)) ?? [];
       // Nothing to measure against. What to say about a name nothing defines belongs to a rule that knows the built-ins.
       const takes = declared.length ? Math.max(...declared.map(r => r.params.length)) : fileParameters(ctx, call);
       if (takes === null || call.argc <= takes) return;
