@@ -46,7 +46,7 @@ Three rules know how to fix themselves, and the lightbulb offers it: `implicit-p
 
 ### Across the workspace
 
-The extension indexes every `.prg`, `.mpr`, `.spr` and `.h` in your workspace folders, so it can answer questions about code in a file you do not have open:
+The extension indexes every `.prg`, `.mpr`, `.spr` and `.h` in your workspace folders, so it can answer questions about code in a file you do not have open. A `.h` is read for the `#DEFINE`s that `#INCLUDE` pulls in and is never checked as a program, so a C header included for its constants reports nothing:
 
 - **Go to Definition** (F12) on a `DO`, a call, an `#INCLUDE`, a `SET PROCEDURE TO` or a `SET CLASSLIB TO` jumps to it. A routine defined in the same file wins, then one in a library the file loads with `SET PROCEDURE`, then the rest of the tree — the order FoxPro itself resolves them in.
 - **Hover** shows the signature, the parameter names, and the comment block written above the routine, which is what VFP code carries instead of documentation. A `#DEFINE` shows its value.

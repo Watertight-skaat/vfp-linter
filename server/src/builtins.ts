@@ -1,4 +1,5 @@
-// VFP's own functions, by name. FoxPro resolves an intrinsic before it looks for a user routine, so a routine named like one is unreachable: a `VARTYPE(m.x)` call never arrives at the `FUNCTION VARTYPE` the framework has carried since the 1990s, and nothing may resolve to it.
+// VFP's own names: the functions it answers itself, and the system memory variables it creates before any code runs.
+// The functions, first. FoxPro resolves an intrinsic before it looks for a user routine, so a routine named like one is unreachable: a `VARTYPE(m.x)` call never arrives at the `FUNCTION VARTYPE` the framework has carried since the 1990s, and nothing may resolve to it.
 // Only names that really are functions belong here. A command word is not enough -- REPLACE and SCATTER are statements with no function of the same name, and a routine may be called either -- because every name listed silences a finding that would otherwise be made.
 
 /** Every built-in function name, upper-cased, split from one string so the list reads as a list rather than as a thousand lines of quotes. */
@@ -46,6 +47,21 @@ YEAR
 `.split(/\s+/).filter(Boolean);
 
 export const builtins: ReadonlySet<string> = new Set(names);
+
+// VFP's system memory variables, the underscore-prefixed set. They exist before a line of code runs, so a write to one creates no PRIVATE and there is no declaration that would satisfy implicit-private -- `LOCAL _curobj` does not compile. The list is the test rather than the underscore: a user variable may be spelled `_lcMine`, and that one really is an undeclared private.
+const systemNames = `
+_ALIGNMENT _ASCIICOLS _ASCIIROWS _ASSIST _BEAUTIFY _BOX _BROWSER _BUILDER _CALCMEM _CALCVALUE _CLIPTEXT _CODESENSE _CONVERTER
+_COVERAGE _CUROBJ _DBLCLICK _DIARYDATE _DOS _FOXCODE _FOXDOC _FOXGRAPH _FOXREF _FOXTASK _GALLERY _GENGRAPH _GENHTML _GENMENU
+_GENPD _GENSCRN _GENXTAB _GETEXPR _INCLUDE _INDENT _LMARGIN _MAC _MENUDESIGNER _MLINE _PADVANCE _PAGENO _PBPAGE _PCOLNO _PCOPIES
+_PDPARMS _PDRIVER _PDSETUP _PECODE _PEJECT _PEPAGE _PFORM _PLENGTH _PLINENO _PLOFFSET _PPITCH _PQUALITY _PRETEXT _PSCODE
+_PSPACING _PWAIT _REPORTBUILDER _REPORTOUTPUT _REPORTPREVIEW _RMARGIN _RUNACTIVEDOC _SAMPLES _SCCTEXT _SCREEN _SHELL _SPELLCHK
+_STARTUP _TABS _TALLY _TASKPANE _TEXT _THROTTLE _TRANSPORT _TRIGGERLEVEL _UNIX _VFP _WINDOWS _WIZARD _WRAP
+`.split(/\s+/).filter(Boolean);
+
+export const systemVariables: ReadonlySet<string> = new Set(systemNames);
+
+/** Whether VFP creates this name itself, which makes an assignment to it a write to something that already exists rather than a declaration. */
+export const isSystemVariable = (name: string) => systemVariables.has(name.toUpperCase());
 
 /** Whether VFP answers this name itself, which makes a user routine of the same name dead weight in the tree rather than something the rest of the code reaches. */
 export const isBuiltin = (name: string) => builtins.has(name.toUpperCase());

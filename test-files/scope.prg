@@ -192,3 +192,16 @@ PROCEDURE ConsoleInput
 	ACCEPT m.lcPrompt TO lcCity
 	RETURN m.lcName + m.lcCity
 ENDPROC
+
+* VFP's own system memory variables. _CUROBJ, _TALLY, _PAGENO and the rest of the underscore set exist
+* before any code runs, so a write to one creates nothing and there is no declaration that would satisfy
+* implicit-private -- LOCAL _curobj is a syntax error. _lcMine only looks like one: the underscore alone
+* is not the test, so an undeclared name outside the set is still an implicit PRIVATE.
+PROCEDURE SystemVariables
+	LPARAMETERS tnObject
+	_curobj = m.tnObject
+	_pageno = 1
+	_screen.Caption = "Watertight"
+	_lcMine = _tally
+	RETURN m.tnObject > 0 AND _tally = 0
+ENDPROC

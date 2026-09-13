@@ -3,3 +3,4 @@
 20:2 warning implicit-private 'lnI' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
 128:3 warning implicit-private 'lnSeen' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
 192:2 warning implicit-private 'lcCity' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
+205:2 warning implicit-private '_lcMine' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE

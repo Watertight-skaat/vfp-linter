@@ -2,7 +2,7 @@
 // This file deliberately creates no language-server connection, so the test scripts can import it directly.
 
 import type { AstNode, AstNodeType, Loc, Program } from './ast.js';
-import { extract, type FileRecord, type WorkspaceIndex, type WorkspaceView } from './index.js';
+import { extract, isHeaderFile, scanHeader, type FileRecord, type WorkspaceIndex, type WorkspaceView } from './index.js';
 import { parse } from './parser.js';
 import { rules } from './rules/index.js';
 import { buildSymbolTable } from './scope.js';
@@ -17,6 +17,8 @@ export interface LinterOptions {
   unsupportedSyntaxSeverity?: SeverityName;
   /** The rest of the tree, and which file this text is. Absent, every cross-file rule stays silent. */
   workspace?: { index: WorkspaceIndex; file: string };
+  /** Which file the text is, when there is no workspace to say so. What it is named decides whether it is read as a program at all. */
+  file?: string;
 }
 
 export interface LintResult {
@@ -35,6 +37,10 @@ export const ruleDefaults: ReadonlyArray<{ code: string; severity: SeverityName;
 
 export function lint(text: string, options: LinterOptions = {}): LintResult {
   const lines = text.split(/\r\n|\r|\n/);
+  const file = options.file ?? options.workspace?.file ?? '';
+  // A header is not a program. Its #DEFINEs are what #INCLUDE is for, and the rest of it -- a Windows C header, most of the time -- is never compiled, so it is scanned for what it defines and reports nothing it cannot read.
+  if (isHeaderFile(file)) return { diagnostics: [], ast: null, record: scanHeader(file, text) };
+
   let ast: Program;
   try {
     ast = parse(text) as Program;
@@ -48,7 +54,7 @@ export function lint(text: string, options: LinterOptions = {}): LintResult {
     return severity === null ? [] : [{ rule, severity }];
   });
   // Extracted once and shared: the rules read it for this file's own routines, and the caller puts it back in the index so an unsaved edit is what the next file sees. Without a workspace the file has no path to be known by, which only matters to the rules that compare files, and those need the index anyway.
-  const record = extract(options.workspace?.file ?? '', ast, lines);
+  const record = extract(file, ast, lines);
   const workspace: WorkspaceView | undefined = options.workspace?.index.viewFor(options.workspace.file);
   const ctxBase = { ast, table: buildSymbolTable(ast), lines, eol: text.includes('\r\n') ? '\r\n' : '\n', record, workspace };
   const contexts = active.map(({ rule, severity }) => {

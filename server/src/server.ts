@@ -3,7 +3,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { lint, type Fix, type LintDiagnostic, type SeverityName } from './linter.js';
-import { extract, normalizePath, WorkspaceIndex, type FileRecord } from './index.js';
+import { extract, isHeaderFile, normalizePath, scanHeader, WorkspaceIndex, type FileRecord } from './index.js';
 import { completionsAt, definitionAt, hoverAt, referencesAt, signatureAt, workspaceSymbols, type CompletionSort, type Location, type SymbolSort } from './navigation.js';
 import { buildSymbolTable, openAliasesOf, type SymbolTable } from './scope.js';
 import { documentSymbols, foldingRanges } from './outline.js';
@@ -246,7 +246,7 @@ const trees = new Map<string, { version: number; ast: Program | null; record?: F
 function treeFor(document: TextDocument): Program | null {
 	const cached = trees.get(document.uri);
 	if (cached && cached.version === document.version) return cached.ast;
-	const { ast } = lint(document.getText());
+	const { ast } = lint(document.getText(), { file: fileOf(document.uri) });
 	trees.set(document.uri, { version: document.version, ast });
 	return ast;
 }
@@ -263,7 +263,9 @@ function entryFor(document: TextDocument) {
 /** This document's own definitions and references, from the cached parse when there is one. */
 function recordFor(document: TextDocument): FileRecord {
 	const entry = entryFor(document);
-	if (!entry.record) entry.record = extract(fileOf(document.uri), entry.ast, linesOf(document));
+	const file = fileOf(document.uri);
+	// A header has no tree to extract from, so its #DEFINEs come from the scan -- otherwise hovering a constant in the file that defines it would find nothing.
+	if (!entry.record) entry.record = isHeaderFile(file) ? scanHeader(file, document.getText()) : extract(file, entry.ast, linesOf(document));
 	return entry.record;
 }
 

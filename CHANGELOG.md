@@ -57,6 +57,22 @@ each rule re-deriving the same evasion.
 finding into the files that call it, so the index keeps a reverse map and the open dependents are
 re-linted when a definition's arity, existence or home changes.
 
+### A `.h` is not a program, and `_TALLY` is not yours
+
+**A header file is scanned rather than parsed.** A `.h` is what `#INCLUDE` is for: its `#DEFINE`s are
+indexed and its lines are never compiled as FoxPro. One Windows C header read as a program accounted for
+4891 of the 9105 unsupported-syntax findings on the Watertight tree -- and parsing it also *lost* the
+constants it was indexed for, because they sit behind an `#ifndef` and only the file level is extracted,
+so promoting the tree took Go to Definition on every one of them away. A header is now read the same way
+at either tier, is left out of the background promotion, and reports nothing.
+
+**`implicit-private` no longer fires on VFP's own memory variables.** `_CUROBJ`, `_TALLY`, `_PAGENO` and
+the rest of the underscore set exist before a line of code runs, so an assignment to one creates nothing
+and the `LOCAL _curobj` the rule suggested would not compile -- 47 findings, none of them actionable. The
+list is the test rather than the underscore, so a variable of your own spelt `_lcMine` is still an
+undeclared private. Reading one is recorded now as well: the grammar returns any leading-underscore name
+as a node of its own, and the symbol table had been dropping it on the floor.
+
 ### The workspace, not just the file
 
 Until now nothing in the server knew another file existed. It now indexes every `.prg`, `.mpr`, `.spr`

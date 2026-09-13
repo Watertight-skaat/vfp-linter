@@ -3,7 +3,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { extract, normalizePath, scanHeader, WorkspaceIndex, type FileRecord } from './index.js';
+import { extract, isHeaderFile, normalizePath, scanHeader, WorkspaceIndex, type FileRecord } from './index.js';
 import { parse } from './parser.js';
 import type { Program } from './ast.js';
 
@@ -88,7 +88,8 @@ export function readRecord(file: string, tier: 1 | 2): FileRecord | null {
 
 /** The record for text already in hand -- an open document, or a fixture the tests hold as a string. */
 export function recordFrom(file: string, text: string, stat: { mtime: number; size: number }, tier: 1 | 2): FileRecord {
-  if (tier === 1) return scanHeader(file, text, stat);
+  // A header is scanned whichever tier was asked for: it is not FoxPro, and parsing one both invents findings and loses the #DEFINEs it is indexed for, since those sit inside a #IF fence and only the file level is extracted.
+  if (tier === 1 || isHeaderFile(file)) return scanHeader(file, text, stat);
   let ast: Program | null = null;
   try {
     ast = parse(text) as Program;
@@ -136,7 +137,8 @@ export interface PromotionOptions {
 
 /** Reads every file still at tier 1 with the parser. Returns the files it actually parsed, which is what makes "the cache spared us the work" a thing a test can assert. */
 export async function promoteToTier2(index: WorkspaceIndex, options: PromotionOptions = {}): Promise<{ parsed: string[] }> {
-  const pending = [...index.files.values()].filter(record => record.tier === 1).map(record => record.file);
+  // A header has nothing more to give a parse, so it stays at tier 1 rather than being read a second time to no end.
+  const pending = [...index.files.values()].filter(record => record.tier === 1 && !isHeaderFile(record.file)).map(record => record.file);
   const parsed: string[] = [];
   for (let i = 0; i < pending.length; i++) {
     if (options.cancelled?.()) break;

@@ -3,6 +3,7 @@
 // The scope-dependent rules (implicit PRIVATE from an undeclared assignment, unused LOCAL, a missing m. prefix on a name that is also a field, work-area handling) all read this structure instead of re-walking the tree themselves.
 
 import type { AstNode, DefineClass, Expr, Loc, ProcedureStatement, Program, SelectStatement, Statement } from './ast.js';
+import { isSystemVariable } from './builtins.js';
 import { walk } from './rule.js';
 
 /** Which statement brought the name into being. */
@@ -13,6 +14,7 @@ export type SymbolKind =
   | 'parameter'  // LPARAMETERS / PARAMETERS / FUNCTION f(a, b)
   | 'dimension'  // DIMENSION -- private to the routine unless a LOCAL of the same name precedes it
   | 'property'   // assigned directly in a DEFINE CLASS body
+  | 'system'     // one of VFP's own memory variables: _TALLY, _CUROBJ, _SCREEN. It exists before the file runs, so nothing here created it and nothing could declare it
   | 'implicit';  // never declared: a write creates a PRIVATE at runtime, a read may belong to the caller, to a field of an open table, or to a typo
 
 export type ScopeKind = 'main' | 'procedure' | 'function' | 'method' | 'class';
@@ -36,7 +38,7 @@ export interface SymbolEntry {
   /** The AS clause of the declaration, when it had one. */
   declaredType: string | null;
   isArray: boolean;
-  /** The declaring statement. Null for 'implicit'. */
+  /** The declaring statement. Null for 'implicit' and 'system'. */
   declaredAt: Loc | null;
   reads: SymbolRef[];
   writes: SymbolRef[];
@@ -148,7 +150,7 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
       entry = {
         name: parsed.name,
         declaredAs: parsed.text,
-        kind: 'implicit',
+        kind: isSystemVariable(parsed.name) ? 'system' : 'implicit',
         declaredType: null,
         isArray: false,
         declaredAt: null,
@@ -434,6 +436,8 @@ export function buildSymbolTable(ast: Program | null | undefined): SymbolTable {
 
       // --- expressions ---
       case 'Identifier':
+      // Any name opening with an underscore, which is how the grammar returns a read of one of VFP's own. Whether it really is one is the symbol table's business: `_lcMine` is spelt like one and is not.
+      case 'ImplicitGlobal':
         reference(scope, node.name, 'read', at);
         return;
       case 'MemberExpression':

@@ -261,6 +261,25 @@ check('a query narrows them, prefix first', workspaceSymbols({ index: basic }, '
 check('a symbol carries the shape the editor groups by',
 	workspaceSymbols({ index: basic }, 'Describe').map(s => `${s.sort}${s.detail}`), ['function(tcAccount, tnWidth)']);
 
+// --- header files ------------------------------------------------------------
+// A .h is a constant file, not a program: #INCLUDE pulls its #DEFINEs in and nothing ever compiles its lines. One Windows C header read as FoxPro accounted for 4891 of the 9105 unsupported-syntax findings on the Watertight tree, and parsing it also lost the constants it was indexed for, because its #DEFINEs sit inside an #ifndef and only the file level is extracted. So a header is scanned for its definitions at either tier and reports nothing.
+
+const headerDir = './test-files/workspace/header-file';
+const headerFile = path.resolve(headerDir, 'winuser.h');
+const headerText = read(headerFile);
+const headerConstants = ['MB_ICONSTOP', 'MB_OK', 'WM_CLOSE', 'WM_PAINT', 'WS_OVERLAPPED', '_WINUSER_'];
+
+check('a header file reports nothing, whatever its lines say',
+	lint(headerText, { unsupportedSyntaxSeverity: 'error', file: headerFile }).diagnostics.map(d => format(d)), []);
+check('what the linter takes from one is its constants', names(lint(headerText, { file: headerFile }).record!.constants), headerConstants);
+check('and a parse is never asked for, so the second tier reads the same thing',
+	names(recordFrom(headerFile, headerText, { mtime: 0, size: 0 }, 2).constants), headerConstants);
+
+const headerIndex = await buildIndex({ roots: [headerDir], yieldEvery: 0 });
+check('a constant of an included header resolves from the file that includes it',
+	headerIndex.constantsNamed('MB_OK').map(c => path.basename(c.file)), ['winuser.h']);
+check('promotion leaves a header where it is', (await promoteToTier2(headerIndex)).parsed.map(f => path.basename(f)), ['main.prg']);
+
 // --- the header scan against the parser --------------------------------------
 // The regex is what makes indexing a large tree possible, and it is the thing most likely to drift. Every fixture in the repository is read both ways and the two must agree on what the file defines and what it names.
 // A fixture that records a parse gap is left out: the parser is known not to read it, so holding the scan to it would only assert that the regex is broken in the same place. Those files are where the two legitimately disagree -- `gap-keyword-as-routine-name.prg` is indexed at tier 1 and loses its methods at tier 2 -- and that divergence is tracked in TODO.md rather than frozen here.

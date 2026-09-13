@@ -90,6 +90,11 @@ export function normalizePath(file: string): string {
   return file.replace(/\\/g, '/').toLowerCase();
 }
 
+/** Whether this path is a header file. A .h is a constant file rather than a program: #INCLUDE pulls its #DEFINEs in and nothing ever compiles its lines, so it is scanned for what it defines and never parsed as FoxPro. */
+export function isHeaderFile(file: string | undefined | null): boolean {
+  return !!file && file.toLowerCase().endsWith('.h');
+}
+
 export function dirOf(file: string): string {
   const at = file.replace(/\\/g, '/').lastIndexOf('/');
   return at < 0 ? '' : file.replace(/\\/g, '/').slice(0, at);

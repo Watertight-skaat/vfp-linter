@@ -40,7 +40,8 @@ check('scopes found', table.scopes.map(s => `${s.name}:${s.kind}`), [
 	'ComputedAreas:procedure',
 	'Purging:procedure',
 	'LegacyMenu:procedure',
-	'ConsoleInput:procedure'
+	'ConsoleInput:procedure',
+	'SystemVariables:procedure'
 ]);
 check('main is the root', table.main.name, '(main)');
 check('methods hang off the class', scope('Widget').children.map(c => c.name), ['Widget.Init', 'Widget.Label']);
@@ -196,5 +197,17 @@ check('the Xbase form reaches its FOR', shape('Purging', 'LNFLOOR'),
 check('unqualified names in a DELETE are marked as SQL context',
 	['BATCH_ID', 'QTY'].map(n => { const r = sym('Purging', n)?.reads ?? []; return [r.length, r[0]?.sqlContext]; }),
 	[[1, true], [1, true]]);
+
+// --- VFP's own system memory variables -------------------------------------
+// The underscore set exists before any code runs, so a write to one creates no private and there is no declaration a user could add: the suggested LOCAL _curobj would not compile. They are booked as 'system' so that every rule reading the table sees a name that was already there rather than one this file invented.
+check('a system memory variable is not a name the file created', shape('SystemVariables', '_CUROBJ'),
+	{ kind: 'system', type: null, array: false, declared: false, reads: 0, writes: 1 });
+check('reading one is still a read', shape('SystemVariables', '_TALLY'),
+	{ kind: 'system', type: null, array: false, declared: false, reads: 2, writes: 0 });
+check('setting a member of one reads the object rather than writing the name', shape('SystemVariables', '_SCREEN'),
+	{ kind: 'system', type: null, array: false, declared: false, reads: 1, writes: 0 });
+// The underscore is not the test. A name outside the set is an ordinary undeclared variable and still earns its finding.
+check('a name that merely starts with an underscore is not one of them', shape('SystemVariables', '_LCMINE'),
+	{ kind: 'implicit', type: null, array: false, declared: false, reads: 0, writes: 1 });
 
 report('Scope checks');
