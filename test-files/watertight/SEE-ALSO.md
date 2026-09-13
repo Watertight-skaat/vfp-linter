@@ -270,7 +270,16 @@ mid-edit — worth deleting rather than fixing.
   production code. VFP runs the first, so the behaviour is right and the second branch is empty; it
   is dead code rather than a bug, but anything added under it would never run.
 
-One of the 47 is still unattributed: **`wt\AAprg\WTMOBILEPROCESS.prg`**, which fails on the
-`ENDIF` at 3403 inside `SaveInfoFields`. The procedure balances on a keyword count, none of the
-thirteen constructs appears in it, and every individual expression in it parses on its own. Left
-open rather than guessed at.
+The last of the 47, **`wt\AAprg\WTMOBILEPROCESS.prg`**, is attributed now. It was left open because
+the errors are reported against the `ENDIF` at 3403 inside `SaveInfoFields`, and that procedure
+balances on a keyword count, contains none of the thirteen constructs, and parses clean when it is
+linted on its own -- which is exactly what made it look inexplicable.
+
+The cause is 78 lines above it: **a stray apostrophe after the `ENDFOR` at line 3325**. FoxPro ends a
+string literal at the newline, the grammar lets one run on, and this one ran to the next quote in the
+file, swallowing the `ENDPROC` and the `PROCEDURE SaveInfoFields` header along the way. That is why
+nothing *in* the procedure explained the failure: the procedure was never the problem, and the lines
+the quote ate reported nothing at all on their way past. See
+`diagnostics/gap-string-spans-lines.prg` and the grammar section of `TODO.md`.
+
+The stray apostrophe itself is a typo in the Watertight source and belongs on list 1 above.

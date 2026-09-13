@@ -1,0 +1,8 @@
+5:4 warning too-many-arguments 'VARTYPE' takes 0 parameters, but 1 are passed. FoxPro raises "Too many arguments" at run time.
+-> moseslib.prg:3:1 'VARTYPE' is declared here
+6:4 warning too-many-arguments 'DATETIME' takes 0 parameters, but 1 are passed. FoxPro raises "Too many arguments" at run time.
+-> moseslib.prg:7:1 'DATETIME' is declared here
+7:4 warning too-many-arguments 'DATETIME' takes 0 parameters, but 6 are passed. FoxPro raises "Too many arguments" at run time.
+-> moseslib.prg:7:1 'DATETIME' is declared here
+11:1 warning too-many-arguments 'Announce' takes 1 parameter, but 2 are passed. FoxPro raises "Too many arguments" at run time.
+-> caller.prg:15:1 'Announce' is declared here

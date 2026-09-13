@@ -1,0 +1,1 @@
+7:26 error unterminated-block This opens a block that could not be parsed. Check for a missing ENDFOR or NEXT: 'FOR mosnum = mosb_temp.mosnum .or. pmnum = mosb_temp.mosnum'

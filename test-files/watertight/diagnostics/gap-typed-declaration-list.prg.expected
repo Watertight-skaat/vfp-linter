@@ -1,0 +1,2 @@
+3:36 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '.FileSystemObject, loEx AS Exception'
+7:1 warning implicit-private 'loEx' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE

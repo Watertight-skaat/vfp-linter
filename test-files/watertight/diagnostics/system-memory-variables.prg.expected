@@ -1,0 +1,2 @@
+6:1 warning implicit-private '_curobj' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
+8:1 warning implicit-private '_pageno' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE

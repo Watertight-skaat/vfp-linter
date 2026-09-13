@@ -55,6 +55,25 @@ gaps that need surrounding code to show what they cost get a fixture of their ow
 
 ## See also
 
+### The 2026-09-13 pass over `W:\Devstaging2`
+
+The tree moved and was relaid out: 1602 indexed files in one repository, laid out by what a file is
+rather than by which product it came from. `bun run lint:dir W:\Devstaging2` over it returned 31882
+findings, and sorting those produced the second wave of `gap-*.prg` fixtures here plus two workspace
+cases under `test-files/workspace/`.
+
+The gaps that wave found, worst first: a string literal that crosses a line break and silently eats
+everything to the next quote; keywords abbreviated to four characters (`ENDI`, `DELE`, `ACTI`);
+`#IF .F.` bodies parsed as code; `REPLACE` with a computed target; a keyword as a routine name or a
+`CASE` subject; `DELETE ... IN <alias> FOR`; a bare `USE` with a trailing `&&` comment;
+`AS <dotted.Type>` in a declaration list; the SQL `?` parameter marker; `&alias..field`; and a table
+named by an expression.
+
+Three of the fixtures record a *rule* being wrong rather than the grammar --
+`system-memory-variables.prg`, and the workspace cases `builtin-shadowing/` and
+`resolve-across-tree/`. Their expectations record the false positive, so fixing the rule empties the
+file rather than editing it. `TODO.md` carries the counts and the reasoning.
+
 `SEE-ALSO.md` lists what the Watertight source turned up: suspected defects in that codebase, and
 the grammar gaps this corpus uncovered. Its first half came from reading; its second half came from
 running the linter over all 1747 `.prg` files in that tree and sorting the 47 whole-file parse

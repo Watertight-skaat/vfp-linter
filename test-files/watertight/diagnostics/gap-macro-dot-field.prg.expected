@@ -1,0 +1,3 @@
+5:27 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '..mosid, &cTableWebSyncAlias..currlogmos AS clogmos ;'
+6:2 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'FROM (m.cTableWebSyncAlias) ;'
+7:2 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'INTO CURSOR WebSyncRecordSet READWRITE NOFILTER'

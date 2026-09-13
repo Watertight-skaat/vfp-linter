@@ -1,0 +1,5 @@
+8:1 error unterminated-block This opens a block that could not be parsed. Check for a missing ENDCASE: 'DO CASE'
+9:2 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'CASE SELECT = "X"'
+11:2 error syntax-error There is no DO CASE open here for this OTHERWISE to belong to.
+13:1 error syntax-error There is no DO CASE open here for this ENDCASE to belong to.
+15:1 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'store select (0) to p_prarea'

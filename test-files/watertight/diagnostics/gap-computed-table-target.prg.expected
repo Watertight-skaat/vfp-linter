@@ -1,0 +1,3 @@
+5:1 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'UPDATE (m.cTable) SET stnum = "00001" WHERE EMPTY(stnum)'
+7:1 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'ALTER TABLE (m.cTable) ADD COLUMN qbid C(20)'
+9:1 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'CREATE CURSOR &cTable. (mosnum C(8), stnum C(5))'

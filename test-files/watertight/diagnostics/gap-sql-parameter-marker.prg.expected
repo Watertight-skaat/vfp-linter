@@ -1,0 +1,3 @@
+5:1 warning select-without-into This query has nowhere to put its result, so VFP sends the whole result set to a Browse window at run time. Add INTO CURSOR, INTO TABLE, INTO ARRAY, or TO FILE.
+6:16 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '= ?lcAcctnum ;'
+7:2 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'INTO CURSOR Found'

@@ -1,0 +1,6 @@
+6:1 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'REPLACE ("I" + QBCustom.mosnum) ;'
+7:2 error unterminated-block This opens a block that could not be parsed. Check for a missing ENDWITH: 'WITH m.InfVal ;'
+8:2 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'IN (m.cCursorName)'
+10:1 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'replace ;'
+11:25 error unterminated-block This opens a block that could not be parsed. Check for a missing ENDWITH: 'WITH MOD(m.nTranNumber, 99999) + 1 ;'
+12:2 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'IN invcount'

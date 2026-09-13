@@ -1,0 +1,4 @@
+4:10 warning missing-file No header file named 'EMAILLIB.h' in the workspace.
+6:18 warning missing-file No procedure file named 'mainset' in the workspace.
+7:17 warning missing-file No class library named 'QbInt' in the workspace.
+9:1 warning missing-file No form named 'datasrch' in the workspace.
