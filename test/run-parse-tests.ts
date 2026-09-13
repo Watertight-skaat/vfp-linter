@@ -564,4 +564,20 @@ check('a quoted one is still a string', first('DO FORM "myform"').target, { type
 check('and the clauses behind the name still read',
 	(({ target, arguments: a, to }) => [target, a.map((x: any) => x.name), to])(first('DO FORM testform WITH param1, param2 TO varname')), ['testform', ['param1', 'param2'], 'varname']);
 
+// --- a routine named after a command word -------------------------------------
+// The name position is a name, not a command word. `PROCEDURE declare` and `PROCEDURE use` are how the Windows-API wrappers name their setup and teardown, and rejecting the header inside DEFINE CLASS orphaned its ENDPROC and the ENDDEFINE with it, so the class stopped being indexed at all -- promoting such a file to tier 2 *removed* the symbols the header scan had found.
+const routine = (src: string) => { const r = first(src); return `${r.type}:${r.name}${r.isFunction ? '!' : ''}`; };
+const words = ['declare', 'use', 'select', 'replace', 'store', 'error'];
+check('a command word can name a procedure',
+	words.map(n => routine(`PROCEDURE ${n}\nRETURN\nENDPROC`)), words.map(n => `ProcedureStatement:${n}`));
+check('and a function, parameters and all', routine('FUNCTION use(tcAlias)\nRETURN .t.\nENDFUNC'), 'ProcedureStatement:use!');
+check('the access word in front of one still reads', first('PROTECTED PROCEDURE declare\nENDPROC').access, 'PROTECTED');
+check('a class keeps its methods, and its ENDDEFINE',
+	first('DEFINE CLASS Crypto AS Session\nPROTECTED PROCEDURE declare\nENDPROC\nPROCEDURE use\nENDPROC\nENDDEFINE').body.map((m: { name: string }) => m.name),
+	['declare', 'use']);
+// The words are names only where a name is expected. Everywhere else they open their own statement, which is what a permissive name position must not cost.
+check('the same words still open their own statements',
+	types('USE customer\nDECLARE INTEGER Sleep IN win32api\nSELECT 0\nSTORE 0 TO x'),
+	['UseStatement', 'DeclareStatement', 'SelectStatement', 'StoreStatement']);
+
 report('Parse checks');

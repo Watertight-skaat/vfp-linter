@@ -2605,7 +2605,7 @@ ExpressionList
 // 1) PROCEDURE Name [ LPARAMETERS p1, p2, ... ]   Commands [ RETURN expr ] [ ENDPROC ]
 // 2) PROCEDURE Name( [ p1 [ AS type ] [, p2 [ AS type ] ... ] ) [ AS returntype ]  Commands [ RETURN expr ] [ ENDPROC ]
 ProcedureStatement "procedure"
-  = access:(a:("PROTECTED"i / "HIDDEN"i) WB _ { return a.toUpperCase(); })? cw:("PROCEDURE"i / "FUNCTION"i) WB __ name:Identifier _ proc:(
+  = access:(a:("PROTECTED"i / "HIDDEN"i) WB _ { return a.toUpperCase(); })? cw:("PROCEDURE"i / "FUNCTION"i) WB __ name:RoutineName _ proc:(
       // function-style parameter list with optional typed params and optional return type
       "(" _ params:ProcedureParamList? _ ")" _ retPart:(_ "AS"i WB __ rt:IdentifierOrString)? __ statements:RoutineBody end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
         return node("ProcedureStatement", {
@@ -2843,6 +2843,10 @@ Identifier
 
 KeywordOrIdentifier
   = Keyword / Identifier
+
+// The name of a routine is a name, whatever else the word means. `PROCEDURE declare` and `PROCEDURE use` are how the Windows-API wrappers name their setup and teardown, and `PROCEDURE error` -- the standard VFP error method -- only parsed because ERROR happens not to be in the list. Refusing the header inside DEFINE CLASS orphaned its ENDPROC and the ENDDEFINE with it, so the class stopped being indexed entirely. Nothing is ambiguous here: PROCEDURE and FUNCTION are always followed by the name.
+RoutineName "routine name"
+  = $([a-zA-Z_][a-zA-Z0-9_]*)
 
 // After a dot a keyword is just a name: .To, .From, .Class and .Select are all real properties, and refusing them cut the reference short and left the rest of the line to the catch-all. The dot operators are the exception, and the closing dot is what tells them apart -- `.AND.`, `.T.` and `.NULL.` are the operator or the literal, never a member, while `.Additive` and `.Note` are members.
 MemberName

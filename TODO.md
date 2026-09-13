@@ -1,8 +1,10 @@
-# TODO
+# TODO List
+
+Remove items once addressed.
 
 ## Editor
 
-- **Hover over a variable** — the routine-level features landed with the workspace index, but hovering a *variable* still shows nothing. Its declaration and inferred type are both in the symbol table already; this is the one part of the original item the index did not cover.
+- **Hover over a variable** — it would be nice to see original declared type and other useful information
 - **Misc "Quick fixes"** — `empty-branch` (remove the branch), `try-without-catch` (add `CATCH TO loErr`), `select-without-into` (append `INTO CURSOR`, naming it after the first table). Same shape as the three that exist: a title and the edits, carried on the diagnostic.
 
 ## Potential Rules
@@ -12,28 +14,20 @@
 - **Hungarian notation vs. actual use** — opt-in, off by default. VFP convention encodes scope (`l`/`t`/`g`/`p`) then type (`c n l d t o a`). The valuable check is not "does the name match a regex" but does the prefix match what's assigned — `lcCount = 0` declares a character variable and stores a number. The symbol table holds the declared type and every write site; the literal's type comes free from the node.
 - **String `=` under SET EXACT OFF** — opt-in, off by default, or drop it. VFP's default makes `=` a prefix comparison that stops at the end of the right-hand operand, and it never errors. Run unsuppressed over the corpus it fires 42 times, roughly two of them real, so it needs four suppressions before it's shippable: skip fixed-width function returns (`TYPE(x) = "C"`, 13 hits), skip single-character literals (`m.cType = "M"`, 11), treat SQL separately (governed by `SET ANSI`, not `SET EXACT`, 11), and skip xbase scope clauses (`LOCATE FOR c = "P"`, 3). A rule that needs that many heuristics to be quiet will be turned off by every user who meets it. Now that `foxpro.rules` exists, "off by default" costs nothing.
 
-## False positives found on W:\Devstaging2
-
-A run of `bun run lint:dir W:\Devstaging2` on 2026-09-13 — 1602 files, 31882 findings — sorted into what follows. Everything here is pinned by a fixture that records the *wrong* behaviour, so fixing one empties its expectation rather than editing it. These come before the grammar items: a rule that cries wolf 1800 times gets switched off, and a rule nobody has on catches nothing.
-
-Four of the five are fixed, and their fixtures now record the silence rather than the finding. **`too-many-arguments`** no longer resolves a call to a routine that merely shares a built-in's name -- FoxPro answers `VARTYPE()` with its own function whatever the tree holds -- which was 1748 of the rule's 2466 findings. **`missing-file`** now falls back to the name on its own anywhere under the roots after the calling file's folder, the workspace roots and the search path have all missed, which was all 493 of its findings; over `test-files` read as one tree the two together drop 300 findings to 247. **`.h` files** are scanned for their `#DEFINE`s at either tier instead of being parsed as programs, which was 4891 of the 9105 unsupported-syntax findings and, as the fixture turned up, was also *losing* the constants a header is indexed for: they sit behind an `#ifndef` and only the file level is extracted, so promoting a tree took Go to Definition on every one of them away. **`implicit-private`** knows VFP's own memory variables by name -- the underscore alone is not the test, so `_lcMine` still earns its finding -- which was 47.
-
-- **The tier-1 header scan and the parser disagree where the parse fails** — `gap-keyword-as-routine-name.prg` indexes `Crypto.DECLARE` and `Crypto.USE` at tier 1 and loses both at tier 2, so promoting a file *removes* symbols and Go to Definition stops working on a file that worked a moment ago. The parity assertion in `run-workspace-tests.ts` now skips fixtures that record a parse gap, which is why the suite is green; the divergence itself is real and goes away when the grammar item below is fixed.
-
 ## Grammar coverage
 
-The same run turned up the statements below, each pinned by a fixture under `test-files/watertight/diagnostics/`. They are ordered by what they cost rather than by how often they appear: a statement that announces itself costs one line, while one that opens a block the grammar then cannot close swallows the rest of the routine and takes every rule downstream with it.
+Each of the below should have a `test-files/watertight/diagnostics/`. 
+
 
 **Silent, so fix first:**
 
 - **A string literal is allowed to cross a line break** (`gap-string-spans-lines.prg`) — FoxPro's tokenizer ends a literal at the newline; this one runs on, so a single stray quote swallows every line up to the next quote anywhere in the file. The swallowed lines produce *no diagnostic of any kind* — not unsupported-syntax, not a block error — so the linter quietly stops seeing code and every rule downstream reports on a file with a hole in it. This is the only failure in the set that a user cannot notice. It is also what cost `programs\app\WTMOBILEPROCESS.prg` its parse: a stray apostrophe after the `ENDFOR` at 3325 ran on for 78 lines and ate the header of the procedure below it, which is why the errors landed on `SaveInfoFields` and nothing in that procedure explained them — the one file `SEE-ALSO.md` had left unattributed. The fix is in the lexer: terminate a literal at end of line and report the unterminated quote where it opens.
 
-**Cost a block:**
+**Cost a block**
 
 - **Abbreviated keywords** (`gap-abbreviated-keywords.prg`) — FoxPro accepts any keyword cut to four characters, and the 2.75 generation writes `ENDI`, `ENDD`, `ENDC`, `DELE`, `ACTI`, `EXCLU`, `DESC` throughout. An abbreviated *terminator* is not recognised as one, so its block stays open and every later terminator closes the wrong thing. A dozen files in `programs\legacy275` die on a single `endi`.
 - **`REPLACE` with a computed target** (`gap-replace-computed-field.prg`) — `REPLACE (expr) WITH ... IN (alias)` and `replace ;` with the field list on the next line. `REPLACE` is rejected, which leaves its `WITH` standing at the start of a statement where `WITH` opens a member scope: the linter then asks for an `ENDWITH`. Costs `TranNum.prg` and `qbgetcustomfields.prg`, both on the invoice path.
 - **`#IF .F.` bodies are parsed** (`gap-preprocessor-false-fence.prg`) — the preprocessor never compiles them, and the code parks prose and unfinished work behind them. Any `if` in an English sentence opens a block; 72 findings on `mosesrules.prg` alone, none about code that runs. The fix is to evaluate a constant condition and skip the body.
-- **A keyword as a routine name** (`gap-keyword-as-routine-name.prg`) — `PROCEDURE declare`, `PROCEDURE use`. Rejecting the header inside `DEFINE CLASS` orphans its `ENDPROC` and the `ENDDEFINE` with it, so the class stops being indexed entirely. `PROCEDURE error` already works, which is what makes this hard to spot by reading.
 - **A keyword as a `CASE` subject** (`gap-keyword-as-case-subject.prg`) — the 2.75 menus keep the operator's choice in a variable named `SELECT`. The first `CASE` is rejected, so the `DO CASE` has no branches and the `OTHERWISE` and `ENDCASE` are orphaned. `store select (0) to x` — the same call with a space before the parenthesis — fails where `SELECT(0)` parses.
 - **`DELETE ... IN <alias> FOR <expr>`** (`gap-delete-in-alias.prg`) — plain `DELETE IN <alias>` parses; the `FOR` is read as a counted loop and swallows the routine.
 - **Bare `USE` with a trailing `&&` comment** (`gap-bare-use-with-comment.prg`) — the comment is read as the file name, and an `if` among its words opens a block that never closes. The comment above a close is near-universal here.

@@ -282,7 +282,14 @@ check('promotion leaves a header where it is', (await promoteToTier2(headerIndex
 
 // --- the header scan against the parser --------------------------------------
 // The regex is what makes indexing a large tree possible, and it is the thing most likely to drift. Every fixture in the repository is read both ways and the two must agree on what the file defines and what it names.
-// A fixture that records a parse gap is left out: the parser is known not to read it, so holding the scan to it would only assert that the regex is broken in the same place. Those files are where the two legitimately disagree -- `gap-keyword-as-routine-name.prg` is indexed at tier 1 and loses its methods at tier 2 -- and that divergence is tracked in TODO.md rather than frozen here.
+// A fixture that records a parse gap is left out: the parser is known not to read it, so holding the scan to it would only assert that the regex is broken in the same place. Those files are where the two legitimately disagree, and each such divergence is tracked in TODO.md rather than frozen here.
+// Agreeing is not enough on its own -- two tiers that find nothing agree perfectly -- so the file that made this check necessary is asserted outright. A method named after a command word was found by the scan and lost by the parser, and promoting such a file therefore *removed* symbols: Go to Definition stopped working on a class that had worked a moment before.
+
+const keywordNamed = './test-files/watertight/diagnostics/keyword-as-routine-name.prg';
+const methodsOf = (record: FileRecord) => record.classes.flatMap(c => c.methods.map(m => `${c.name}.${m.name}`));
+check('a class whose methods are named after command words is indexed by the scan',
+	methodsOf(scanHeader(keywordNamed, read(keywordNamed))), ['Crypto.declare', 'Crypto.use']);
+check('and the parser finds the same two', methodsOf(extract(keywordNamed, parse(read(keywordNamed)) as never, lines(keywordNamed))), ['Crypto.declare', 'Crypto.use']);
 
 const recordsAParseGap = (file: string) => fs.existsSync(`${file}.expected`)
 	&& /\b(unsupported-syntax|syntax-error|unterminated-block)\b/.test(read(`${file}.expected`));

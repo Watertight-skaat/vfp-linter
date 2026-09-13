@@ -57,6 +57,17 @@ each rule re-deriving the same evasion.
 finding into the files that call it, so the index keeps a reverse map and the open dependents are
 re-linted when a definition's arity, existence or home changes.
 
+### A routine may be named after a command word
+
+`PROCEDURE declare` and `PROCEDURE use` are how the Windows-API wrappers name their setup and teardown,
+and the grammar read the name position as a command word and rejected the header. Inside `DEFINE CLASS`
+that cost the whole class: the `ENDPROC` was orphaned and the `ENDDEFINE` with it, so the class stopped
+being indexed and every method in it went missing from Go to Definition. It was also the one place where
+the header scan and the parser disagreed -- the scan found `Crypto.declare` and `Crypto.use`, the parser
+lost both -- so promoting a file *removed* symbols that had been there a moment before. A routine name is
+now a name whatever else the word means, and that fixture is back in the parity check with both tiers
+asserted outright.
+
 ### A `.h` is not a program, and `_TALLY` is not yours
 
 **A header file is scanned rather than parsed.** A `.h` is what `#INCLUDE` is for: its `#DEFINE`s are

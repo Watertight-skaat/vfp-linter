@@ -1,7 +1,0 @@
-4:1 error unterminated-block This opens a block that could not be parsed. Check for a missing ENDDEFINE: 'DEFINE CLASS Crypto AS Session'
-6:2 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'PROTECTED PROCEDURE declare'
-8:2 error syntax-error There is no PROCEDURE open here for this ENDPROC to belong to.
-10:2 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'PROCEDURE use'
-12:2 warning unreachable-code This cannot run: the RETURN above it leaves the block first.
-12:2 error syntax-error There is no PROCEDURE open here for this ENDPROC to belong to.
-14:1 error syntax-error There is no DEFINE CLASS open here for this ENDDEFINE to belong to.
