@@ -1,0 +1,2 @@
+8:1 warning implicit-private 'cnt' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
+10:7 error unterminated-string This opens a string that is never closed. FoxPro ends a literal at the end of its line.

@@ -1,2 +1,0 @@
-8:1 warning implicit-private 'cnt' is implicitly PRIVATE. Explicitly declare it LOCAL or PRIVATE
-16:4 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'the quote here is what finally closes the one above''

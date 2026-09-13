@@ -34,6 +34,17 @@ check('it stays an error whatever the settings say', codes(broken, { rules: { 's
 // The point of absorbing it rather than throwing: the rest of the file is still checked while the line is being typed.
 check('the rest of the file is still checked', codes(broken + 'LOCAL lcUnused\n'), ['1 syntax-error', '2 unused-local']);
 
+// A literal that reaches the end of its line is broken code rather than syntax the grammar has not learned -- FoxPro's tokenizer ends a literal at the newline -- so it is locked at error like the other two.
+const unclosed = '? "abc\n? 1\n';
+for (const severity of ['information', 'error', 'hint', 'off'] as const) {
+	check(`an unterminated string stays an error at '${severity}'`,
+		codes(unclosed, { unsupportedSyntaxSeverity: severity }), ['1 unterminated-string']);
+}
+check('no per-rule setting can quiet it either', codes(unclosed, { rules: { 'unterminated-string': 'off' } }), ['1 unterminated-string']);
+check('it is reported where the quote opens', lint(unclosed).diagnostics[0].range.start, { line: 0, character: 2 });
+// The line below the quote is code again, which is the whole point of ending the literal at the newline.
+check('and the rest of the file is still read', codes('? "abc\nLOCAL lcUnused\n'), ['1 unterminated-string', '2 unused-local']);
+
 // --- per-rule severities -----------------------------------------------------
 const twoRules = 'LOCAL lcUnused\nlnUndeclared = 1\n';
 check('rules default', codes(twoRules), ['2 unused-local', '2 implicit-private']);

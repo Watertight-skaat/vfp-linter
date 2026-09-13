@@ -19,10 +19,6 @@ Remove items once addressed.
 Each of the below should have a `test-files/watertight/diagnostics/`. 
 
 
-**Silent, so fix first:**
-
-- **A string literal is allowed to cross a line break** (`gap-string-spans-lines.prg`) — FoxPro's tokenizer ends a literal at the newline; this one runs on, so a single stray quote swallows every line up to the next quote anywhere in the file. The swallowed lines produce *no diagnostic of any kind* — not unsupported-syntax, not a block error — so the linter quietly stops seeing code and every rule downstream reports on a file with a hole in it. This is the only failure in the set that a user cannot notice. It is also what cost `programs\app\WTMOBILEPROCESS.prg` its parse: a stray apostrophe after the `ENDFOR` at 3325 ran on for 78 lines and ate the header of the procedure below it, which is why the errors landed on `SaveInfoFields` and nothing in that procedure explained them — the one file `SEE-ALSO.md` had left unattributed. The fix is in the lexer: terminate a literal at end of line and report the unterminated quote where it opens.
-
 **Cost a block**
 
 - **Abbreviated keywords** (`gap-abbreviated-keywords.prg`) — FoxPro accepts any keyword cut to four characters, and the 2.75 generation writes `ENDI`, `ENDD`, `ENDC`, `DELE`, `ACTI`, `EXCLU`, `DESC` throughout. An abbreviated *terminator* is not recognised as one, so its block stays open and every later terminator closes the wrong thing. A dozen files in `programs\legacy275` die on a single `endi`.

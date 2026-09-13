@@ -270,6 +270,8 @@ export interface NumberLiteral extends NodeBase {
 export interface StringLiteral extends NodeBase {
   type: 'StringLiteral';
   value: string;
+  /** The quote had no partner before the end of the line, where FoxPro's tokenizer ends a literal. Absent on every literal that closed. */
+  unterminated?: boolean;
 }
 
 export interface BooleanLiteral extends NodeBase {

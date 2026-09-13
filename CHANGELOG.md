@@ -57,6 +57,22 @@ each rule re-deriving the same evasion.
 finding into the files that call it, so the index keeps a reverse map and the open dependents are
 re-linted when a definition's arity, existence or home changes.
 
+### A string literal ends at the line break
+
+FoxPro's tokenizer ends a literal at the newline. The grammar let one run on, so a single stray quote
+swallowed every line up to the next quote anywhere in the file -- and the swallowed lines produced no
+diagnostic of any kind, not unsupported-syntax, not a block error. The linter simply stopped seeing code
+while every rule downstream reported on a file with a hole in it, which made it the one failure a user
+could not notice. It is what cost `WTMOBILEPROCESS.prg` its parse: a stray apostrophe after an `ENDFOR`
+ran on for 78 lines, ate the header of the procedure below it, and left the errors standing against a
+procedure that had nothing wrong with it.
+
+A literal now ends where its line does, and a quote with no partner is reported where it opens as
+**`unterminated-string`** -- an error no setting can quiet, like the other two findings that are wrong
+rather than unsupported. The code below such a quote is read as code again. A `[` literal ends at the
+line break too but is not recovered that way, because `[` opens a subscript as well and `laFoo[1` is not
+a string.
+
 ### A routine may be named after a command word
 
 `PROCEDURE declare` and `PROCEDURE use` are how the Windows-API wrappers name their setup and teardown,

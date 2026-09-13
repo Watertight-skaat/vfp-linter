@@ -4,7 +4,7 @@
 	"description": "Diagnostics for Visual FoxPro: a real grammar, and rules that stay quiet unless there is evidence",
 	"author": "Sean Kaat",
 	"license": "MIT",
-	"version": "1.4.1",
+	"version": "1.4.2",
 	"publisher": "Watertight",
 	"icon": "images/icon.png",
 	"categories": [
@@ -84,7 +84,7 @@
 				"foxpro.rules": {
 					"scope": "resource",
 					"type": "object",
-					"markdownDescription": "The severity of each rule, or `off` to disable it. A rule not listed here keeps its default. `syntax-error` and `unterminated-block` are always errors and cannot be set. Any diagnostic can also be silenced in place with a comment: `* vfp-lint-disable-next-line implicit-private`.",
+					"markdownDescription": "The severity of each rule, or `off` to disable it. A rule not listed here keeps its default. `syntax-error`, `unterminated-block` and `unterminated-string` are always errors and cannot be set. Any diagnostic can also be silenced in place with a comment: `* vfp-lint-disable-next-line implicit-private`.",
 					"additionalProperties": false,
 					"properties": {
 						"unsupported-syntax": {

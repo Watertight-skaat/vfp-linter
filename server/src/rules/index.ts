@@ -2,13 +2,14 @@
 
 import type { Rule } from '../rule.js';
 import { havingWithoutGroupBy, selectWithoutInto, unlinkedTables } from './sql.js';
-import { danglingTerminator, duplicateCase, emptyBranch, privateAll, tryWithoutCatch, unclosedTransaction, unreachableCode, unsupportedSyntax, unterminatedBlock } from './structure.js';
+import { danglingTerminator, duplicateCase, emptyBranch, privateAll, tryWithoutCatch, unclosedTransaction, unreachableCode, unsupportedSyntax, unterminatedBlock, unterminatedString } from './structure.js';
 import { implicitPrivate, missingMemvarPrefix, unusedLocal } from './symbols.js';
 import { duplicateRoutine, missingFile, tooManyArguments } from './workspace.js';
 
 export const rules: Rule[] = [
   danglingTerminator,
   unterminatedBlock,
+  unterminatedString,
   unsupportedSyntax,
   implicitPrivate,
   unusedLocal,

@@ -188,6 +188,17 @@ const openerFor: Record<string, string> = {
   ENDPROC: 'PROCEDURE', ENDFUNC: 'FUNCTION'
 };
 
+// A literal that reaches the end of its line. FoxPro's tokenizer ends one at the newline, so a quote with no partner is broken code rather than syntax the linter has not learned. What it used to cost is why it is locked at Error: the literal ran on to the next quote anywhere below, and every line in between stopped being code without a diagnostic of any kind -- the one failure a user could not see.
+export const unterminatedString = onNode({
+  code: 'unterminated-string',
+  severity: Severity.Error,
+  locked: true,
+  on: ['StringLiteral'],
+  check(node, ctx) {
+    if (node.unterminated) ctx.report(node.location, 'This opens a string that is never closed. FoxPro ends a literal at the end of its line.');
+  }
+});
+
 // A terminator with nothing open for it to close. The parser used to throw on one, which cost the user every other diagnostic in the file until the line was fixed -- and while typing, that line is usually the one being written. It carries the code a thrown parse failure carries, because it is the same kind of finding, and is locked for the same reason.
 export const danglingTerminator = onNode({
   code: 'syntax-error',

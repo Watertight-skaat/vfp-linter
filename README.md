@@ -10,6 +10,7 @@ The extension parses your code with a real grammar instead of matching patterns,
 | ---- | -------- | --------------- |
 | `syntax-error` | Error | A block terminator with nothing open for it to close, or code the parser could not read |
 | `unterminated-block` | Error | A block opener whose terminator is missing |
+| `unterminated-string` | Error | A string literal with no closing quote before the end of its line, where FoxPro ends one |
 | `unsupported-syntax` | Information | Valid FoxPro the grammar has not learned yet (configurable) |
 | `implicit-private` | Warning | An assignment to an undeclared name, which FoxPro creates as a PRIVATE |
 | `unused-local` | Warning | A `LOCAL` that is never read or written |

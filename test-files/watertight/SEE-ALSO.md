@@ -276,10 +276,11 @@ balances on a keyword count, contains none of the thirteen constructs, and parse
 linted on its own -- which is exactly what made it look inexplicable.
 
 The cause is 78 lines above it: **a stray apostrophe after the `ENDFOR` at line 3325**. FoxPro ends a
-string literal at the newline, the grammar lets one run on, and this one ran to the next quote in the
+string literal at the newline, the grammar let one run on, and this one ran to the next quote in the
 file, swallowing the `ENDPROC` and the `PROCEDURE SaveInfoFields` header along the way. That is why
 nothing *in* the procedure explained the failure: the procedure was never the problem, and the lines
-the quote ate reported nothing at all on their way past. See
-`diagnostics/gap-string-spans-lines.prg` and the grammar section of `TODO.md`.
+the quote ate reported nothing at all on their way past. The grammar now ends a literal where FoxPro
+does and reports the quote that opens an unclosed one, so this file reports the apostrophe at 3325 and
+`SaveInfoFields` is read as written. See `diagnostics/string-spans-lines.prg`.
 
 The stray apostrophe itself is a typo in the Watertight source and belongs on list 1 above.

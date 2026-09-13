@@ -2952,18 +2952,22 @@ StringLiteral "string"
   = '"' chars:DoubleStringChar* '"' { return node("StringLiteral", { value: chars.join("") }); }
   / "'" chars:SingleStringChar* "'" { return node("StringLiteral", { value: chars.join("") }); }
   / "[" chars:BracketStringChar* "]" { return node("StringLiteral", { value: chars.join("") }); }
+  // A quote with no partner before the end of its line. FoxPro's tokenizer ends a literal at the newline, so this is a compile error there; here it used to be a hole, because the literal ran on to the next quote anywhere below and everything in between stopped being code without a word said. The literal ends where FoxPro ends it and carries the flag unterminated-string reports. `[` is left out: it opens a subscript as well, and recovering it would turn `laFoo[1` into a string.
+  / '"' chars:DoubleStringChar* { return node("StringLiteral", { value: chars.join(""), unterminated: true }); }
+  / "'" chars:SingleStringChar* { return node("StringLiteral", { value: chars.join(""), unterminated: true }); }
 
+// The line terminator is what ends an unclosed literal, so no string character may be one.
 DoubleStringChar
   = '""' { return '"'; }
-  / !'"' . { return text(); }
+  / !('"' / LineTerminator) . { return text(); }
 
 SingleStringChar
   = "''" { return "'"; }
-  / !"'" . { return text(); }
+  / !("'" / LineTerminator) . { return text(); }
 
 BracketStringChar
   = "]]" { return "]"; }
-  / !"]" . { return text(); }
+  / !("]" / LineTerminator) . { return text(); }
 
 LineTerminator
 	= [\n\r\u2028\u2029]

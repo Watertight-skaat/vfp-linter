@@ -580,4 +580,14 @@ check('the same words still open their own statements',
 	types('USE customer\nDECLARE INTEGER Sleep IN win32api\nSELECT 0\nSTORE 0 TO x'),
 	['UseStatement', 'DeclareStatement', 'SelectStatement', 'StoreStatement']);
 
+// --- a string literal ends at the line break ----------------------------------
+// FoxPro's tokenizer ends a literal at the newline. Letting one run on meant a single stray quote swallowed every line up to the next quote anywhere in the file, and the swallowed lines produced no diagnostic of any kind -- the one failure in the corpus a user could not see.
+check('a literal does not swallow the line below it', types('? "abc\n? 1'), ['PrintStatement', 'PrintStatement']);
+check('it ends where the line does, and says so', first('? "abc\n? 1').arguments[0], { type: 'StringLiteral', value: 'abc', unterminated: true });
+check('an apostrophe is no different', first("? 'abc\n? 1").arguments[0].unterminated, true);
+check('a closed literal carries no such flag', first('? "abc"').arguments[0], { type: 'StringLiteral', value: 'abc' });
+check('a stray quote after a terminator stands as a statement of its own', types("FOR i = 1 TO 3\nENDFOR'\n? 1"), ['ForStatement', 'ExpressionStatement', 'PrintStatement']);
+// A bracket literal is not recovered, because `[` also opens a subscript: the line it is on is unreadable, and the point is that the lines below it are not.
+check('a bracket literal stops at the line end too', types('x = [abc\ny = 1'), ['UnknownStatement', 'Assignment']);
+
 report('Parse checks');
