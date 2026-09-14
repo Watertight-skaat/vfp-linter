@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.1
+
+### A running Visual FoxPro is asked where it looks before a form is sent to it
+
+Attaching to the Visual FoxPro already running assumes it is the session the developer works in, with their default directory and their `SET PATH` on it. One started from the Start menu and told nothing is not, and the form designer it opens stops on a modal Locate dialog for every class the file is built from -- inside VFP, where the editor can neither see the dialog nor cancel it, and where the call it is holding up never returns.
+
+So the session is now asked one expression first -- where it stands, and what is on its path -- and every directory it would search is resolved from the answer, a relative `SET PATH` entry included. When none of them is inside the workspace, the workspace folder and `foxpro.workspace.searchPath` are offered to it before anything else is sent; that lasts as long as the session does, and **Open anyway** leaves it exactly as the developer had it. Where there is nothing configured to offer, the setting itself is what the message points at: a default directory alone is no use to a tree spread over twenty folders.
+
+A session the extension started is asked the same question rather than taken on trust. It was told whatever the settings hold, and if they hold nothing it is every bit as lost as one that was left open.
+
 ## 1.5.0
 
 ### Open a form or a class in Visual FoxPro
@@ -7,8 +17,6 @@
 A form, a class library, a report, a menu, a database and a project are VFP's own binary formats, and VS Code shows them as the binary-file placeholder. **Open in Visual FoxPro** sends one to the designer that can read it -- from the hover over the name in `DO FORM custedit`, from the Explorer's right-click menu, or from the command palette with the cursor on the name. A `.vcx` asks which of its classes to open, reading the list from VFP itself.
 
 It attaches to the Visual FoxPro already running rather than starting one beside it. That session is the one with the developer's default directory and `SET PATH` on it, and a form designer that cannot find a class stops on a modal dialog inside VFP, where the editor can neither see it nor cancel it. When nothing is running, one is started on the workspace folder with `foxpro.workspace.searchPath` on its path; `foxpro.vfp.startupCommands` is for whatever else a tree needs, and `foxpro.vfp.path` names the executable when the newest installed one is not the right one.
-
-Not every Visual FoxPro that is running is one of those sessions, though, so it is asked where it stands and what is on its path before anything is sent to it. One started from the Start menu and told nothing looks nowhere inside the tree, and the designer it opens stops on exactly the dialog attaching was meant to avoid -- for every class the file is built from, one at a time. When that is what answers, the workspace folder and its search path are offered to it first; **Open anyway** leaves the session as the developer had it.
 
 Opening such a file in the editor now shows what it is and a button rather than the placeholder. Windows only.
 
