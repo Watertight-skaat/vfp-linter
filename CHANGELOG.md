@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.0
+
+### Open a form or a class in Visual FoxPro
+
+A form, a class library, a report, a menu, a database and a project are VFP's own binary formats, and VS Code shows them as the binary-file placeholder. **Open in Visual FoxPro** sends one to the designer that can read it -- from the hover over the name in `DO FORM custedit`, from the Explorer's right-click menu, or from the command palette with the cursor on the name. A `.vcx` asks which of its classes to open, reading the list from VFP itself.
+
+It attaches to the Visual FoxPro already running rather than starting one beside it. That session is the one with the developer's default directory and `SET PATH` on it, and a form designer that cannot find a class stops on a modal dialog inside VFP, where the editor can neither see it nor cancel it. When nothing is running, one is started on the workspace folder with `foxpro.workspace.searchPath` on its path; `foxpro.vfp.startupCommands` is for whatever else a tree needs, and `foxpro.vfp.path` names the executable when the newest installed one is not the right one.
+
+Opening such a file in the editor now shows what it is and a button rather than the placeholder. Windows only.
+
 ## 1.4.3
 
 a bunch of other fixes

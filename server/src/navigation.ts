@@ -25,6 +25,8 @@ export interface WorkspaceSymbol {
 export interface Hover {
   markdown: string;
   range: Range;
+  /** The file the name resolves to, when it names one. What the editor needs to offer to open it in VFP's own designer. */
+  file?: string;
 }
 
 /** What sits under the cursor. A reference the file makes, or a name the tree does not treat as one -- a bare word that may still be a constant or a routine. */
@@ -138,7 +140,7 @@ export function hoverAt(record: FileRecord, lines: string[], position: Position,
 
   if (target.kind !== 'word' && target.kind !== 'do' && target.kind !== 'call') {
     const file = view.resolveFile(target.name, target.kind);
-    if (file) return { markdown: `\`${file}\``, range: target.range };
+    if (file) return { markdown: `\`${file}\``, range: target.range, file };
     return { markdown: `No file named \`${target.name}\` in the workspace.`, range: target.range };
   }
   return null;
@@ -243,6 +245,14 @@ export function referencesAt(record: FileRecord, lines: string[], position: Posi
 }
 
 const fileTargets: ReadonlySet<string> = new Set(['include', 'procedure', 'classlib', 'form']);
+
+/** The file the position names, for the editor commands that act on a file rather than on a position -- opening a form in VFP's designer is the one. A name assembled at run time names no one file, the same reason Go to Definition answers nothing for it. */
+export function fileTargetAt(record: FileRecord, lines: string[], position: Position, view: WorkspaceView): { file: string; name: string } | null {
+  const target = targetAt(record, lines, position);
+  if (!target || target.dynamic || !target.name || !fileTargets.has(target.kind)) return null;
+  const file = view.resolveFile(target.name, target.kind as RefKind);
+  return file ? { file, name: target.name } : null;
+}
 
 // --- completion --------------------------------------------------------------
 

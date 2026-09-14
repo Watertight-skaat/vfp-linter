@@ -6,10 +6,11 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { lint, type LinterOptions } from '../server/src/linter.js';
-import { extract, headerRefKinds, scanHeader, upper, WorkspaceIndex, type FileRecord, type Reference } from '../server/src/index.js';
+import { baseOf, extract, headerRefKinds, scanHeader, upper, WorkspaceIndex, type FileRecord, type Reference } from '../server/src/index.js';
 import { isDynamic, staticName } from '../server/src/dynamic.js';
 import { isBuiltin } from '../server/src/builtins.js';
-import { completionsAt, definitionAt, hoverAt, referencesAt, signatureAt, workspaceSymbols } from '../server/src/navigation.js';
+import { completionsAt, definitionAt, fileTargetAt, hoverAt, referencesAt, signatureAt, workspaceSymbols } from '../server/src/navigation.js';
+import { designerFor } from '../server/src/vfp.js';
 import { buildSymbolTable, openAliasesOf } from '../server/src/scope.js';
 import { parse } from '../server/src/parser.js';
 import { buildIndex, cachePath, globToRegExp, indexedExtensions, loadCache, promoteToTier2, recordFrom, refresh, saveCache } from '../server/src/workspace.js';
@@ -136,6 +137,20 @@ check('and a form', resolvedIn('datasrch', 'form'), 'framework/DATASRCH.scx');
 check('a name carrying a folder matches that folder anywhere in the tree', resolvedIn('framework\\mainset', 'procedure'), 'framework/MAINSET.prg');
 check('a name nothing in the tree spells is still missing', tree.resolveFile('nosuchthing', 'procedure', fromApp), null);
 check('and the fallback does not cross a folder boundary mid-name', tree.resolveFile('app\\mainset', 'procedure', fromApp), null);
+
+// What the editor asks when the command to open a designer runs with the cursor in a .prg: the position in, the file it names out. The form and the class library are the ones with no editor of their own, and the same fixture holds a name for each.
+const appFile = tree.get(fromApp)!;
+const appLines = lines(fromApp);
+const namedAt = (line: number, character: number) => {
+	const found = fileTargetAt(appFile, appLines, { line, character }, tree.viewFor(fromApp));
+	return found ? `${found.name} -> ${baseOf(found.file)} (${designerFor(found.file) ?? 'no designer'})` : null;
+};
+check('a DO FORM names the form the designer opens', namedAt(8, 8), 'datasrch -> DATASRCH.scx (form)');
+check('a SET CLASSLIB names the library', namedAt(6, 16), 'QbInt -> QBINT.vcx (class)');
+// Both of the names below resolve to files too, and both are text the editor reads better than VFP does. Offering to open them elsewhere is what asking for the designer rather than the file avoids.
+check('a SET PROCEDURE names a file with no designer', namedAt(5, 17), 'mainset -> MAINSET.prg (no designer)');
+check('and so does an #INCLUDE', namedAt(3, 9), 'EMAILLIB.h -> EMAILLIB.h (no designer)');
+check('a position naming nothing of the workspace answers nothing', namedAt(10, 2), null);
 
 // The ordered directories still come first, and where only the fallback answers the match nearest the asking file is the one taken. Two folders holding the same name is what makes either assertion mean anything, so the index is built by hand rather than from a fixture.
 const shadowed = new WorkspaceIndex({ roots: [path.resolve('/tree')] });

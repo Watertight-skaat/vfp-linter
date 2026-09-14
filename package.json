@@ -4,7 +4,7 @@
 	"description": "Diagnostics for Visual FoxPro: a real grammar, and rules that stay quiet unless there is evidence",
 	"author": "Sean Kaat",
 	"license": "MIT",
-	"version": "1.4.3",
+	"version": "1.5.0",
 	"publisher": "Watertight",
 	"icon": "images/icon.png",
 	"categories": [
@@ -30,7 +30,8 @@
 		"server"
 	],
 	"activationEvents": [
-		"onLanguage:foxpro"
+		"onLanguage:foxpro",
+		"onCustomEditor:foxpro.designerDocument"
 	],
 	"main": "./client/out/extension",
 	"contributes": {
@@ -49,6 +50,51 @@
 				"configuration": "./language-configuration.json"
 			}
 		],
+		"customEditors": [
+			{
+				"viewType": "foxpro.designerDocument",
+				"displayName": "Visual FoxPro document",
+				"priority": "default",
+				"selector": [
+					{ "filenamePattern": "*.scx" },
+					{ "filenamePattern": "*.vcx" },
+					{ "filenamePattern": "*.frx" },
+					{ "filenamePattern": "*.lbx" },
+					{ "filenamePattern": "*.mnx" },
+					{ "filenamePattern": "*.dbc" },
+					{ "filenamePattern": "*.pjx" }
+				]
+			}
+		],
+		"commands": [
+			{
+				"command": "foxpro.openInVfp",
+				"title": "Open in Visual FoxPro",
+				"category": "FoxPro"
+			}
+		],
+		"menus": {
+			"explorer/context": [
+				{
+					"command": "foxpro.openInVfp",
+					"when": "isWindows && resourceExtname =~ /\\.(scx|sct|vcx|vct|frx|frt|lbx|lbt|mnx|mnt|dbc|pjx)$/i",
+					"group": "navigation@20"
+				}
+			],
+			"editor/context": [
+				{
+					"command": "foxpro.openInVfp",
+					"when": "isWindows && resourceLangId == foxpro",
+					"group": "navigation@20"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "foxpro.openInVfp",
+					"when": "isWindows"
+				}
+			]
+		},
 		"configuration": {
 			"type": "object",
 			"title": "Visual FoxPro",
@@ -212,6 +258,21 @@
 					"default": [],
 					"description": "Extra directories a file name is looked for in, the equivalent of FoxPro's SET PATH. Searched after the file's own folder and the workspace folders."
 				},
+				"foxpro.vfp.path": {
+					"scope": "window",
+					"type": "string",
+					"default": "",
+					"markdownDescription": "The Visual FoxPro to start when none is running, as a full path to `VFPA.EXE` or `vfp9.exe`. Left empty, the newest Visual FoxPro Advanced is used, then Visual FoxPro 9, and the `VFPA_EXE` environment variable is honoured before either. Opening a designer always prefers the Visual FoxPro already running, whichever one this names."
+				},
+				"foxpro.vfp.startupCommands": {
+					"scope": "window",
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [],
+					"markdownDescription": "Commands run in a Visual FoxPro the extension has started, after the workspace folder and `#foxpro.workspace.searchPath#` have been set on it -- `DO setpath`, say, or whatever your tree opens a development session with. A Visual FoxPro that was already running is never sent these: it is the developer's session, already set up."
+				},
 				"foxpro.trace.server": {
 					"scope": "window",
 					"type": "string",
@@ -237,7 +298,7 @@
 		"watch:bundle": "node ./scripts/build.mjs --watch",
 		"typecheck": "tsc -p client/tsconfig.json && tsc -p server/tsconfig.json && tsc -p test/tsconfig.json",
 		"postinstall": "bun run build:parser",
-		"test": "bun ./test/run-all-tests.ts && bun ./test/run-ast-tests.ts && bun ./test/run-parse-tests.ts && bun ./test/run-scope-tests.ts && bun ./test/run-severity-tests.ts && bun ./test/run-keyword-tests.ts && bun ./test/run-fix-tests.ts && bun ./test/run-workspace-tests.ts",
+		"test": "bun ./test/run-all-tests.ts && bun ./test/run-ast-tests.ts && bun ./test/run-parse-tests.ts && bun ./test/run-scope-tests.ts && bun ./test/run-severity-tests.ts && bun ./test/run-keyword-tests.ts && bun ./test/run-fix-tests.ts && bun ./test/run-vfp-tests.ts && bun ./test/run-workspace-tests.ts",
 		"test:update": "bun ./test/run-all-tests.ts --update && bun ./test/run-workspace-tests.ts --update",
 		"lint:dir": "bun ./test/lint-dir.ts",
 		"release": "node ./scripts/publish.mjs",

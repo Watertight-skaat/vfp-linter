@@ -64,6 +64,18 @@ The tree is read twice over. The first crawl reads only the headers of each file
 
 The Outline and breadcrumbs list every procedure, function, class, method, property and `#DEFINE` in the file. Blocks fold: `IF`, `DO WHILE`, `DO CASE` and each `CASE`, `FOR`, `SCAN`, `TRY`, `WITH`, `TEXT`, `DEFINE CLASS`, routines with or without `ENDPROC`, and a `SELECT` written over several lines. Comment toggling uses `&&`, brackets and quotes auto-close, and Enter indents after a block opener.
 
+### Opening a form or a class in Visual FoxPro
+
+A form, a class library, a report, a menu, a database and a project are kept in VFP's own binary formats, so VS Code can show you their names and nothing else. **Open in Visual FoxPro** hands one to the designer that can show the rest of it:
+
+- **Hover** the name in `DO FORM custedit` or `SET CLASSLIB TO controls` and the path comes with a link.
+- **Right-click** the file in the Explorer, or use the command while its tab is open.
+- **Ctrl+Shift+P** with the cursor on the name of a form or a class library in a `.prg`.
+
+A class library holds many classes and the designer opens one of them, so picking a `.vcx` asks which class first.
+
+It opens in the Visual FoxPro you already have running, which is the point: that session has your default directory and your `SET PATH`, and a designer that cannot find a class stops on a modal dialog inside VFP where the editor cannot see it. If nothing is running, one is started on the workspace folder with `foxpro.workspace.searchPath` on its path, and `foxpro.vfp.startupCommands` is where to put whatever else your tree needs. Windows only, for the obvious reason.
+
 ### Rules that deliberately stay quiet
 
 A few rules would be unusable if they reported everything they could, so they hold back:
@@ -87,6 +99,8 @@ A few rules would be unusable if they reported everything they could, so they ho
 | `foxpro.workspace.enabled` | `true` | Index the workspace, which is what Go to Definition, Hover and Go to Symbol read |
 | `foxpro.workspace.exclude` | `node_modules`, `.git` | Globs the index skips |
 | `foxpro.workspace.searchPath` | `[]` | Extra directories a file name is looked for in, the equivalent of `SET PATH` |
+| `foxpro.vfp.path` | auto | The `VFPA.EXE` or `vfp9.exe` to start when no Visual FoxPro is running |
+| `foxpro.vfp.startupCommands` | `[]` | Commands run in a Visual FoxPro the extension started, after the workspace and its search path |
 
 A rule not named in `foxpro.rules` keeps its default, so a settings file only has to say what it changes:
 

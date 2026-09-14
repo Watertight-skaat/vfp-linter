@@ -1,10 +1,11 @@
-import { createConnection, TextDocuments, ProposedFeatures, InitializeParams, DidChangeConfigurationNotification, TextDocumentSyncKind, InitializeResult, CodeAction, CodeActionKind, SymbolKind, CompletionItemKind, type CompletionItem, type Diagnostic, type Location as LspLocation, type WorkspaceSymbol as LspWorkspaceSymbol } from 'vscode-languageserver/node';
+import { createConnection, TextDocuments, ProposedFeatures, InitializeParams, DidChangeConfigurationNotification, TextDocumentSyncKind, InitializeResult, CodeAction, CodeActionKind, SymbolKind, CompletionItemKind, type CompletionItem, type Diagnostic, type Location as LspLocation, type TextDocumentPositionParams, type WorkspaceSymbol as LspWorkspaceSymbol } from 'vscode-languageserver/node';
 import { fileURLToPath, pathToFileURL } from 'url';
 
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { lint, type Fix, type LintDiagnostic, type SeverityName } from './linter.js';
 import { extract, isHeaderFile, normalizePath, scanHeader, WorkspaceIndex, type FileRecord } from './index.js';
-import { completionsAt, definitionAt, hoverAt, referencesAt, signatureAt, workspaceSymbols, type CompletionSort, type Location, type SymbolSort } from './navigation.js';
+import { completionsAt, definitionAt, fileTargetAt, hoverAt, referencesAt, signatureAt, workspaceSymbols, type CompletionSort, type Hover, type Location, type SymbolSort } from './navigation.js';
+import { designerFor } from './vfp.js';
 import { buildSymbolTable, openAliasesOf, type SymbolTable } from './scope.js';
 import { documentSymbols, foldingRanges } from './outline.js';
 import { buildIndex, cachePath, loadCache, promoteToTier2, refresh, saveCache } from './workspace.js';
@@ -305,7 +306,20 @@ connection.onHover(params => {
 	if (!document || !index) return null;
 	const record = recordFor(document);
 	const found = hoverAt(record, linesOf(document), params.position, index.viewFor(fileOf(document.uri)));
-	return found ? { contents: { kind: 'markdown' as const, value: found.markdown }, range: found.range } : null;
+	return found ? { contents: { kind: 'markdown' as const, value: withOpenLink(found) }, range: found.range } : null;
+});
+
+// A form or a class library is not a file the editor can show, so where the hover would otherwise end at a path it offers the designer that can. The client is what knows how to reach VFP; this only writes the link, and only where there is a VFP to reach.
+function withOpenLink(hover: Hover): string {
+	if (!hover.file || process.platform !== 'win32' || !designerFor(hover.file)) return hover.markdown;
+	return `${hover.markdown}\n\n[Open in Visual FoxPro](command:foxpro.openInVfp?${encodeURIComponent(JSON.stringify([hover.file]))})`;
+}
+
+// The same question the hover answers, asked by the command rather than by the pointer: the editor has a position and needs the file it names, which only the index can say.
+connection.onRequest('foxpro/fileTarget', (params: TextDocumentPositionParams) => {
+	const document = documents.get(params.textDocument.uri);
+	if (!document || !index) return null;
+	return fileTargetAt(recordFor(document), linesOf(document), params.position, index.viewFor(fileOf(document.uri)));
 });
 
 connection.onWorkspaceSymbol(params => {
