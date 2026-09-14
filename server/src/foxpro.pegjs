@@ -61,6 +61,27 @@
   function alterClause(action, extra) {
     return node('AlterTableClause', { action, column: null, constraint: null, name: null, newName: null, modifiers: null, kind: null, tag: null, expression: null, error: null, save: false, novalidate: false, ...extra });
   }
+  // A #IF condition the preprocessor can settle without a #DEFINE. Only the constants count: anything else is a name the preprocessor resolves, so its body is code and is parsed.
+  function isConstantlyFalse(test) {
+    return /^(\.F\.?|0)$/i.test(test.trim());
+  }
+  // `REPLACE f WITH x IN (alias)`: the expression rule offers an `IN (...)` operator that xbase has no business with outside SQL, so it takes the work area into the value and the statement reads as naming no alias at all. An IN standing at the end of the last value is the clause it was written as; it is moved back out and the value left as it was.
+  function unfoldInClause(fields) {
+    const last = fields[fields.length - 1];
+    if (!last || last.value.type !== 'InExpression' || last.value.not || last.value.right.length !== 1) return null;
+    const alias = last.value.right[0];
+    last.value = last.value.left;
+    return alias;
+  }
+  // FoxPro accepts any keyword cut to its first four characters, and the 2.75 generation writes ENDI, ENDD, ENDC, DELE, ACTI, EXCLU and DESC throughout. The word is read whole and measured against the keyword the site expects, so `ENDI` closes an IF and `ENDIX` closes nothing.
+  function abbrev(word, full) {
+    return word.length >= 4 && full.length >= word.length && full.startsWith(word);
+  }
+  // Which terminator a word standing on its own is. Two keywords can share an abbreviation -- ENDD is ENDDO or ENDDEFINE, ENDT is ENDTRY or ENDTEXT, ENDF is ENDFOR or ENDFUNC -- and at a block's own end the block decides. Only a terminator with nothing open for it to close reaches this list, where naming the first is as good as any: it is reported as an error either way.
+  const terminatorWords = ['ENDIF', 'ELSE', 'ENDDO', 'ENDFOR', 'NEXT', 'ENDTRY', 'ENDDEFINE', 'ENDPROC', 'ENDFUNC', 'ENDCASE', 'ENDWITH', 'ENDSCAN', 'ENDTEXT', 'OTHERWISE', 'CATCH', 'FINALLY'];
+  function terminatorOf(word) {
+    return terminatorWords.find(full => abbrev(word, full)) ?? null;
+  }
   function flatten(list) {
     const out = [];
     for (const item of list) {
@@ -468,7 +489,7 @@ UseOption
   // OrderSpec was reachable only through `USE ... ?`, so every word of `USE customer ORDER TAG custid` fell to UseConnPart and was read as a connection handle, the last one winning. It has to sit above that handle alternative, which matches any bare name.
   / ord:OrderSpec { return { kind: 'ORDER', value: ord }; }
   / "ALIAS"i __ a:AliasRef { return { kind: 'ALIAS', value: a }; }
-  / "EXCLUSIVE"i { return { kind: 'EXCLUSIVE', value: true }; }
+  / KwExclusive { return { kind: 'EXCLUSIVE', value: true }; }
   / "SHARED"i { return { kind: 'SHARED', value: true }; }
   / "NOUPDATE"i { return { kind: 'NOUPDATE', value: true }; }
   / conn:UseConnPart { return { kind: 'CONN', value: conn }; }
@@ -544,7 +565,7 @@ OnStatement
 TextBlockStatement "text block"
   = "TEXT"i WB opts:(_ TextOption)* _ PartialLineComment? LineTerminatorSequence
     lines:TextLine*
-    _ "ENDTEXT"i WB {
+    _ KwEndText {
       const o = { to: null, additive: false, textmerge: false, noshow: false, flags: null, pretext: null };
       for (const part of opts.map(t => t[1])) {
         switch (part.kind) {
@@ -577,7 +598,7 @@ TextOption
   / "PRETEXT"i WB _ n:Expression { return { kind: 'PRETEXT', value: n }; }
 
 TextLine
-  = !(_ "ENDTEXT"i WB) line:$((!LineTerminator .)*) LineTerminatorSequence { return line; }
+  = !(_ KwEndText) line:$((!LineTerminator .)*) LineTerminatorSequence { return line; }
 
 // A \ or \\ line is TEXTMERGE output written one line at a time: \ starts a new line, \\ appends to the one before it. The rest of the line is text rather than code, so it is kept verbatim -- the <<...>> expressions in it are the preprocessor's, not the compiler's.
 TextMergeLine
@@ -634,7 +655,14 @@ DefineStatement
 // #IF | #IFDEF | #IFNDEF ... [#ELIF ...] [#ELSE ...] #ENDIF
 // The body is code, so it is parsed as statements: kept as raw text, everything inside a #IF was invisible to the symbol table and to every rule, and a nested #IF ended at the first #ENDIF. The condition stays raw -- it is evaluated by the preprocessor against #DEFINE constants, so the names in it are not variables.
 PreprocessorIfStatement
-  = directive:("#ifdef"i / "#ifndef"i / "#if"i) ![a-zA-Z0-9_] test:PreprocessorCondition __
+  // `#IF .F.` is not a branch, it is a fence: the preprocessor never compiles what is behind it, which is where a page of house rules and every piece of unfinished work is parked. Parsed as statements the prose opened a block at the first English `if` and the file ended unterminated -- 72 findings on one file, none about code that runs. The body is taken as text instead, and a nested fence is consumed whole so its own #ENDIF cannot close this one.
+  = directive:("#ifdef"i / "#ifndef"i / "#if"i) ![a-zA-Z0-9_] test:PreprocessorCondition &{ return isConstantlyFalse(test); } __
+    PreprocessorSkippedBody
+    alternate:PreprocessorAlternate?
+    "#endif"i {
+      return node("PreprocessorIfStatement", { directive: directive.slice(1).toUpperCase(), test, consequent: node("BlockStatement", { body: [] }), alternate: alternate || null });
+    }
+  / directive:("#ifdef"i / "#ifndef"i / "#if"i) ![a-zA-Z0-9_] test:PreprocessorCondition __
     consequent:PreprocessorBody
     alternate:PreprocessorAlternate?
     "#endif"i {
@@ -658,6 +686,13 @@ PreprocessorBody
 PreprocessorBoundary
   = ("#elif"i / "#else"i / "#endif"i) ![a-zA-Z0-9_]
 
+// The text behind a fence that is never compiled, read character by character because none of it is a statement. A nested fence is taken whole -- #ELSE and #ELIF inside one are its own, not this one's.
+PreprocessorSkippedBody
+  = (PreprocessorNestedFence / (!PreprocessorBoundary .))*
+
+PreprocessorNestedFence
+  = ("#ifdef"i / "#ifndef"i / "#if"i) ![a-zA-Z0-9_] (PreprocessorNestedFence / (!("#endif"i ![a-zA-Z0-9_]) .))* "#endif"i ![a-zA-Z0-9_]
+
 // DEFINE CLASS ClassName [AS ParentClass] [OF ClassLibrary] [OLEPUBLIC]
 // The AS clause is optional: VFP defaults the parent to Custom, and the one-off helper classes written next to the program that uses them leave it off. Required here it rejected the opener and the file failed on the ENDDEFINE.
 DefineClass
@@ -665,14 +700,14 @@ DefineClass
     ofPart:(_ "OF"i WB _ lib:(StringLiteral / UnquotedPath) { return lib; })?
     olePublic:(_ "OLEPUBLIC"i WB)? __
     statements:(Statement __)*
-    "ENDDEFINE"i {
+    KwEndDefine {
       return node("DefineClass", { name, base: base || null, ofClass: ofPart || null, olePublic: !!olePublic, body: flatten(statements.map(s => s[0])) });
     }
 
 // PROTECTED | HIDDEN PropertyList, the visibility of a class's own properties. The same two words in front of a PROCEDURE or FUNCTION are the method form, which ProcedureStatement reads, so they are refused here: matched as a property list the method's name was consumed and the class ran on unterminated to the end of the file.
 // Neither word is reserved, so a variable of that name has to keep parsing as one -- IdentifierList refuses the `=` and the `(`, which is what leaves `protected = .T.` an assignment.
 ClassAccessStatement
-  = access:("PROTECTED"i / "HIDDEN"i) WB !(_ ("PROCEDURE"i / "FUNCTION"i) WB) _ names:IdentifierList {
+  = access:("PROTECTED"i / "HIDDEN"i) WB !(_ (KwProcedure / KwFunction)) _ names:IdentifierList {
       return node("ClassAccessStatement", { access: access.toUpperCase(), names });
     }
 
@@ -873,15 +908,15 @@ EvalStatement "equals-expression statement"
 IfStatement "if statement"
   = "IF"i WB __ test:Expression IfThen __
     consequent:(Statement __)*
-    "ELSE"i __
+    KwElse __
     alternate:(Statement __)*
-    "ENDIF"i __
+    KwEndIf __
     {
       return node("IfStatement", { test, consequent: node("BlockStatement", { body: flatten(consequent.map(s => s[0])) }), alternate: node("BlockStatement", { body: flatten(alternate.map(s => s[0])) }) });
     }
     / "IF"i WB __ test:Expression IfThen __
       consequent:(Statement __)*
-      "ENDIF"i __
+      KwEndIf __
     {
       return node("IfStatement", { test, consequent: node("BlockStatement", { body: flatten(consequent.map(s => s[0])) }), alternate: null });
     }
@@ -1224,7 +1259,7 @@ IndexOnPart
   / "OF"i __ cdx:FileNameOrIdentifier { return { kind: 'OF', value: cdx }; }
   / "FOR"i __ fexp:Expression { return { kind: 'FOR', value: fexp }; }
   / "COMPACT"i { return { kind: 'COMPACT' }; }
-  / dir:("ASCENDING"i / "DESCENDING"i) { return { kind: 'DIR', value: dir }; }
+  / dir:(KwDescending { return 'DESCENDING'; } / "ASCENDING"i) { return { kind: 'DIR', value: dir }; }
   / uniq:("UNIQUE"i / "CANDIDATE"i) { return { kind: 'UNIQ', value: uniq }; }
   / "ADDITIVE"i { return { kind: 'ADDITIVE' }; }
 
@@ -1365,7 +1400,7 @@ DeleteStatement
         where: where || null
       });
     }
-  / "DELETE"i WB _
+  / KwDelete _
       scope:CopyScope? _
     forp:("FOR"i __ fexp:Expression { return fexp; })? _
     whilep:("WHILE"i __ wexp:Expression { return wexp; })? _
@@ -1420,8 +1455,8 @@ ForLoop "for loop"
     varName:ParameterName _ "=" _ init:Expression _ "TO"i _ final:Expression _ 
     step:("STEP"i _ inc:Expression)? __
     // Avoid consuming ENDFOR/NEXT as part of the body when NEXT isn't reserved globally
-    body:(!("ENDFOR"i WB / "NEXT"i WB) s:Statement __ { return s; })*
-    ("ENDFOR"i / "NEXT"i) _ endVar:ParameterName?
+    body:(!(KwEndFor / "NEXT"i WB) s:Statement __ { return s; })*
+    (KwEndFor / "NEXT"i) _ endVar:ParameterName?
     {
       return node("ForStatement", {
         variable: varName,
@@ -1445,8 +1480,8 @@ ForEachLoop "for-each loop"
     })?
     "IN"i _ group:Expression foxobj:(_ "FOXOBJECT"i)? __
     // Avoid consuming ENDFOR/NEXT as part of the body when NEXT isn't reserved globally
-    body:(!("ENDFOR"i WB / "NEXT"i WB) s:Statement __ { return s; })*
-    ("ENDFOR"i / "NEXT"i) _ endVar:ParameterName? 
+    body:(!(KwEndFor / "NEXT"i WB) s:Statement __ { return s; })*
+    (KwEndFor / "NEXT"i) _ endVar:ParameterName? 
     {
       const asType = typePart ? typePart.typing : null;
       const ofClass = typePart ? typePart.of : null;
@@ -1465,7 +1500,7 @@ ForEachLoop "for-each loop"
 DoWhileLoop "do-while loop"
   = "DO WHILE"i WB _ test:Expression __
     body:(Statement __)*
-    "ENDDO"i {
+    KwEndDo {
       return node("DoWhileStatement", {
         test,
         body: node("BlockStatement", { body: flatten(body.map(s => s[0])) })
@@ -1478,8 +1513,8 @@ DoWhileLoop "do-while loop"
 DoCaseStatement "do case statement"
   = "DO CASE"i WB subject:(_ e:Expression { return e; })? __
   cases:(CaseClause)*
-  otherwise:("OTHERWISE"i WB __ othBody:(!CaseBoundary s:Statement __ { return s; })* { return node('BlockStatement', { body: flatten(othBody) }); })*
-  "ENDCASE"i {
+  otherwise:(KwOtherwise __ othBody:(!CaseBoundary s:Statement __ { return s; })* { return node('BlockStatement', { body: flatten(othBody) }); })*
+  KwEndCase {
       // (CaseClause)* yields the clauses themselves, not [clause] pairs: indexing them dropped every
       // branch of every DO CASE, contents and all, so nothing downstream could see inside one.
       return node('DoCaseStatement', {
@@ -1491,7 +1526,7 @@ DoCaseStatement "do case statement"
     }
 
 CaseClause
-  = "CASE"i _ test:Expression __
+  = KwCase _ test:Expression __
     consequent:(!CaseBoundary s:Statement __ { return s; })* {
       return node('CaseClause', {
         test,
@@ -1501,7 +1536,7 @@ CaseClause
 
 // A CASE body ends at the next branch or at ENDCASE. Without this guard the catch-all swallows the next CASE line into this body, and only the first branch of a DO CASE is ever parsed.
 CaseBoundary
-  = ("CASE"i / "OTHERWISE"i / "ENDCASE"i) WB
+  = KwCase / KwOtherwise / KwEndCase
 
 // DO FORM FormName | ? [NAME VarName [LINKED]] [WITH cParameterList]
 //  [TO VarName] [NOREAD] [NOSHOW]
@@ -1741,7 +1776,7 @@ TryStatement "try-catch statement"
   = "TRY"i WB __
     tstmts:(Statement __)*
     cparts:(
-      "CATCH"i WB
+      KwCatch
       toVar:(_ "TO"i WB _ v:ParameterName { return v; })?
       whenPart:(_ "WHEN"i WB __ wexpr:Expression { return wexpr; })?
       __
@@ -1751,8 +1786,8 @@ TryStatement "try-catch statement"
     )*
     tpart:("THROW"i _ texpr:Expression? __ { return texpr === undefined ? null : texpr; })?
     exitpart:("EXIT"i __ { return true; })?
-    fpart:("FINALLY"i __ fstmts:(Statement __)* { return flatten(fstmts.map(s => s[0])); })?
-    "ENDTRY"i __
+    fpart:(KwFinally __ fstmts:(Statement __)* { return flatten(fstmts.map(s => s[0])); })?
+    KwEndTry __
     {
       return node("TryStatement", {
         tryBlock: node("BlockStatement", { body: flatten(tstmts.map(s => s[0])) }),
@@ -1771,7 +1806,7 @@ WithStatement
   = "WITH"i WB _ target:(LValue / PostfixExpression)
     asPart:(_ a:AsClause { return a; })? __
     body:(WithBodyEntry __)*
-    "ENDWITH"i {
+    KwEndWith {
       return node("WithStatement", {
         target,
         asType: asPart ? asPart.type : null,
@@ -2057,7 +2092,7 @@ OfParentClause
 // ACTIVATE | DEACTIVATE | SHOW | HIDE | MOVE | SIZE | ZOOM WINDOW | MENU | POPUP | SCREEN ...
 // The sub-keyword is required, which is what keeps `Activate = .T.` an assignment.
 ScreenCommandStatement
-  = cmd:("ACTIVATE"i / "DEACTIVATE"i / "SHOW"i / "HIDE"i / "MOVE"i / "SIZE"i / "ZOOM"i) WB _ what:("WINDOW"i / "MENU"i / "POPUP"i / "SCREEN"i) WB opts:RawOptions {
+  = cmd:(KwActivate { return 'ACTIVATE'; } / "DEACTIVATE"i / "SHOW"i / "HIDE"i / "MOVE"i / "SIZE"i / "ZOOM"i) WB _ what:("WINDOW"i / "MENU"i / "POPUP"i / "SCREEN"i) WB opts:RawOptions {
       return node('ScreenCommandStatement', { command: cmd.toUpperCase(), what: what.toUpperCase(), options: opts });
     }
 
@@ -2111,31 +2146,13 @@ OnMenuOpenStatement
 // -----------------------------
 // A block terminator with nothing open for it to close. The catch-all refuses these words -- it has to, or no block could find its own end -- so before this rule one stray ENDIF made the whole file unparseable and the user lost every other diagnostic in it until the line was fixed. Absorbing it here keeps the rest live while typing; the rule that reads this node reports it as a syntax error, which it is.
 DanglingTerminator
-  = kw:$("ENDIF"i / "ELSE"i / "ENDDO"i / "ENDFOR"i / "NEXT"i / "ENDTRY"i / "ENDDEFINE"i
-    / "ENDPROC"i / "ENDFUNC"i / "ENDCASE"i / "ENDWITH"i / "ENDSCAN"i / "ENDTEXT"i
-    / "OTHERWISE"i / "CATCH"i / "FINALLY"i) ![A-Za-z0-9_] RawOptions {
-      return node("DanglingTerminator", { keyword: kw.toUpperCase() });
+  = kw:KwTerminator RawOptions {
+      return node("DanglingTerminator", { keyword: kw });
     }
 
 // Captures a single logical line (respecting semicolon continuations) that didn't match any known statement. Protects block delimiters so structured constructs (IF/DO WHILE/FOR/TRY/DEFINE/WITH) can still recognize their endings.
 UnknownStatement
-  = !("ENDIF"i      ![A-Za-z0-9_]
-    / "ELSE"i       ![A-Za-z0-9_]
-    / "ENDDO"i      ![A-Za-z0-9_]
-    / "ENDFOR"i     ![A-Za-z0-9_]
-    / "NEXT"i       ![A-Za-z0-9_]
-    / "ENDTRY"i     ![A-Za-z0-9_]
-    / "ENDDEFINE"i  ![A-Za-z0-9_]
-    / "ENDPROC"i    ![A-Za-z0-9_]
-    / "ENDFUNC"i    ![A-Za-z0-9_]
-    / "ENDCASE"i    ![A-Za-z0-9_]
-    / "ENDWITH"i    ![A-Za-z0-9_]
-    / "ENDSCAN"i    ![A-Za-z0-9_]
-    / "ENDTEXT"i    ![A-Za-z0-9_]
-    / "OTHERWISE"i  ![A-Za-z0-9_]
-    / "CATCH"i      ![A-Za-z0-9_]
-    / "FINALLY"i    ![A-Za-z0-9_]
-    )
+  = !KwTerminator
     raw:$((!LineTerminator .)+ (LineContinuation (!LineTerminator .)*)*) {
       return node("UnknownStatement", { raw: raw.trim() });
     }
@@ -2369,12 +2386,12 @@ ReplaceStatement
     fields:ReplaceFieldList
     opts:(_ ReplaceOption)* {
       const o = collectRecordOptions(opts.map(t => t[1]));
-      return node("ReplaceStatement", { 
+      return node("ReplaceStatement", {
         scope: scope || o.scope,
-        fields, 
+        fields,
         forCondition: o.forCondition,
         whileCondition: o.whileCondition,
-        inTarget: o.inTarget,
+        inTarget: o.inTarget ?? unfoldInClause(fields),
         noOptimize: o.noOptimize
       });
     }
@@ -2479,7 +2496,7 @@ LocateStatement
 ScanStatement
   = "SCAN"i WB opts:(_ RecordOption)* __
     body:(Statement __)*
-    ("ENDSCAN"i / ("LOOP"i / "EXIT"i) _? "ENDSCAN"i)? {
+    (KwEndScan / ("LOOP"i / "EXIT"i) _? KwEndScan)? {
       const o = { noOptimize: false, scope: null, forCondition: null, whileCondition: null };
       for (const part of opts.map(t => t[1])) {
         switch (part.kind) {
@@ -2578,9 +2595,14 @@ ReplaceFieldList
     }
 
 ReplaceField
-  = field:ParameterName _ "WITH"i _ value:Expression _ additive:("ADDITIVE"i)? {
+  = field:ReplaceTarget _ "WITH"i _ value:Expression _ additive:("ADDITIVE"i)? {
       return { field, value, additive: !!additive };
     }
+
+// The column REPLACE writes may be named at run time: `(expr)` computes it, and a macro may stand for any part of the name after the alias arrow. Both are how the metadata-driven code writes a column it only learns the name of as it runs.
+ReplaceTarget
+  = "(" _ e:Expression _ ")" { return e; }
+  / $([@&]? [a-zA-Z_][a-zA-Z0-9_]* (("." / "->") [@&]? [a-zA-Z_][a-zA-Z0-9_]*)*)
 
 // STORE eExpression TO VarNameList | ArrayNameList-or-VarName | ArrayName = eExpression
 // STORE takes a list, and any member of it may be subscripted: `STORE 0 TO a[1], b[2]`. Reading the list as names first and the subscript only when it was the whole tail dropped `laY[3]` in `STORE 0 TO lnX, laY[3]` -- the name was booked as a write and `[3]` read on as a bracket string literal on a statement of its own. One target rule per member is what keeps the subscript attached to the name it belongs to.
@@ -2605,9 +2627,9 @@ ExpressionList
 // 1) PROCEDURE Name [ LPARAMETERS p1, p2, ... ]   Commands [ RETURN expr ] [ ENDPROC ]
 // 2) PROCEDURE Name( [ p1 [ AS type ] [, p2 [ AS type ] ... ] ) [ AS returntype ]  Commands [ RETURN expr ] [ ENDPROC ]
 ProcedureStatement "procedure"
-  = access:(a:("PROTECTED"i / "HIDDEN"i) WB _ { return a.toUpperCase(); })? cw:("PROCEDURE"i / "FUNCTION"i) WB __ name:RoutineName _ proc:(
+  = access:(a:("PROTECTED"i / "HIDDEN"i) WB _ { return a.toUpperCase(); })? cw:(KwProcedure { return 'PROCEDURE'; } / KwFunction { return 'FUNCTION'; }) __ name:RoutineName _ proc:(
       // function-style parameter list with optional typed params and optional return type
-      "(" _ params:ProcedureParamList? _ ")" _ retPart:(_ "AS"i WB __ rt:IdentifierOrString)? __ statements:RoutineBody end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
+      "(" _ params:ProcedureParamList? _ ")" _ retPart:(_ "AS"i WB __ rt:IdentifierOrString)? __ statements:RoutineBody end:(_ (KwEndProc / KwEndFunc) __)? {
         return node("ProcedureStatement", {
           name,
           access: access || null,
@@ -2619,7 +2641,7 @@ ProcedureStatement "procedure"
         });
       }
     / // alternate LPARAMETERS style (untyped, compatible with LPARAMETERS/PARAMETERS keyword). The return type is declared without a parameter list here -- `FUNCTION Release AS Logical` -- and unread it left `AS Logical` behind as a statement of its own.
-    ret:(_ "AS"i WB __ rt:IdentifierOrString { return rt; })? __ lparams:LParameters? __ statements:RoutineBody end:(_ ("ENDPROC"i / "ENDFUNC"i) __)? {
+    ret:(_ "AS"i WB __ rt:IdentifierOrString { return rt; })? __ lparams:LParameters? __ statements:RoutineBody end:(_ (KwEndProc / KwEndFunc) __)? {
         return node("ProcedureStatement", {
           name,
           access: access || null,
@@ -2641,7 +2663,7 @@ RoutineBody
   = body:(!RoutineBoundary s:Statement __ { return s; })* { return flatten(body); }
 
 RoutineBoundary
-  = (("PROTECTED"i / "HIDDEN"i) WB _)? ("PROCEDURE"i / "FUNCTION"i / "DEFINE CLASS"i) WB
+  = (("PROTECTED"i / "HIDDEN"i) WB _)? (KwProcedure / KwFunction / "DEFINE CLASS"i WB)
 
 // RETURN TO MASTER unwinds to the top-level program, and RETURN TO Routine to a named one. The TO form has to be claimed first: RETURN on its own already parses, so the tail read as a statement after it and reported as unreachable code as well.
 ReturnStatement
@@ -2854,6 +2876,37 @@ MemberName
 
 DotOperatorWord
   = "AND"i / "OR"i / "NOT"i / "NULL"i / "T"i / "F"i / "Y"i / "N"i
+
+// A word read whole, so a keyword cut to four characters can be measured against the one the site expects rather than matched letter by letter.
+Kw "keyword"
+  = w:$([a-zA-Z]+) ![A-Za-z0-9_] { return w.toUpperCase(); }
+
+// One rule per keyword that is written abbreviated in the wild. The site names the block it belongs to, which is what settles an abbreviation two keywords share: `ENDD` closes whichever of DO WHILE and DEFINE CLASS is open here.
+KwEndIf      = w:Kw &{ return abbrev(w, 'ENDIF'); }
+KwElse       = w:Kw &{ return abbrev(w, 'ELSE'); }
+KwEndDo      = w:Kw &{ return abbrev(w, 'ENDDO'); }
+KwEndFor     = w:Kw &{ return abbrev(w, 'ENDFOR'); }
+KwEndCase    = w:Kw &{ return abbrev(w, 'ENDCASE'); }
+KwCase       = w:Kw &{ return abbrev(w, 'CASE'); }
+KwOtherwise  = w:Kw &{ return abbrev(w, 'OTHERWISE'); }
+KwEndScan    = w:Kw &{ return abbrev(w, 'ENDSCAN'); }
+KwEndWith    = w:Kw &{ return abbrev(w, 'ENDWITH'); }
+KwEndTry     = w:Kw &{ return abbrev(w, 'ENDTRY'); }
+KwCatch      = w:Kw &{ return abbrev(w, 'CATCH'); }
+KwFinally    = w:Kw &{ return abbrev(w, 'FINALLY'); }
+KwEndText    = w:Kw &{ return abbrev(w, 'ENDTEXT'); }
+KwEndDefine  = w:Kw &{ return abbrev(w, 'ENDDEFINE'); }
+KwEndProc    = w:Kw &{ return abbrev(w, 'ENDPROC'); }
+KwEndFunc    = w:Kw &{ return abbrev(w, 'ENDFUNC'); }
+KwProcedure  = w:Kw &{ return abbrev(w, 'PROCEDURE'); }
+KwFunction   = w:Kw &{ return abbrev(w, 'FUNCTION'); }
+KwDelete     = w:Kw &{ return abbrev(w, 'DELETE'); }
+KwActivate   = w:Kw &{ return abbrev(w, 'ACTIVATE'); }
+KwExclusive  = w:Kw &{ return abbrev(w, 'EXCLUSIVE'); }
+KwDescending = w:Kw &{ return abbrev(w, 'DESCENDING'); }
+
+// Any block terminator, whatever it closes, for the two rules that have to know the word without knowing the block.
+KwTerminator = w:Kw &{ return terminatorOf(w) !== null; } { return terminatorOf(w); }
 
 // Recognized keywords to prevent them being treated as identifiers.
 Keyword "keyword"

@@ -1,6 +1,6 @@
 * `#IF .F.` fencing off a block that is not code at all. FoxPro's preprocessor evaluates the condition and never compiles the body, which is how mosesrules.prg keeps a page of house rules at the top of a .prg and how unfinished work is parked without commenting every line.
-* The linter reads the body anyway, so the prose is parsed as statements. Any `if` in an English sentence opens a block, and the file ends unterminated -- 72 findings on mosesrules.prg alone, none of them about code that runs.
-* The fix is to evaluate a constant condition and skip the body, not to parse it more cleverly. `#IF .T.` and a condition on a #DEFINE both have to keep working.
+* The linter read the body anyway, so the prose was parsed as statements. Any `if` in an English sentence opened a block, and the file ended unterminated -- 72 findings on mosesrules.prg alone, none of them about code that runs.
+* A constant condition is evaluated now and the body behind a false one is taken as text. `#IF .T.` and a condition on a #DEFINE are untouched: only `.F.` and `0` are settled here, because anything else is a name only the preprocessor can resolve.
 #IF .F.
 
 	*Miscellaneous rules and tools

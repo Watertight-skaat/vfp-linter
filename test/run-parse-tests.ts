@@ -47,6 +47,14 @@ check('a nested #IF ends at its own #ENDIF',
 check('#ELSE fills the branch below', first('#IF .F.\n? 1\n#ELSE\n? 2\n#ENDIF').alternate.body.map((s: any) => s.type), ['PrintStatement']);
 check('an #ELIF link stands alone in that branch', first('#IF a\n? 1\n#ELIF b\n? 2\n#ENDIF').alternate.body[0].directive, 'ELIF');
 check('#IFDEF is read too', first('#IFDEF FOO\nLOCAL x\n#ENDIF').directive, 'IFDEF');
+// A fence the preprocessor never compiles is not code: `#IF .F.` is where the house rules and the unfinished work are parked, and reading the prose inside it as statements put an English `if` at the head of a block that never closed. The condition is evaluated where it is constant, and the body of a false one is skipped.
+check('the body of a false fence is not parsed', first('#IF .F.\nif it is a list, make the labels c_label1\n#ENDIF').consequent.body, []);
+check('zero is false too', first('#IF 0\nif it is a list\n#ENDIF').consequent.body, []);
+check('and the fence still ends at its own #ENDIF', types('#IF .F.\nif it is a list\n#ENDIF\nLOCAL x'), ['PreprocessorIfStatement', 'LocalDeclaration']);
+check('a nested fence inside a skipped one does not close it early',
+	types('#IF .F.\n#IF .T.\nLOCAL a\n#ENDIF\nstill prose\n#ENDIF\nLOCAL b'), ['PreprocessorIfStatement', 'LocalDeclaration']);
+check('the branch that does compile is still read', first('#IF .F.\nprose\n#ELSE\nLOCAL x\n#ENDIF').alternate.body.map((s: any) => s.type), ['LocalDeclaration']);
+check('a condition that is not constant is left alone, body and all', first('#IF FOO\nLOCAL x\n#ENDIF').consequent.body.map((s: any) => s.type), ['LocalDeclaration']);
 
 // --- dangling terminators ------------------------------------------------------
 // These used to throw, which cost the file every other diagnostic in it.
@@ -589,5 +597,40 @@ check('a closed literal carries no such flag', first('? "abc"').arguments[0], { 
 check('a stray quote after a terminator stands as a statement of its own', types("FOR i = 1 TO 3\nENDFOR'\n? 1"), ['ForStatement', 'ExpressionStatement', 'PrintStatement']);
 // A bracket literal is not recovered, because `[` also opens a subscript: the line it is on is unreadable, and the point is that the lines below it are not.
 check('a bracket literal stops at the line end too', types('x = [abc\ny = 1'), ['UnknownStatement', 'Assignment']);
+
+// --- REPLACE with a computed target -------------------------------------------
+// The metadata-driven code writes a column whose name it only learns at run time: a parenthesised expression, or a macro after the alias arrow. REPLACE was rejected outright, which left its WITH standing at the head of a statement -- where WITH opens a member scope -- so the linter asked for an ENDWITH and swallowed the rest of the routine.
+const replaced = (src: string) => first(src).fields[0];
+check('a parenthesised expression names the field',
+	replaced('REPLACE ("I" + QBCustom.mosnum) WITH m.InfVal IN (m.cCursorName)').field,
+	{ type: 'BinaryExpression', operator: '+', left: { type: 'StringLiteral', value: 'I' }, right: { type: 'MemberExpression', object: { type: 'Identifier', name: 'QBCustom' }, property: { type: 'Identifier', name: 'mosnum' } } });
+check('a macro after the arrow is part of the name', replaced("REPLACE invcount->&cReturnType WITH 1 IN invcount").field, 'invcount->&cReturnType');
+check('a plain field is still a plain name', replaced('REPLACE ALL serial WITH "" FOR x = 1').field, 'serial');
+// `IN (alias)` reads as the SQL IN operator to an expression rule that should never have offered one outside SQL, so the work area was swallowed into the value and the statement looked read while naming no alias at all.
+check('the work area is the IN clause, not an operator in the value',
+	(({ fields, inTarget }) => [fields[0].value.type, inTarget.property.name])(first('REPLACE serial WITH "" IN (m.cAlias)')), ['StringLiteral', 'cAlias']);
+check('an unparenthesised alias is unchanged', first('REPLACE serial WITH "" IN invcount').inTarget, 'invcount');
+check('and a real IN test in a FOR condition is left alone', first('REPLACE serial WITH "" FOR x IN (1, 2)').forCondition.type, 'InExpression');
+check('the statement no longer leaves its WITH standing', types('REPLACE (m.cF) WITH 1 IN (m.cA)\nLOCAL x'), ['ReplaceStatement', 'LocalDeclaration']);
+
+// --- keywords cut to four characters -------------------------------------------
+// FoxPro accepts any keyword abbreviated to its first four, and the 2.75 generation writes ENDI, ENDD, ENDC, DELE, ACTI, EXCLU and DESC throughout. A terminator not recognised as one was the expensive case: the block stayed open, every later terminator closed the wrong thing, and a dozen files died on a single `endi`.
+const blocks: [string, string][] = [
+	['IF x\n? 1\nENDI', 'IfStatement'], ['DO WHILE x\n? 1\nENDD', 'DoWhileStatement'], ['DO CASE\nCASE x\n? 1\nENDC', 'DoCaseStatement'],
+	['FOR i = 1 TO 3\n? 1\nENDF', 'ForStatement'], ['SCAN\n? 1\nENDS', 'ScanStatement'], ['WITH o\n.Caption = "x"\nENDW', 'WithStatement'],
+	['TRY\n? 1\nENDT', 'TryStatement'], ['DEFINE CLASS c AS Custom\nENDD', 'DefineClass'], ['PROCEDURE p\n? 1\nENDP', 'ProcedureStatement']
+];
+check('an abbreviated terminator closes its own block', blocks.map(([src]) => types(src)[0]), blocks.map(([, type]) => type));
+check('and the file below it is still read', types('IF m.x\n? 1\nENDI\nLOCAL y'), ['IfStatement', 'LocalDeclaration']);
+check('an abbreviated ELSE still branches', first('IF m.x\n? 1\nELSE\n? 2\nENDI').alternate.body.map((b: any) => b.type), ['PrintStatement']);
+check('a statement word too', first('DELE FOR EMPTY(stnum)').type, 'DeleteStatement');
+check('and a clause word', first('USE rbatcont EXCLU').exclusive, true);
+check('ACTI is ACTIVATE', first('ACTI WINDOW wMain').command, 'ACTIVATE');
+check('DESC is DESCENDING', first('INDEX ON custid TAG custid DESC').direction, 'DESCENDING');
+// Four is the cut, and the word has to be the keyword's own beginning: three characters are not a keyword and a longer word that merely starts the same is a name.
+check('three characters are not enough', types('END'), ['UnknownStatement']);
+check('a name that starts like a terminator is a name', first('ENDIFX = 1').type, 'Assignment');
+check('a terminator with nothing open is still the syntax error it was', first('ENDI').type, 'DanglingTerminator');
+check('and it is named in full, whatever it was cut to', first('ENDI').keyword, 'ENDIF');
 
 report('Parse checks');

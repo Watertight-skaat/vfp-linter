@@ -106,6 +106,12 @@ const consoleRefs = (kind: string) => basic.get(at('console.prg'))!.refs.filter(
 check('a DO names its routine and counts its arguments', consoleRefs('do'), ['PostCharge/2']);
 check('a DO FORM names its form', consoleRefs('form'), ['ledgerview/0']);
 
+// A `#IF .F.` fence is never compiled, so what is parked behind it refers to nothing. Both tiers have to agree about that, and agreeing on nothing is not the same as reading it: the file holds one DO in the dead branch and one in the live one.
+const fenced = './test-files/watertight/preprocessor.prg';
+const fencedRefs = (record: FileRecord) => record.refs.filter(r => r.kind === 'do').map(r => r.name);
+check('a call behind a false fence is not a reference', fencedRefs(scanHeader(fenced, read(fenced))), ['PostCharges']);
+check('and the parser reads the same one', fencedRefs(extract(fenced, parse(read(fenced)) as never, lines(fenced))), ['PostCharges']);
+
 // --- resolving a file --------------------------------------------------------
 
 check('an #INCLUDE resolves beside the file that names it', basic.resolveFile('shared.h', 'include', at('log.prg')), at('shared.h'));

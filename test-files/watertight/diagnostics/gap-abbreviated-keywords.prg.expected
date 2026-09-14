@@ -1,5 +1,0 @@
-7:1 error unterminated-block This opens a block that could not be parsed. Check for a missing ENDIF: 'IF m.sp_opt3'
-9:1 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'ENDI'
-12:1 error unterminated-block This opens a block that could not be parsed. Check for a missing ENDDO: 'DO WHILE m.nCount < 10'
-14:1 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'ENDD'
-16:1 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: 'DELE FOR EMPTY(stnum)'

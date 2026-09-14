@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.3
+
+a bunch of other fixes
+
 ## 1.4.0
 
 ### References, completion and signature help
@@ -56,6 +60,32 @@ each rule re-deriving the same evasion.
 **A finding can now belong to a file that did not change.** Re-signing a routine in one file moves the
 finding into the files that call it, so the index keeps a reverse map and the open dependents are
 re-linted when a definition's arity, existence or home changes.
+
+### Three gaps that each cost a block
+
+**A keyword cut to four characters is the keyword.** FoxPro accepts any of them abbreviated that far,
+and the 2.75 generation writes `ENDI`, `ENDD`, `ENDC`, `DELE`, `ACTI`, `EXCLU` and `DESC` throughout. A
+terminator the grammar did not recognise was the expensive case: the block it was meant to close stayed
+open, every later terminator closed the wrong thing, and a dozen files in one legacy folder died on a
+single `endi`. The word is now read whole and measured against the keyword the site expects, so `ENDI`
+closes an `IF`, `ENDIX` closes nothing, and an abbreviation two keywords share -- `ENDD` is `ENDDO` or
+`ENDDEFINE` -- is settled by the block that is open. `PROC` and `FUNC` open a routine the same way, and
+the header scan reads all of it too, so the index does not lose a class to a `ENDP`.
+
+**`REPLACE` can compute the column it writes.** `REPLACE (m.cField) WITH ...` and an alias arrow
+carrying a macro are how the metadata-driven code writes a column it only learns the name of as it runs.
+The statement was rejected, which left its `WITH` at the head of a statement -- where `WITH` opens a
+member scope -- so the linter asked for an `ENDWITH` and swallowed the rest of the routine. Reading the
+target turned up a second half: `IN (alias)` was being taken as the SQL `IN` operator, which xbase has
+no business offering outside a query, so the work area disappeared into the value and the statement
+named no alias at all.
+
+**`#IF .F.` is a fence, not a branch.** The preprocessor never compiles what is behind one, which is
+where a page of house rules and every piece of unfinished work is parked. Parsed as statements the prose
+opened a block at the first English `if` and the file ended unterminated -- 72 findings on one file, none
+of them about code that runs. A constant condition is evaluated now and the body behind a false one is
+taken as text, at both tiers: a call parked in a dead branch is not a reference to anything. `#IF .T.`
+and a condition on a `#DEFINE` are untouched, because only the preprocessor can settle those.
 
 ### A string literal ends at the line break
 

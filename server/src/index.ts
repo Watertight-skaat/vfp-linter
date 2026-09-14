@@ -541,21 +541,31 @@ function makeRef(kind: RefKind, target: NameNode, fallback: Loc | undefined, fil
 // --- tier 1: from the text ---------------------------------------------------
 // Microseconds per file against a quarter of a second to parse one, which is what makes indexing the whole tree at startup possible. It reads only line-anchored constructs, so calls and CREATEOBJECT are left to tier 2 -- everything the phase-one editor features and the arity check need is here.
 
-const reRoutine = /^[ \t]*(?:(?:PROTECTED|HIDDEN)[ \t]+)?(PROCEDURE|FUNCTION)[ \t]+([A-Za-z_]\w*)[ \t]*(\(([^)]*)\))?/i;
+/** A keyword as FoxPro accepts it: cut to its first four characters, or anything between that and the whole word. foxpro.pegjs reads a word and measures it; a regex has to spell the choice out. */
+const cut = (word: string) => word.slice(0, 4) + [...word.slice(4)].reverse().reduce((rest, ch) => `(?:${ch}${rest})?`, '');
+
+const reRoutine = new RegExp(`^[ \t]*(?:(?:PROTECTED|HIDDEN)[ \t]+)?(${cut('PROCEDURE')}|${cut('FUNCTION')})[ \t]+([A-Za-z_]\\w*)[ \t]*(\\(([^)]*)\\))?`, 'i');
 const reParameters = /^[ \t]*(?:LPARAMETERS|LPARAMETER|PARAMETERS|PARAMETER|PARAM)\b[ \t]*(.*)$/i;
 const reDefineClass = /^[ \t]*DEFINE[ \t]+CLASS[ \t]+([A-Za-z_]\w*)(?:[ \t]+AS[ \t]+([\w.]+))?/i;
-const reEndDefine = /^[ \t]*ENDDEFINE\b/i;
-const reEndRoutine = /^[ \t]*(?:ENDPROC|ENDFUNC)\b/i;
+const reEndDefine = new RegExp(`^[ \t]*${cut('ENDDEFINE')}\\b`, 'i');
+const reEndRoutine = new RegExp(`^[ \t]*(?:${cut('ENDPROC')}|${cut('ENDFUNC')})\\b`, 'i');
 const reDefine = /^[ \t]*#DEFINE[ \t]+([A-Za-z_]\w*)[ \t]*(.*)$/i;
 const reInclude = /^[ \t]*#INCLUDE[ \t]+(.*)$/i;
 
 const reSetTo = /^[ \t]*SET[ \t]+(PROCEDURE|CLASSLIB)[ \t]+TO[ \t]*(.*)$/i;
 const reComment = /^[ \t]*(?:\*|&&|NOTE\b)/i;
 const reText = /^[ \t]*TEXT\b/i;
-const reEndText = /^[ \t]*ENDTEXT\b/i;
-const reClassMembers = /^[ \t]*(?:PROTECTED|HIDDEN)[ \t]+(?!PROCEDURE\b|FUNCTION\b)(.*)$/i;
+const reEndText = new RegExp(`^[ \t]*${cut('ENDTEXT')}\\b`, 'i');
+const reClassMembers = new RegExp(`^[ \t]*(?:PROTECTED|HIDDEN)[ \t]+(?!${cut('PROCEDURE')}\\b|${cut('FUNCTION')}\\b)(.*)$`, 'i');
 const reAddObject = /^[ \t]*ADD[ \t]+OBJECT[ \t]+(?:PROTECTED[ \t]+)?([A-Za-z_]\w*)/i;
 const reProperty = /^[ \t]*([A-Za-z_]\w*)[ \t]*=/;
+
+// A fence the preprocessor never compiles, and the directives that open, branch and close one. The condition is read the way foxpro.pegjs reads it -- only `.F.` and `0` are constant, anything else is a name only the preprocessor resolves -- and the parity test is what keeps the two readings together.
+const reFenceCondition = /^[ \t]*#IF[ \t]+(.*)$/i;
+const reFenceOpen = /^[ \t]*#IF(?:DEF|NDEF)?\b/i;
+const reFenceBranch = /^[ \t]*#EL(?:SE|IF)\b/i;
+const reFenceClose = /^[ \t]*#ENDIF\b/i;
+const isConstantlyFalse = (test: string) => /^(\.F\.?|0)$/i.test(test.split('&&')[0].trim());
 
 export function scanHeader(file: string, text: string, stat: { mtime: number; size: number } = { mtime: 0, size: 0 }): FileRecord {
   const record: FileRecord = { file, mtime: stat.mtime, size: stat.size, tier: 1, routines: [], classes: [], constants: [], mainParams: null, refs: [] };
@@ -565,6 +575,8 @@ export function scanHeader(file: string, text: string, stat: { mtime: number; si
   let klass: ClassRecord | null = null;
   let routine: RoutineRecord | null = null;
   let inText = false;
+  // How deep inside a `#IF .F.` we are. Nothing behind one is compiled, so nothing in it defines or refers to anything.
+  let fence = 0;
   // A routine takes the LPARAMETERS line that follows it, across blank lines and comments, exactly as the grammar does. This says we are still in that window.
   let awaitingParameters = false;
 
@@ -575,6 +587,14 @@ export function scanHeader(file: string, text: string, stat: { mtime: number; si
       if (reEndText.test(line)) inText = false;
       continue;
     }
+    if (fence) {
+      if (reFenceOpen.test(line)) fence++;
+      else if (reFenceClose.test(line)) fence--;
+      else if (fence === 1 && reFenceBranch.test(line)) fence = 0; // what follows the branch is what compiles
+      continue;
+    }
+    const condition = reFenceCondition.exec(line);
+    if (condition && isConstantlyFalse(condition[1])) { fence = 1; continue; }
     if (reText.test(line) && !reEndText.test(line)) { inText = true; continue; }
     if (!line.trim() || reComment.test(line)) continue;
 
@@ -583,7 +603,8 @@ export function scanHeader(file: string, text: string, stat: { mtime: number; si
       const name = routineMatch[2];
       routine = {
         name, key: upper(name),
-        isFunction: upper(routineMatch[1]) === 'FUNCTION',
+        // FUNC, FUNCT, FUNCTI: the word may be cut to four, so the prefix is what says which of the two it was.
+        isFunction: upper(routineMatch[1]).startsWith('FUNC'),
         params: routineMatch[4] !== undefined ? splitNames(routineMatch[4]).map(stripType) : [],
         range: rangeOf(i, 0, line.length), file,
         owner: klass ? klass.name : null,

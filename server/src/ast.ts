@@ -152,7 +152,8 @@ export interface CatchClause {
 }
 
 export interface ReplaceField {
-  field: string;
+  /** The column written. An expression where the code computes the name as it runs: `REPLACE (m.cField) WITH ...`. */
+  field: string | Expr;
   value: Expr;
   additive: boolean;
 }

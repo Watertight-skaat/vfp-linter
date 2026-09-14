@@ -1,2 +1,0 @@
-7:3 error unsupported-syntax This statement is valid FoxPro that the linter does not parse yet, so it is not being checked: '-for grids and lists in the resize event use moses.lst_colwidths(thisform.lst1)'
-8:4 error unterminated-block This opens a block that could not be parsed. Check for a missing ENDIF: 'if it is a list, make the header label objects have object names of c_label1, c_label2'
