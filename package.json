@@ -271,7 +271,7 @@
 						"type": "string"
 					},
 					"default": [],
-					"markdownDescription": "Commands run in a Visual FoxPro the extension has started, after the workspace folder and `#foxpro.workspace.searchPath#` have been set on it -- `DO setpath`, say, or whatever your tree opens a development session with. A Visual FoxPro that was already running is never sent these: it is the developer's session, already set up."
+					"markdownDescription": "Commands run in a Visual FoxPro the extension has started, after the workspace folder and `#foxpro.workspace.searchPath#` have been set on it -- `DO setpath`, say, or whatever your tree opens a development session with. A Visual FoxPro that was already running is sent these only when it looks nowhere inside the workspace and you have been asked and agreed to set it up."
 				},
 				"foxpro.trace.server": {
 					"scope": "window",
@@ -298,7 +298,7 @@
 		"watch:bundle": "node ./scripts/build.mjs --watch",
 		"typecheck": "tsc -p client/tsconfig.json && tsc -p server/tsconfig.json && tsc -p test/tsconfig.json",
 		"postinstall": "bun run build:parser",
-		"test": "bun ./test/run-all-tests.ts && bun ./test/run-ast-tests.ts && bun ./test/run-parse-tests.ts && bun ./test/run-scope-tests.ts && bun ./test/run-severity-tests.ts && bun ./test/run-keyword-tests.ts && bun ./test/run-fix-tests.ts && bun ./test/run-vfp-tests.ts && bun ./test/run-workspace-tests.ts",
+		"test": "bun ./test/run-all-tests.ts && bun ./test/run-ast-tests.ts && bun ./test/run-parse-tests.ts && bun ./test/run-scope-tests.ts && bun ./test/run-severity-tests.ts && bun ./test/run-keyword-tests.ts && bun ./test/run-fix-tests.ts && bun ./test/run-vfp-tests.ts && bun ./test/run-vfp-script-tests.ts && bun ./test/run-workspace-tests.ts",
 		"test:update": "bun ./test/run-all-tests.ts --update && bun ./test/run-workspace-tests.ts --update",
 		"lint:dir": "bun ./test/lint-dir.ts",
 		"release": "node ./scripts/publish.mjs",

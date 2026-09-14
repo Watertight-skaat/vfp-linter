@@ -76,6 +76,8 @@ A class library holds many classes and the designer opens one of them, so pickin
 
 It opens in the Visual FoxPro you already have running, which is the point: that session has your default directory and your `SET PATH`, and a designer that cannot find a class stops on a modal dialog inside VFP where the editor cannot see it. If nothing is running, one is started on the workspace folder with `foxpro.workspace.searchPath` on its path, and `foxpro.vfp.startupCommands` is where to put whatever else your tree needs. Windows only, for the obvious reason.
 
+Before anything is sent, the session is asked where it stands and what is on its path. A Visual FoxPro that was started from the Start menu and told nothing looks nowhere inside your tree, and the designer it opens will stop to ask where every class the file is built from lives -- so you are offered the workspace folder and `foxpro.workspace.searchPath` on it first, for as long as that session lasts. Say **Open anyway** and it is left exactly as you had it.
+
 ### Rules that deliberately stay quiet
 
 A few rules would be unusable if they reported everything they could, so they hold back:

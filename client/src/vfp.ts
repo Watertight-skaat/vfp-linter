@@ -9,14 +9,16 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 export interface VfpRequest {
-	/** `run` sends one command to the designer; `classes` asks what a library holds. */
-	mode: 'run' | 'classes';
+	/** `run` sends one command to the designer; `classes` asks what a library holds; `value` asks what one expression comes to. */
+	mode: 'run' | 'classes' | 'value';
 	/** The VFP command or expression, from server/src/vfp.ts. */
 	payload: string;
 	/** The VFP to start if none is running. Empty means only attach to one that is. */
 	exe: string;
 	/** The directory a started VFP begins in. */
 	cwd: string;
+	/** Whether a VFP that was already running is to be given the startup commands as well, which is only so when the developer has been asked and said to. */
+	setup?: boolean;
 	/** What to tell a VFP the extension started. A VFP that was already running is left as the developer set it up. */
 	startup: string[];
 }
@@ -35,8 +37,44 @@ export function requestText(request: VfpRequest): string {
 		field('payload', request.payload),
 		field('exe', request.exe),
 		field('cwd', request.cwd),
+		field('setup', request.setup ? '1' : '0'),
 		...request.startup.map(command => field('startup', command))
 	].join('\r\n') + '\r\n';
+}
+
+/** What to ask a Visual FoxPro that is already running: where it stands, and where it looks for a file it is given the bare name of. The two are separated by a bar because no Windows path can hold one. */
+export const environmentExpression = 'SYS(5) + CURDIR() + "|" + SET("PATH")';
+
+export interface VfpEnvironment {
+	/** The default directory, drive and all. */
+	directory: string;
+	/** SET("PATH"), as VFP has it. */
+	path: string;
+}
+
+/** The answer to environmentExpression, split back in two. A VFP with nothing on its path answers with the bar last, and the launcher trims the line before the extension sees it, so a missing half is an empty one rather than an error. */
+export function parseEnvironment(answer: string): VfpEnvironment {
+	const bar = answer.indexOf('|');
+	if (bar < 0) return { directory: answer.trim(), path: '' };
+	return { directory: answer.slice(0, bar).trim(), path: answer.slice(bar + 1).trim() };
+}
+
+/** Every directory a bare file name is looked for in: where VFP stands, and each SET PATH entry resolved from there. SET PATH takes either separator and quotes an entry holding a space, and an entry may be relative -- which is why this resolves rather than matching strings. */
+export function searchedDirectories(environment: VfpEnvironment): string[] {
+	const entries = environment.path.split(/[;,]/).map(entry => entry.trim().replace(/^"(.*)"$/, '$1').trim()).filter(Boolean);
+	// VFP runs on Windows only, so the rules are Windows' whatever this is running on -- and the tests say so on every platform.
+	const from = environment.directory || path.win32.sep;
+	return [...(environment.directory ? [environment.directory] : []), ...entries].map(entry => path.win32.resolve(from, entry));
+}
+
+/** Whether a Visual FoxPro that was already running looks set up for this workspace: somewhere it searches is inside the tree the editor has open. It is a weak test on purpose -- what it catches is the instance that was started from the Start menu and told nothing, which opens a designer and then asks, one modal dialog at a time, where each class the form is built from lives. */
+export function isSetUpFor(root: string, environment: VfpEnvironment): boolean {
+	if (!root) return true;
+	return searchedDirectories(environment).some(directory => {
+		// relative() is what knows that W:\DEVSTAGING2 and W:\Devstaging2 are one directory.
+		const inside = path.win32.relative(root, directory);
+		return !inside.startsWith('..') && !path.win32.isAbsolute(inside);
+	});
 }
 
 /** What a VFP started by the extension is missing: where it is, and where the code is. The developer's own instance is never sent these. */

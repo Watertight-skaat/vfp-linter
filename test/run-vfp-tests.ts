@@ -2,7 +2,7 @@
 // It is all text, and it is worth pinning down here because the failure mode is invisible from the editor -- VFP answers a malformed command with a modal dialog inside the developer's own IDE, and the extension sees only a call that never returns.
 
 import { classListExpression, designerFile, designerFor, vfpCommandFor } from '../server/src/vfp.js';
-import { requestText, startupCommands, vfpExeCandidates } from '../client/src/vfp.js';
+import { environmentExpression, isSetUpFor, parseEnvironment, requestText, searchedDirectories, startupCommands, vfpExeCandidates } from '../client/src/vfp.js';
 import { check, report } from './check.js';
 
 // --- which files VFP has to open ---------------------------------------------
@@ -48,10 +48,13 @@ check('the request is one field per line, startup commands last', requestText(re
 	'payload=MODIFY FORM ("x.scx") NOWAIT',
 	'exe=C:\\vfp\\VFPA.EXE',
 	'cwd=W:\\Devstaging2\\wt',
+	'setup=0',
 	'startup=SET PATH TO "app" ADDITIVE',
 	'startup=SET PATH TO "framework" ADDITIVE',
 	''
 ]);
+// A session the extension did not start is left as the developer set it up, unless they have just been asked about it and said to set it up.
+check('and whether a session already running is to be set up too', requestText({ ...request, setup: true }).split('\r\n')[4], 'setup=1');
 // A line break in a value would be read back as the start of another field, and the field it would look like is a command to run.
 check('a line break in a value cannot split the field', requestText({ ...request, payload: 'A\r\nstartup=QUIT' }).split('\r\n')[1], 'payload=A startup=QUIT');
 
@@ -62,6 +65,39 @@ check('a new instance is given the workspace and its search path', startupComman
 ]);
 check('the configured commands come after it', startupCommands('W:\\wt', [], ['DO setpath']), ['SET DEFAULT TO ("W:\\wt")', 'DO setpath']);
 check('and nothing is sent when there is nothing to say', startupCommands('', [], []), []);
+
+// --- is the Visual FoxPro already running set up for this tree? ---------------
+
+// The one question worth asking before handing a form to a session the extension did not start. A VFP that looks nowhere inside the tree opens the designer, cannot find the first class the form is built from, and stops on a modal Locate dialog -- inside VFP, where the editor can neither see it nor cancel it, and the automation call simply never returns.
+check('the probe asks where VFP is and where it looks', environmentExpression, 'SYS(5) + CURDIR() + "|" + SET("PATH")');
+// A bar separates them because no Windows path can hold one.
+check('the answer splits in two on the bar', parseEnvironment('W:\\Devstaging2\\wt\\ACCESS\\|c:\\a;c:\\b'), { directory: 'W:\\Devstaging2\\wt\\ACCESS\\', path: 'c:\\a;c:\\b' });
+check('an empty path is still an answer', parseEnvironment('C:\\PF\\VFPA\\|'), { directory: 'C:\\PF\\VFPA\\', path: '' });
+check('and so is one the bar never reached', parseEnvironment('C:\\PF\\VFPA\\'), { directory: 'C:\\PF\\VFPA\\', path: '' });
+
+// SET PATH takes either separator, quotes an entry holding a space, and keeps a relative entry relative -- which is the whole reason this resolves rather than matching strings.
+check('the directories searched are the default one and each entry resolved from it', searchedDirectories({ directory: 'W:\\Devstaging2\\wt\\ACCESS', path: '..\\..\\classes\\framework; "C:\\shared libs" ,D:\\x' }), [
+	'W:\\Devstaging2\\wt\\ACCESS',
+	'W:\\Devstaging2\\classes\\framework',
+	'C:\\shared libs',
+	'D:\\x'
+]);
+check('an empty path searches only where VFP is', searchedDirectories({ directory: 'C:\\PF\\VFPA', path: '' }), ['C:\\PF\\VFPA']);
+
+const tree = 'W:\\Devstaging2';
+// A VFP sitting in its own install directory with nothing set on it: every class the form is built from is in the tree, and it will ask where each of them is.
+check('a VFP that looks nowhere inside the tree is not set up for it', isSetUpFor(tree, { directory: 'C:\\Program Files (x86)\\VFPA', path: '' }), false);
+// The session dev.cmd starts: its default directory is inside the tree, whatever else is on its path.
+check('one standing in the tree is', isSetUpFor(tree, { directory: 'W:\\Devstaging2\\wt\\ACCESS', path: '' }), true);
+check('and so is one that only reaches into it', isSetUpFor(tree, { directory: 'C:\\PF\\VFPA', path: 'W:\\Devstaging2\\classes\\framework' }), true);
+check('by a relative entry as much as an absolute one', isSetUpFor(tree, { directory: 'W:\\Devstaging2\\wt\\ACCESS', path: '..\\..\\classes\\framework' }), true);
+// The tree is on a Windows drive: W:\DEVSTAGING2 and W:\Devstaging2 are the same directory.
+check('case is not what tells two directories apart', isSetUpFor(tree, { directory: 'w:\\devstaging2\\WT', path: '' }), true);
+// Neither a sibling of the tree nor the drive above it finds classes\framework\CONTROLS.vcx by name.
+check('a sibling of the tree is outside it', isSetUpFor(tree, { directory: 'W:\\Devstaging3\\wt', path: '' }), false);
+check('as is the drive above it', isSetUpFor(tree, { directory: 'W:\\', path: '' }), false);
+// With no folder open there is no tree to be set up for, and nothing worth saying about a session that is the developer's own.
+check('a window with no workspace asks nothing', isSetUpFor('', { directory: 'C:\\PF\\VFPA', path: '' }), true);
 
 // --- finding the executable ---------------------------------------------------
 

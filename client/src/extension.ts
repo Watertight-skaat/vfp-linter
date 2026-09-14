@@ -3,7 +3,7 @@ import { commands, ExtensionContext, ProgressLocation, Uri, window, workspace } 
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node';
 import { classListExpression, designerFor, vfpCommandFor } from '../../server/src/vfp.js';
 import { registerDesignerView } from './designerView.js';
-import { findVfpExe, runVfp, startupCommands, type VfpResult } from './vfp.js';
+import { environmentExpression, findVfpExe, isSetUpFor, parseEnvironment, runVfp, startupCommands, type VfpResult } from './vfp.js';
 
 let client: LanguageClient;
 let started: Promise<void>;
@@ -65,6 +65,9 @@ async function openInVfp(context: ExtensionContext, target?: Uri | string): Prom
 	const designer = designerFor(file);
 	if (!designer) return void window.showWarningMessage(`Visual FoxPro has no designer for ${path.basename(file)}.`);
 
+	// Asked before anything is sent, because the answer decides whether the designer opens or stops on a dialog nothing here can reach.
+	if (!await settle(context)) return;
+
 	// A library holds many classes and the class designer opens one of them, so which one has to be settled before there is a command to send.
 	let className: string | undefined;
 	if (designer === 'class') {
@@ -124,24 +127,72 @@ async function pickClass(context: ExtensionContext, file: string): Promise<strin
 	return window.showQuickPick(result.lines, { placeHolder: `Which class in ${path.basename(file)}?` });
 }
 
-async function send(context: ExtensionContext, request: { mode: 'run' | 'classes'; payload: string }, title: string): Promise<VfpResult | null> {
-	const settings = workspace.getConfiguration('foxpro');
+/**
+ * Whether to go on: that the Visual FoxPro this will open in can find the tree's own files, settled with the developer when it cannot.
+ *
+ * A session started from the Start menu knows nothing about the workspace, and the form designer it opens stops on a modal Locate dialog for the first class the form is built from -- inside VFP, where the editor can neither see it nor cancel it, and where the call it is holding up simply never returns. Asking first costs one round trip and is the difference between a dialog the developer can answer and a designer that looks hung.
+ *
+ * A session started here is asked the same question rather than taken on trust: it was told what the settings hold, and if they hold nothing it is every bit as lost as one the developer left open.
+ */
+async function settle(context: ExtensionContext): Promise<boolean> {
+	const { root, configured } = settings();
+	const result = await send(context, { mode: 'value', payload: environmentExpression }, 'Asking Visual FoxPro where it looks');
+	if (!result) return false; // the failure has been reported already
+
+	const consequence = 'Its designer will open the file and then stop to ask where each class the file is built from lives -- one dialog at a time, inside Visual FoxPro, where this editor cannot answer them.';
+	if (isSetUpFor(root, parseEnvironment(result.lines[0] ?? ''))) {
+		// Worth saying once, because a session started here is not the developer's own: it has the workspace on its path and nothing else their environment would have given it.
+		if (result.created) window.showInformationMessage('Visual FoxPro was not running, so it was started on this workspace.');
+		return true;
+	}
+
+	// Nothing left to offer: either it has just been given everything the settings hold and is still lost, or there was never anything but a default directory to give it -- and for a tree spread over twenty folders that is no better than what it has. The setting is the fix either way.
+	if (result.created || !configured) {
+		const started = result.created ? 'Visual FoxPro was not running, so it was started on this workspace -- but it still looks nowhere inside it.' : 'Visual FoxPro is running, but it looks nowhere inside this workspace.';
+		const choice = await window.showWarningMessage(started, { modal: true, detail: `${consequence}\n\nList the folders this tree's code is in under foxpro.workspace.searchPath, or start Visual FoxPro the way your tree expects.` }, 'Open the setting', 'Open anyway');
+		if (choice === 'Open the setting') await commands.executeCommand('workbench.action.openSettings', 'foxpro.workspace.searchPath');
+		return choice === 'Open anyway';
+	}
+
+	const choice = await window.showWarningMessage('Visual FoxPro is running, but it looks nowhere inside this workspace.', { modal: true, detail: `${consequence}\n\nThe workspace folder and foxpro.workspace.searchPath can be set on it first. That lasts as long as the session does.` }, 'Set the path', 'Open anyway');
+	if (choice !== 'Set the path') return choice === 'Open anyway';
+
+	// Asked again afterwards rather than assumed: a search path that does not actually reach the code is worth hearing about here rather than from the designer.
+	const after = await send(context, { mode: 'value', payload: environmentExpression, setup: true }, 'Setting up Visual FoxPro');
+	if (!after) return false;
+	if (!isSetUpFor(root, parseEnvironment(after.lines[0] ?? ''))) window.showWarningMessage('Visual FoxPro still looks nowhere inside this workspace. Check foxpro.workspace.searchPath against where the code actually is.');
+	return true;
+}
+
+/** The workspace as Visual FoxPro has to be told about it: where the tree is, which VFP to start, and what to say to a session that does not know. */
+function settings() {
+	const configuration = workspace.getConfiguration('foxpro');
 	const root = workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-	const searchPath = (settings.get<string[]>('workspace.searchPath') ?? []).map(directory => (path.isAbsolute(directory) ? directory : path.join(root, directory)));
-	const exe = findVfpExe((settings.get<string>('vfp.path') ?? '').trim());
+	const searchPath = (configuration.get<string[]>('workspace.searchPath') ?? []).map(directory => (path.isAbsolute(directory) ? directory : path.join(root, directory)));
+	const extra = configuration.get<string[]>('vfp.startupCommands') ?? [];
+	return {
+		root,
+		exe: findVfpExe((configuration.get<string>('vfp.path') ?? '').trim()) ?? '',
+		startup: startupCommands(root, searchPath, extra),
+		/** Whether there is anything worth setting on a session that is already running. A default directory on its own is not: the tree is spread over more folders than one. */
+		configured: searchPath.length > 0 || extra.length > 0
+	};
+}
+
+async function send(context: ExtensionContext, request: { mode: 'run' | 'classes' | 'value'; payload: string; setup?: boolean }, title: string): Promise<VfpResult | null> {
+	const { root, exe, startup } = settings();
 
 	try {
 		const result = await window.withProgress({ location: ProgressLocation.Window, title }, () => runVfp({
 			...request,
-			exe: exe ?? '',
+			exe,
 			cwd: root,
-			startup: startupCommands(root, searchPath, settings.get<string[]>('vfp.startupCommands') ?? [])
+			startup
 		}, {
 			script: context.asAbsolutePath(path.join('resources', 'vfp-open.vbs')),
 			workDir: context.globalStorageUri.fsPath
 		}));
-		// Worth saying once: a session started here has the workspace on its path and nothing else, so a form that reaches further will ask where the rest of it is.
-		if (result.created) window.showInformationMessage('Visual FoxPro was not running, so it was started with the workspace on its path. Open your own environment there if a designer asks to locate a class.');
+		// Whether it had to be started is settle()'s to report: it is the one that knows whether the session that came back can see the tree.
 		return result;
 	} catch (error) {
 		window.showErrorMessage(error instanceof Error ? error.message : String(error));

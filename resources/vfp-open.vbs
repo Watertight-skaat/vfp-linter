@@ -1,6 +1,6 @@
-' Opens a file in the designer of the Visual FoxPro the developer already has open, or asks a running one what classes a library holds.
+' Opens a file in the designer of the Visual FoxPro the developer already has open, or asks a running one what classes a library holds, or what one expression comes to.
 '
-' Windows Script Host is here only because COM needs a host and this one is always installed. Every command sent to VFP is built and tested in client/src/vfp.ts and server/src/vfp.ts; this script decides nothing except which VFP to talk to.
+' Windows Script Host is here only because COM needs a host and this one is always installed. Every command sent to VFP is built and tested in client/src/vfp.ts and server/src/vfp.ts; this script decides nothing except which VFP to talk to and, on the request's say-so, whether that one is told about the workspace first. Both are covered by test/run-vfp-script-tests.ts, which runs this script with those two seams stubbed.
 '
 ' Driven by a request file rather than by arguments: the fields carry whole paths and whole VFP commands, and one field per line leaves the caller no quoting rules to get wrong.
 
@@ -15,12 +15,13 @@ Set shell = CreateObject("WScript.Shell")
 
 If WScript.Arguments.Count < 1 Then Fail "no request file was given"
 
-Dim mode, payload, exePath, cwd, startupText
+Dim mode, payload, exePath, cwd, startupText, setUpRunning
 mode = "run"
 payload = ""
 exePath = ""
 cwd = ""
 startupText = ""
+setUpRunning = False
 
 Dim stream, line, at, key, value
 Set stream = fso.OpenTextFile(WScript.Arguments(0), 1, False, -1)
@@ -35,6 +36,7 @@ Do Until stream.AtEndOfStream
 			Case "payload" : payload = value
 			Case "exe" : exePath = value
 			Case "cwd" : cwd = value
+			Case "setup" : setUpRunning = (value = "1")
 			Case "startup" : startupText = startupText & value & vbLf
 		End Select
 	End If
@@ -63,8 +65,10 @@ If vfp Is Nothing Then
 		If Not (vfp Is Nothing) Then Exit Do
 	Loop
 	If vfp Is Nothing Then Fail "Visual FoxPro was started but never answered."
+End If
 
-	' Only an instance started here is told anything about the workspace. One the developer already had open is theirs, and reaching into it to change the path would be rude and would outlast this call.
+' An instance started here knows nothing about the workspace and has to be told. One the developer already had open is theirs -- reaching into it to change the path would be rude and would outlast this call -- so it is set up only when the extension has asked them and they said to.
+If created Or setUpRunning Then
 	Dim commands, i
 	commands = Split(startupText, vbLf)
 	For i = 0 To UBound(commands)
@@ -86,6 +90,14 @@ If mode = "classes" Then
 		WScript.Echo Trim(vfp.Eval("__vfplint_classes[" & k & ",1]"))
 	Next
 	Send "RELEASE __vfplint_classes"
+ElseIf mode = "value" Then
+	' One expression, one line back: it is how the extension finds out whether this VFP can see the workspace at all, before sending a designer into one that cannot.
+	Dim answer
+	On Error Resume Next
+	answer = vfp.Eval(payload)
+	If Err.Number <> 0 Then Fail "Visual FoxPro could not answer " & payload & ": " & Err.Description
+	On Error GoTo 0
+	WScript.Echo answer
 Else
 	Send payload
 	' Forward, or the designer opens behind the editor and nothing looks like it happened.
